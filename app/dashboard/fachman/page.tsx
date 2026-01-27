@@ -23,8 +23,8 @@ type Request = {
   status: string;
   created_at: string;
   expires_at: string;
-  categories: { name: string } | null;
-  profiles: { full_name: string } | null;
+  categories: any;
+  profiles: any;
 };
 
 export default function FachmanDashboard() {
