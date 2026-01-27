@@ -1,23 +1,30 @@
 "use client";
-export const dynamic = 'force-dynamic';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function Register() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const isProvider = searchParams.get("role") === "provider";
+  const [isProvider, setIsProvider] = useState(false);
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState(isProvider ? "provider" : "customer");
+  const [role, setRole] = useState("customer");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    // Check URL params on client side only
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("role") === "provider") {
+      setIsProvider(true);
+      setRole("provider");
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +48,6 @@ export default function Register() {
       return;
     }
 
-    // Aktualizujeme roli v profilu
     if (data.user) {
       await supabase
         .from("profiles")
