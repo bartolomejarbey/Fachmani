@@ -60,7 +60,7 @@ export default function Dashboard() {
         .order("created_at", { ascending: false });
 
       if (requestsData) {
-        setRequests(requestsData as Request[]);
+        setRequests(requestsData as any);
       }
 
       setLoading(false);
