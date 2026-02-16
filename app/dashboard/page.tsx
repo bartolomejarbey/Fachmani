@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import NotificationBell from "@/app/components/NotificationBell";
 
 type Profile = {
   id: string;
@@ -91,17 +92,18 @@ export default function Dashboard() {
             Fachmani
           </Link>
           <div className="flex items-center space-x-4">
-  <span className="text-gray-600">Ahoj, {profile?.full_name}</span>
-  <Link href="/zpravy" className="text-gray-600 hover:text-gray-900">
-    Zprávy
-  </Link>
-  <button
-    onClick={handleLogout}
-    className="text-gray-600 hover:text-gray-900"
-  >
-    Odhlásit se
-  </button>
-</div>
+            <span className="text-gray-600">Ahoj, {profile?.full_name}</span>
+            <NotificationBell />
+            <Link href="/zpravy" className="text-gray-600 hover:text-gray-900">
+              Zprávy
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              Odhlásit se
+            </button>
+          </div>
         </div>
       </nav>
 

@@ -38,6 +38,19 @@ export default function ChatPage() {
   const requestId = params.requestId as string;
   const otherUserId = params.userId as string;
 
+  async function loadMessages(userId: string) {
+    const { data } = await supabase
+      .from("messages")
+      .select("id, content, sender_id, created_at")
+      .eq("request_id", requestId)
+      .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`)
+      .order("created_at", { ascending: true });
+
+    if (data) {
+      setMessages(data);
+    }
+  }
+
   useEffect(() => {
     async function loadData() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -88,19 +101,6 @@ export default function ChatPage() {
     loadData();
   }, [requestId, otherUserId, router]);
 
-  async function loadMessages(userId: string) {
-    const { data } = await supabase
-      .from("messages")
-      .select("id, content, sender_id, created_at")
-      .eq("request_id", requestId)
-      .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`)
-      .order("created_at", { ascending: true });
-
-    if (data) {
-      setMessages(data);
-    }
-  }
-
   useEffect(() => {
     // Real-time subscription pro nové zprávy
     const channel = supabase
@@ -150,8 +150,16 @@ export default function ChatPage() {
     });
 
     if (!error) {
+      // Notifikace pro příjemce
+      await supabase.from("notifications").insert({
+        user_id: otherUserId,
+        type: "new_message",
+        title: "Nová zpráva",
+        message: `Máte novou zprávu: "${newMessage.trim().substring(0, 50)}${newMessage.trim().length > 50 ? "..." : ""}"`,
+        link: `/zpravy/${requestId}/${currentUser}`,
+      });
+
       setNewMessage("");
-      // Znovu načteme zprávy
       await loadMessages(currentUser);
     }
 
