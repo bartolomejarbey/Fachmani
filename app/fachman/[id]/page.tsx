@@ -374,7 +374,7 @@ export default function FachmanDetailPage() {
                 </Link>
 
                 {fachman.phone && (
-                  
+                  <a                  
                     href={`tel:${fachman.phone}`}
                     className="block w-full text-center border-2 border-gray-200 text-gray-700 py-3 rounded-xl font-medium hover:border-cyan-500 hover:text-cyan-600 transition-all mb-3"
                   >
