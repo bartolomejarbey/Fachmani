@@ -1,18 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import dynamic from "next/dynamic";
 import "./globals.css";
+import CookieBanner from "./components/CookieBanner";
 
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
   display: "swap",
   variable: "--font-inter",
 });
-
-const CookieBanner = dynamic(
-  () => import("./components/CookieBanner"),
-  { ssr: false }
-);
 
 export const viewport: Viewport = {
   width: "device-width",
