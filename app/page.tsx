@@ -2,17 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-
-const recentRequests = [
-  { id: 1, title: "Rekonstrukce koupelny", location: "Praha 5", budget: "45 000 Kč", time: "před 3 min", category: "🔧", offers: 2 },
-  { id: 2, title: "Tvorba webových stránek", location: "Brno", budget: "35 000 Kč", time: "před 8 min", category: "💻", offers: 4 },
-  { id: 3, title: "Malování bytu 2+1", location: "Ostrava", budget: "12 000 Kč", time: "před 15 min", category: "🎨", offers: 3 },
-  { id: 4, title: "Hlídání dětí o víkendu", location: "Praha 3", budget: "2 500 Kč", time: "před 24 min", category: "👶", offers: 5 },
-  { id: 5, title: "SEO optimalizace e-shopu", location: "Online", budget: "15 000 Kč", time: "před 31 min", category: "📈", offers: 2 },
-  { id: 6, title: "Montáž klimatizace", location: "Hradec Králové", budget: "35 000 Kč", time: "před 45 min", category: "❄️", offers: 3 },
-];
 
 const avatarEmojis = ["👨‍🔧", "👩‍🔧", "👨‍🎨", "👷", "👩‍💻", "👨‍🏫"];
 
@@ -35,16 +27,118 @@ const categories = [
   { icon: "🚗", name: "Autoservis", slug: "autoservis", count: 33 },
 ];
 
+type Request = {
+  id: string;
+  title: string;
+  location: string;
+  budget_max: number | null;
+  created_at: string;
+  category_icon?: string;
+  offers_count?: number;
+};
+
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [stats, setStats] = useState({
+    providers: 0,
+    requests: 0,
+    completed: 0,
+  });
+  const [recentRequests, setRecentRequests] = useState<Request[]>([]);
 
   useEffect(() => {
     setMounted(true);
+    loadStats();
+    loadRecentRequests();
   }, []);
 
-  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % recentRequests.length);
-  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + recentRequests.length) % recentRequests.length);
+  const loadStats = async () => {
+    // Počet reálných fachmanů
+    const { count: realProviders } = await supabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .eq("role", "provider");
+
+    // Počet fiktivních fachmanů
+    const { count: seedProviders } = await supabase
+      .from("seed_providers")
+      .select("*", { count: "exact", head: true });
+
+    // Počet aktivních poptávek
+    const { count: activeRequests } = await supabase
+      .from("requests")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "active");
+
+    // Počet dokončených poptávek
+    const { count: completedRequests } = await supabase
+      .from("requests")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "completed");
+
+    setStats({
+      providers: (realProviders || 0) + (seedProviders || 0),
+      requests: activeRequests || 0,
+      completed: completedRequests || 0,
+    });
+  };
+
+  const loadRecentRequests = async () => {
+    const { data } = await supabase
+      .from("requests")
+      .select(`
+        id,
+        title,
+        location,
+        budget_max,
+        created_at,
+        categories:category_id (icon)
+      `)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(6);
+
+    if (data) {
+      // Načteme počty nabídek
+      const requestIds = data.map(r => r.id);
+      const { data: offersData } = await supabase
+        .from("offers")
+        .select("request_id")
+        .in("request_id", requestIds);
+
+      const offersCounts: Record<string, number> = {};
+      offersData?.forEach(o => {
+        offersCounts[o.request_id] = (offersCounts[o.request_id] || 0) + 1;
+      });
+
+      setRecentRequests(data.map(r => ({
+        ...r,
+        category_icon: (r.categories as any)?.icon || "📋",
+        offers_count: offersCounts[r.id] || 0,
+      })));
+    }
+  };
+
+  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % Math.max(recentRequests.length, 1));
+  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + Math.max(recentRequests.length, 1)) % Math.max(recentRequests.length, 1));
+
+  const timeAgo = (date: string) => {
+    const now = new Date();
+    const past = new Date(date);
+    const diffMs = now.getTime() - past.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 60) return `před ${diffMins} min`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `před ${diffHours}h`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `před ${diffDays}d`;
+  };
+
+  const formatBudget = (budget: number | null) => {
+    if (!budget) return "Dle nabídek";
+    return `${budget.toLocaleString()} Kč`;
+  };
 
   return (
     <div className="min-h-screen bg-white" style={{ overflowX: "hidden", width: "100%" }}>
@@ -56,17 +150,17 @@ export default function Home() {
           <div className="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-center">
             
             {/* LEFT - Text */}
-            <div className="text-center lg:text-left mb-10 lg:mb-0">
+            <div className="text-center lg:text-left mb-8 lg:mb-0">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 bg-white shadow-md px-3 py-1.5 rounded-full mb-4">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="text-xs text-gray-600">
-                  <strong className="text-emerald-600">23</strong> aktivních poptávek
+              <div className="inline-flex items-center gap-2 bg-white shadow-md px-4 py-2 rounded-full mb-6">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-sm text-gray-600">
+                  <strong className="text-emerald-600">{stats.requests}</strong> aktivních poptávek
                 </span>
               </div>
 
-              {/* Title */}
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-4" style={{ lineHeight: "1.2" }}>
+              {/* Title - STEJNÝ NA MOBILU I PC */}
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6" style={{ lineHeight: "1.1" }}>
                 Najděte{" "}
                 <span className="bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
                   profesionála
@@ -75,141 +169,151 @@ export default function Home() {
                 <span className="text-gray-400">na cokoliv</span>
               </h1>
 
-              {/* Desc */}
-              <p className="text-sm sm:text-base lg:text-lg text-gray-600 mb-6 max-w-md mx-auto lg:mx-0">
-                Od řemeslníků po marketing, IT až po hlídání dětí. Získejte nabídky do 24 hodin.
+              {/* Desc - STEJNÝ NA MOBILU I PC */}
+              <p className="text-lg sm:text-xl text-gray-600 mb-8 max-w-lg mx-auto lg:mx-0">
+                Od řemeslníků po marketing, IT až po hlídání dětí. Získejte nabídky od ověřených profesionálů do 24 hodin.
               </p>
 
               {/* CTA */}
-              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-6">
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
                 <Link
                   href="/nova-poptavka"
-                  className="block sm:inline-block bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 rounded-xl text-sm font-semibold text-center shadow-lg"
+                  className="block sm:inline-block bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-8 py-4 rounded-xl text-base font-semibold text-center shadow-lg hover:shadow-xl transition-shadow"
                 >
                   Zadat poptávku zdarma
                 </Link>
                 <Link
                   href="/jak-to-funguje"
-                  className="block sm:inline-block bg-white border-2 border-gray-200 text-gray-700 px-6 py-3 rounded-xl text-sm font-semibold text-center"
+                  className="block sm:inline-block bg-white border-2 border-gray-200 text-gray-700 px-8 py-4 rounded-xl text-base font-semibold text-center hover:border-gray-300 transition-colors"
                 >
                   Jak to funguje
                 </Link>
               </div>
 
               {/* Tags */}
-              <div className="flex flex-wrap gap-2 justify-center lg:justify-start mb-6">
-                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-1 rounded-full text-xs">
-                  ✓ Ověření
+              <div className="flex flex-wrap gap-3 justify-center lg:justify-start mb-8">
+                <span className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium">
+                  ✓ Ověření přes BankID
                 </span>
-                <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 px-2 py-1 rounded-full text-xs">
-                  ⚡ Do 24h
+                <span className="inline-flex items-center gap-2 bg-cyan-50 text-cyan-700 px-4 py-2 rounded-full text-sm font-medium">
+                  ⚡ Nabídky do 24h
                 </span>
-                <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded-full text-xs">
-                  🛡️ Zdarma
+                <span className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm font-medium">
+                  🛡️ 100% zdarma
                 </span>
               </div>
 
               {/* Trust */}
-              <div className="flex items-center justify-center lg:justify-start gap-4">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center lg:justify-start gap-6">
+                <div className="flex items-center gap-3">
                   <div className="flex -space-x-2">
                     {avatarEmojis.slice(0, 4).map((emoji, i) => (
-                      <div key={i} className="w-6 h-6 lg:w-8 lg:h-8 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white flex items-center justify-center text-xs lg:text-sm">
+                      <div key={i} className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white flex items-center justify-center text-lg">
                         {emoji}
                       </div>
                     ))}
                   </div>
-                  <span className="text-xs lg:text-sm text-gray-600">
-                    <strong>580+</strong> profesionálů
+                  <span className="text-sm text-gray-600">
+                    <strong className="text-gray-900">{stats.providers}+</strong> profesionálů
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-yellow-400">★</span>
-                  <span className="text-xs lg:text-sm text-gray-600">
-                    <strong>4.8</strong>/5
+                  <span className="text-yellow-400 text-xl">★</span>
+                  <span className="text-sm text-gray-600">
+                    <strong className="text-gray-900">4.8</strong>/5
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* RIGHT - Carousel (desktop only) */}
-            <div className="hidden lg:block">
-              <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                {/* Header */}
-                <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
-                      <span className="text-white font-semibold">Nové poptávky</span>
+            {/* RIGHT - Slider s poptávkami */}
+            <div>
+              {recentRequests.length > 0 ? (
+                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+                  {/* Header */}
+                  <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-4 sm:px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+                        <span className="text-white font-semibold">Nové poptávky</span>
+                      </div>
+                      <span className="text-white/80 text-sm">{currentSlide + 1} / {recentRequests.length}</span>
                     </div>
-                    <span className="text-white/80 text-sm">{currentSlide + 1} / {recentRequests.length}</span>
                   </div>
-                </div>
 
-                {/* Content */}
-                <div className="p-6">
-                  <div className="overflow-hidden">
-                    <div 
-                      className="flex transition-transform duration-300"
-                      style={{ transform: `translateX(-${currentSlide * 100}%)` }}
-                    >
-                      {recentRequests.map((req) => (
-                        <div key={req.id} className="w-full flex-shrink-0">
-                          <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                              <span className="text-3xl">{req.category}</span>
-                              <span className="text-sm text-gray-400">{req.time}</span>
-                            </div>
-                            <h3 className="text-xl font-bold text-gray-900">{req.title}</h3>
-                            <div className="flex flex-wrap gap-2">
-                              <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg">
-                                📍 {req.location}
-                              </span>
-                              <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg">
-                                💰 {req.budget}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 pt-2">
-                              <div className="flex -space-x-1.5">
-                                {Array(Math.min(req.offers, 3)).fill(0).map((_, j) => (
-                                  <div key={j} className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white text-sm flex items-center justify-center">
-                                    {avatarEmojis[j]}
-                                  </div>
-                                ))}
+                  {/* Content */}
+                  <div className="p-4 sm:p-6">
+                    <div className="overflow-hidden">
+                      <div 
+                        className="flex transition-transform duration-300"
+                        style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+                      >
+                        {recentRequests.map((req) => (
+                          <div key={req.id} className="w-full flex-shrink-0">
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                <span className="text-3xl">{req.category_icon}</span>
+                                <span className="text-sm text-gray-400">{timeAgo(req.created_at)}</span>
                               </div>
-                              <span className="text-sm text-gray-500">
-                                {req.offers} {req.offers === 1 ? 'nabídka' : req.offers < 5 ? 'nabídky' : 'nabídek'}
-                              </span>
+                              <h3 className="text-lg sm:text-xl font-bold text-gray-900">{req.title}</h3>
+                              <div className="flex flex-wrap gap-2">
+                                <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg">
+                                  📍 {req.location}
+                                </span>
+                                <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg">
+                                  💰 {formatBudget(req.budget_max)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 pt-2">
+                                <div className="flex -space-x-1.5">
+                                  {Array(Math.min(req.offers_count || 0, 3)).fill(0).map((_, j) => (
+                                    <div key={j} className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white text-sm flex items-center justify-center">
+                                      {avatarEmojis[j]}
+                                    </div>
+                                  ))}
+                                </div>
+                                <span className="text-sm text-gray-500">
+                                  {req.offers_count || 0} {(req.offers_count || 0) === 1 ? 'nabídka' : (req.offers_count || 0) < 5 ? 'nabídky' : 'nabídek'}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Navigation */}
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
-                    <button onClick={prevSlide} className="w-10 h-10 rounded-full bg-gray-100 hover:bg-cyan-100 text-gray-600 hover:text-cyan-600 flex items-center justify-center transition-colors">
-                      ←
-                    </button>
-                    <div className="flex gap-2">
-                      {recentRequests.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setCurrentSlide(i)}
-                          className={`h-2 rounded-full transition-all ${i === currentSlide ? 'bg-cyan-500 w-6' : 'bg-gray-200 w-2'}`}
-                        />
-                      ))}
+                    {/* Navigation */}
+                    <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
+                      <button onClick={prevSlide} className="w-10 h-10 rounded-full bg-gray-100 hover:bg-cyan-100 text-gray-600 hover:text-cyan-600 flex items-center justify-center transition-colors">
+                        ←
+                      </button>
+                      <div className="flex gap-2">
+                        {recentRequests.map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setCurrentSlide(i)}
+                            className={`h-2 rounded-full transition-all ${i === currentSlide ? 'bg-cyan-500 w-6' : 'bg-gray-200 w-2'}`}
+                          />
+                        ))}
+                      </div>
+                      <button onClick={nextSlide} className="w-10 h-10 rounded-full bg-gray-100 hover:bg-cyan-100 text-gray-600 hover:text-cyan-600 flex items-center justify-center transition-colors">
+                        →
+                      </button>
                     </div>
-                    <button onClick={nextSlide} className="w-10 h-10 rounded-full bg-gray-100 hover:bg-cyan-100 text-gray-600 hover:text-cyan-600 flex items-center justify-center transition-colors">
-                      →
-                    </button>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
+                  <div className="text-4xl mb-4">📋</div>
+                  <p className="text-gray-600">Zatím žádné aktivní poptávky</p>
+                  <Link href="/nova-poptavka" className="text-cyan-600 font-semibold mt-2 inline-block">
+                    Zadejte první →
+                  </Link>
+                </div>
+              )}
 
-              {/* Features under card */}
-              <div className="grid grid-cols-2 gap-4 mt-6">
+              {/* Features under card - only on desktop */}
+              <div className="hidden lg:grid grid-cols-2 gap-4 mt-6">
                 <div className="bg-white rounded-xl shadow-md p-4 border border-gray-100 flex items-center gap-3">
                   <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-lg">✓</div>
                   <div>
@@ -231,18 +335,18 @@ export default function Home() {
       </section>
 
       {/* ==================== STATS ==================== */}
-      <section className="py-6 lg:py-8 bg-gray-50 border-y border-gray-100">
+      <section className="py-8 lg:py-10 bg-gray-50 border-y border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-8">
             {[
-              { value: "580+", label: "Profesionálů" },
-              { value: "23", label: "Aktivních poptávek" },
-              { value: "1 250+", label: "Dokončených zakázek" },
+              { value: `${stats.providers}+`, label: "Profesionálů" },
+              { value: stats.requests.toString(), label: "Aktivních poptávek" },
+              { value: `${stats.completed}+`, label: "Dokončených zakázek" },
               { value: "4.8/5", label: "Průměrné hodnocení" },
             ].map((stat, i) => (
               <div key={i} className="text-center">
-                <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stat.value}</div>
-                <div className="text-xs sm:text-sm text-gray-500">{stat.label}</div>
+                <div className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">{stat.value}</div>
+                <div className="text-sm text-gray-500 mt-1">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -250,43 +354,43 @@ export default function Home() {
       </section>
 
       {/* ==================== JAK TO FUNGUJE ==================== */}
-      <section className="py-12 lg:py-20">
+      <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10 lg:mb-16">
-            <span className="inline-block bg-cyan-100 text-cyan-700 px-3 py-1 rounded-full text-xs font-semibold mb-3">
+          <div className="text-center mb-12 lg:mb-16">
+            <span className="inline-block bg-cyan-100 text-cyan-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
               JEDNODUCHÝ PROCES
             </span>
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3">
               Jak to funguje?
             </h2>
-            <p className="text-sm sm:text-base text-gray-600">
+            <p className="text-base sm:text-lg text-gray-600">
               Tři jednoduché kroky k nalezení profesionála
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-4 lg:gap-8 max-w-4xl mx-auto">
+          <div className="grid sm:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto">
             {[
-              { step: "01", icon: "🔍", title: "Zadejte poptávku", desc: "Popište co potřebujete a zadejte lokalitu", color: "bg-cyan-100" },
-              { step: "02", icon: "📋", title: "Porovnejte nabídky", desc: "Profesionálové vám pošlou své nabídky", color: "bg-blue-100" },
-              { step: "03", icon: "✓", title: "Vyberte a realizujte", desc: "Vyberte nejlepší nabídku a sledujte práci", color: "bg-emerald-100" },
+              { step: "01", icon: "🔍", title: "Zadejte poptávku", desc: "Popište co potřebujete a zadejte lokalitu. Zabere to 2 minuty.", color: "bg-cyan-100" },
+              { step: "02", icon: "📋", title: "Porovnejte nabídky", desc: "Profesionálové vám pošlou své nabídky s cenami a termíny.", color: "bg-blue-100" },
+              { step: "03", icon: "✓", title: "Vyberte a realizujte", desc: "Vyberte nejlepší nabídku a sledujte průběh práce.", color: "bg-emerald-100" },
             ].map((item, i) => (
-              <div key={i} className="relative bg-white rounded-xl p-5 lg:p-6 border border-gray-100 shadow-sm">
-                <span className="absolute -top-2 -left-2 w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-xs font-bold text-gray-400">
+              <div key={i} className="relative bg-white rounded-2xl p-6 lg:p-8 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                <span className="absolute -top-3 -left-3 w-10 h-10 bg-gray-900 text-white rounded-xl flex items-center justify-center text-sm font-bold">
                   {item.step}
                 </span>
-                <div className={`w-12 h-12 lg:w-14 lg:h-14 ${item.color} rounded-xl flex items-center justify-center mb-4 text-xl lg:text-2xl`}>
+                <div className={`w-14 h-14 lg:w-16 lg:h-16 ${item.color} rounded-2xl flex items-center justify-center mb-5 text-2xl lg:text-3xl`}>
                   {item.icon}
                 </div>
-                <h3 className="text-base lg:text-lg font-bold text-gray-900 mb-2">{item.title}</h3>
-                <p className="text-sm text-gray-600">{item.desc}</p>
+                <h3 className="text-lg lg:text-xl font-bold text-gray-900 mb-2">{item.title}</h3>
+                <p className="text-sm lg:text-base text-gray-600">{item.desc}</p>
               </div>
             ))}
           </div>
 
-          <div className="text-center mt-8 lg:mt-12">
+          <div className="text-center mt-12">
             <Link
               href="/nova-poptavka"
-              className="inline-block bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 lg:px-8 py-3 lg:py-4 rounded-xl text-sm lg:text-base font-semibold shadow-lg"
+              className="inline-block bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-8 py-4 rounded-xl text-base font-semibold shadow-lg hover:shadow-xl transition-shadow"
             >
               Vyzkoušet zdarma →
             </Link>
@@ -295,32 +399,32 @@ export default function Home() {
       </section>
 
       {/* ==================== KATEGORIE ==================== */}
-      <section className="py-12 lg:py-20 bg-gray-50">
+      <section className="py-16 lg:py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between mb-8 lg:mb-12">
+          <div className="flex items-end justify-between mb-10 lg:mb-12">
             <div>
-              <span className="inline-block bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold mb-3">
+              <span className="inline-block bg-emerald-100 text-emerald-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
                 KATEGORIE
               </span>
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
                 Co potřebujete?
               </h2>
             </div>
-            <Link href="/kategorie" className="text-cyan-600 font-semibold text-sm hover:text-cyan-700">
+            <Link href="/kategorie" className="text-cyan-600 font-semibold hover:text-cyan-700">
               Zobrazit vše →
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-5">
             {categories.map((cat, i) => (
               <Link
                 key={i}
                 href={`/kategorie/${cat.slug}`}
-                className="bg-white rounded-xl p-4 lg:p-5 border border-gray-100 hover:border-cyan-200 hover:shadow-md transition-all"
+                className="bg-white rounded-xl p-5 lg:p-6 border border-gray-100 hover:border-cyan-200 hover:shadow-lg transition-all group"
               >
-                <div className="text-2xl lg:text-3xl mb-2">{cat.icon}</div>
-                <h3 className="font-semibold text-gray-900 text-sm lg:text-base">{cat.name}</h3>
-                <p className="text-xs lg:text-sm text-gray-500">{cat.count} profesionálů</p>
+                <div className="text-3xl lg:text-4xl mb-3 group-hover:scale-110 transition-transform">{cat.icon}</div>
+                <h3 className="font-semibold text-gray-900 text-base lg:text-lg">{cat.name}</h3>
+                <p className="text-sm text-gray-500">{cat.count} profesionálů</p>
               </Link>
             ))}
           </div>
@@ -328,30 +432,30 @@ export default function Home() {
       </section>
 
       {/* ==================== PROČ MY ==================== */}
-      <section className="py-12 lg:py-20">
+      <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10 lg:mb-16">
-            <span className="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold mb-3">
+          <div className="text-center mb-12 lg:mb-16">
+            <span className="inline-block bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
               PROČ FACHMANI
             </span>
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3">
               Proč si vybrat nás?
             </h2>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8 max-w-4xl mx-auto">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 max-w-5xl mx-auto">
             {[
               { icon: "🛡️", title: "Ověření profesionálové", desc: "Každý prochází ověřením přes BankID" },
               { icon: "⭐", title: "Reálné recenze", desc: "Hodnocení od skutečných zákazníků" },
               { icon: "⚡", title: "Rychlé nabídky", desc: "Průměrně 3 nabídky do 24 hodin" },
               { icon: "💬", title: "Bezpečný chat", desc: "Komunikace přímo v aplikaci" },
             ].map((item, i) => (
-              <div key={i} className="text-center p-4">
-                <div className="w-12 h-12 lg:w-14 lg:h-14 mx-auto mb-3 bg-gray-100 rounded-xl flex items-center justify-center text-xl lg:text-2xl">
+              <div key={i} className="text-center p-4 lg:p-6">
+                <div className="w-14 h-14 lg:w-16 lg:h-16 mx-auto mb-4 bg-gray-100 rounded-2xl flex items-center justify-center text-2xl lg:text-3xl">
                   {item.icon}
                 </div>
-                <h3 className="text-sm lg:text-base font-semibold text-gray-900 mb-1">{item.title}</h3>
-                <p className="text-xs lg:text-sm text-gray-600">{item.desc}</p>
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
+                <p className="text-sm text-gray-600">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -359,48 +463,48 @@ export default function Home() {
       </section>
 
       {/* ==================== PRO PROFESIONÁLY ==================== */}
-      <section className="py-12 lg:py-20 bg-gray-900">
+      <section className="py-16 lg:py-24 bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="lg:grid lg:grid-cols-2 lg:gap-16 lg:items-center">
-            <div className="text-center lg:text-left mb-8 lg:mb-0">
-              <span className="inline-block bg-white/10 text-cyan-300 px-3 py-1 rounded-full text-xs font-semibold mb-4">
+            <div className="text-center lg:text-left mb-10 lg:mb-0">
+              <span className="inline-block bg-white/10 text-cyan-300 px-4 py-1.5 rounded-full text-sm font-semibold mb-6">
                 PRO PROFESIONÁLY
               </span>
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-4">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4">
                 Jste profesionál?
                 <br />
                 <span className="text-cyan-400">Získejte nové zakázky</span>
               </h2>
-              <p className="text-sm lg:text-base text-gray-300 mb-6 max-w-md mx-auto lg:mx-0">
-                Připojte se k síti profesionálů a nechte zákazníky, ať najdou právě vás.
+              <p className="text-base lg:text-lg text-gray-300 mb-8 max-w-lg mx-auto lg:mx-0">
+                Připojte se k síti profesionálů a nechte zákazníky, ať najdou právě vás. Registrace je zdarma.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                 <Link
                   href="/auth/register?role=provider"
-                  className="block sm:inline-block bg-white text-gray-900 px-6 py-3 rounded-xl text-sm font-semibold text-center"
+                  className="block sm:inline-block bg-white text-gray-900 px-8 py-4 rounded-xl text-base font-semibold text-center hover:bg-gray-100 transition-colors"
                 >
                   Registrovat se zdarma
                 </Link>
                 <Link
                   href="/cenik"
-                  className="block sm:inline-block border border-white/30 text-white px-6 py-3 rounded-xl text-sm font-semibold text-center"
+                  className="block sm:inline-block border-2 border-white/30 text-white px-8 py-4 rounded-xl text-base font-semibold text-center hover:bg-white/10 transition-colors"
                 >
                   Zobrazit ceník
                 </Link>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 lg:gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:gap-5">
               {[
                 { value: "0 Kč", label: "Registrace zdarma" },
                 { value: "3×", label: "Nabídky měsíčně zdarma" },
                 { value: "24h", label: "Průměrná odezva" },
                 { value: "98%", label: "Spokojených klientů" },
               ].map((stat, i) => (
-                <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-4 lg:p-6 text-center">
-                  <div className="text-lg sm:text-xl lg:text-2xl font-bold text-white">{stat.value}</div>
-                  <div className="text-xs lg:text-sm text-gray-400">{stat.label}</div>
+                <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 lg:p-6 text-center">
+                  <div className="text-2xl sm:text-3xl font-bold text-white">{stat.value}</div>
+                  <div className="text-sm text-gray-400 mt-1">{stat.label}</div>
                 </div>
               ))}
             </div>
@@ -409,23 +513,23 @@ export default function Home() {
       </section>
 
       {/* ==================== FINAL CTA ==================== */}
-      <section className="py-12 lg:py-20">
+      <section className="py-16 lg:py-24">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-4">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
             Připraveni začít?
           </h2>
-          <p className="text-sm sm:text-base lg:text-lg text-gray-600 mb-8">
+          <p className="text-base sm:text-lg text-gray-600 mb-10">
             Zadejte svou první poptávku a během 24 hodin získejte nabídky od ověřených profesionálů.
           </p>
           
           <Link
             href="/nova-poptavka"
-            className="inline-block bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-8 lg:px-10 py-4 lg:py-5 rounded-xl text-base lg:text-lg font-semibold shadow-lg"
+            className="inline-block bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-10 py-5 rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transition-shadow"
           >
             Zadat poptávku zdarma →
           </Link>
           
-          <p className="text-gray-500 mt-4 text-xs lg:text-sm">
+          <p className="text-gray-500 mt-6 text-sm">
             100% zdarma pro zákazníky • Žádné skryté poplatky
           </p>
         </div>
