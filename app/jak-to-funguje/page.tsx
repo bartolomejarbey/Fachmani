@@ -1,273 +1,397 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 
 export default function JakToFunguje() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [userType, setUserType] = useState<"customer" | "provider">("customer");
 
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
 
       {/* Hero */}
-      <section className="relative pt-32 pb-20 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-blue-50"></div>
-        <div className="absolute top-20 right-10 w-72 h-72 bg-emerald-200/30 rounded-full blur-3xl animate-float"></div>
-        <div className="absolute bottom-10 left-10 w-96 h-96 bg-blue-200/30 rounded-full blur-3xl animate-float animation-delay-200"></div>
+      <section className="relative pt-32 pb-16 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-white to-blue-50"></div>
+        <div className="absolute top-20 right-0 w-96 h-96 bg-cyan-100/50 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-100/50 rounded-full blur-3xl"></div>
         
-        <div className="max-w-7xl mx-auto px-4 relative z-10">
-          <div className={`text-center ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <span className="inline-block px-4 py-1 bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-full mb-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center">
+            <span className="inline-flex items-center gap-2 bg-cyan-100 text-cyan-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-6">
               PRŮVODCE
             </span>
-            <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 mb-6">
+            <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
               Jak Fachmani funguje?
             </h1>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Propojujeme lidi, kteří potřebují služby, s ověřenými fachmany z jejich okolí. Jednoduše, rychle a bezpečně.
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-10">
+              Propojujeme lidi, kteří potřebují služby, s ověřenými profesionály. Jednoduše, rychle a bezpečně.
             </p>
+
+            {/* 20/80 Switch */}
+            <div className="inline-flex items-center p-1.5 bg-gray-100 rounded-2xl">
+              <button
+                onClick={() => setUserType("customer")}
+                className={`px-6 sm:px-10 py-3 sm:py-4 rounded-xl font-semibold transition-all text-base sm:text-lg ${
+                  userType === "customer"
+                    ? "bg-white text-gray-900 shadow-md"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                🔍 Hledám službu
+              </button>
+              <button
+                onClick={() => setUserType("provider")}
+                className={`px-6 sm:px-10 py-3 sm:py-4 rounded-xl font-semibold transition-all text-base sm:text-lg ${
+                  userType === "provider"
+                    ? "bg-white text-gray-900 shadow-md"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                🔧 Jsem fachman
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Pro zákazníky */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className={`text-center mb-16 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <span className="inline-block px-4 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full mb-4">
-              PRO ZÁKAZNÍKY
-            </span>
-            <h2 className="text-3xl lg:text-5xl font-bold text-gray-900 mb-4">
-              Potřebujete službu?
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Tři jednoduché kroky k nalezení perfektního fachmana
-            </p>
-          </div>
+      {/* ==================== PRO ZÁKAZNÍKY ==================== */}
+      {userType === "customer" && (
+        <>
+          {/* Steps */}
+          <section className="py-16 lg:py-24">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12 lg:mb-16">
+                <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
+                  3 jednoduché kroky
+                </h2>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                  Od poptávky k hotové práci za pár kliknutí
+                </p>
+              </div>
 
-          <div className="grid lg:grid-cols-3 gap-8">
-            {[
-              {
-                step: "01",
-                icon: Icons.search,
-                title: "Zadejte poptávku",
-                description: "Popište co potřebujete, kde a kdy. Přidejte fotky a nastavte rozpočet. Zabere to max 2 minuty.",
-                color: "blue"
-              },
-              {
-                step: "02",
-                icon: Icons.users,
-                title: "Dostanete nabídky",
-                description: "Ověření fachmani z vašeho okolí vám pošlou nabídky s cenou a termínem. Poptávka je otevřená 14 dní.",
-                color: "emerald"
-              },
-              {
-                step: "03",
-                icon: Icons.check,
-                title: "Vyberte si a domluvte se",
-                description: "Porovnejte nabídky, prohlédněte si profily a recenze. Vyberte fachmana a domluvte detaily přes chat.",
-                color: "purple"
-              }
-            ].map((item, i) => (
-              <div 
-                key={i} 
-                className={`group relative ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                {i < 2 && (
-                  <div className="hidden lg:block absolute top-20 left-[60%] w-[80%] border-t-2 border-dashed border-gray-200"></div>
-                )}
-                
-                <div className="relative bg-white rounded-3xl p-8 shadow-sm border border-gray-100 hover:shadow-2xl hover:border-transparent transition-all duration-300 hover:-translate-y-2">
-                  <span className="absolute -top-4 -left-4 text-7xl font-bold text-gray-100 group-hover:text-blue-100 transition-colors">
-                    {item.step}
-                  </span>
-                  
-                  <div className={`relative w-20 h-20 rounded-2xl flex items-center justify-center mb-6 ${
-                    item.color === "blue" ? "bg-blue-100 text-blue-600" :
-                    item.color === "emerald" ? "bg-emerald-100 text-emerald-600" :
-                    "bg-purple-100 text-purple-600"
-                  } group-hover:scale-110 transition-transform`}>
-                    {item.icon}
+              <div className="grid lg:grid-cols-3 gap-8">
+                {[
+                  {
+                    step: "01",
+                    icon: "📝",
+                    title: "Zadejte poptávku",
+                    description: "Popište co potřebujete, kde a kdy. Přidejte fotky a nastavte rozpočet.",
+                    details: ["Zabere to max 2 minuty", "Můžete přidat fotky", "Nastavíte si rozpočet"],
+                    color: "cyan"
+                  },
+                  {
+                    step: "02",
+                    icon: "📨",
+                    title: "Dostanete nabídky",
+                    description: "Ověření fachmani z vašeho okolí vám pošlou nabídky s cenou a termínem.",
+                    details: ["Průměrně 3 nabídky", "Do 24 hodin", "Vidíte hodnocení fachmanů"],
+                    color: "blue"
+                  },
+                  {
+                    step: "03",
+                    icon: "🤝",
+                    title: "Vyberte a domluvte se",
+                    description: "Porovnejte nabídky, prohlédněte si profily a domluvte detaily přes chat.",
+                    details: ["Porovnáte ceny", "Přečtete si recenze", "Komunikujete přímo"],
+                    color: "emerald"
+                  }
+                ].map((item, i) => (
+                  <div key={i} className="relative group">
+                    {i < 2 && (
+                      <div className="hidden lg:block absolute top-16 left-[60%] w-[80%] border-t-2 border-dashed border-gray-200"></div>
+                    )}
+                    
+                    <div className="relative bg-white rounded-3xl p-8 border border-gray-100 shadow-sm hover:shadow-xl hover:border-cyan-200 transition-all duration-300 h-full">
+                      <span className="absolute -top-4 -left-4 w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-sm font-bold text-gray-400 group-hover:bg-cyan-500 group-hover:text-white transition-colors">
+                        {item.step}
+                      </span>
+                      
+                      <div className="text-5xl mb-6">{item.icon}</div>
+                      
+                      <h3 className="text-xl font-bold text-gray-900 mb-3">{item.title}</h3>
+                      <p className="text-gray-600 mb-6">{item.description}</p>
+                      
+                      <ul className="space-y-2">
+                        {item.details.map((detail, j) => (
+                          <li key={j} className="flex items-center gap-2 text-sm text-gray-500">
+                            <span className={`${
+                              item.color === "cyan" ? "text-cyan-500" :
+                              item.color === "blue" ? "text-blue-500" :
+                              "text-emerald-500"
+                            }`}>{Icons.check}</span>
+                            {detail}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                  
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">{item.title}</h3>
-                  <p className="text-gray-600 leading-relaxed">{item.description}</p>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          <div className="text-center mt-12">
-            <Link
-              href="/nova-poptavka"
-              className="inline-flex items-center gap-2 gradient-bg text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:shadow-xl hover:scale-105 transition-all"
-            >
-              Zadat poptávku zdarma
-              {Icons.arrowRight}
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Pro fachmany */}
-      <section className="py-24 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className={`text-center mb-16 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <span className="inline-block px-4 py-1 bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-full mb-4">
-              PRO FACHMANY
-            </span>
-            <h2 className="text-3xl lg:text-5xl font-bold text-gray-900 mb-4">
-              Jste profesionál?
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Získejte nové zakázky bez námahy
-            </p>
-          </div>
-
-          <div className="grid lg:grid-cols-3 gap-8">
-            {[
-              {
-                step: "01",
-                icon: Icons.users,
-                title: "Vytvořte si profil",
-                description: "Zaregistrujte se, vyplňte profil a ověřte svou identitu přes BankID. Budete tak důvěryhodnější pro zákazníky.",
-                color: "emerald"
-              },
-              {
-                step: "02",
-                icon: Icons.search,
-                title: "Prohlížejte poptávky",
-                description: "Najděte poptávky ve vašem oboru a okolí. Filtrujte podle kategorie, lokality nebo rozpočtu.",
-                color: "blue"
-              },
-              {
-                step: "03",
-                icon: Icons.briefcase,
-                title: "Posílejte nabídky",
-                description: "Pošlete nabídku s vaší cenou a termínem. Komunikujte se zákazníkem a získejte zakázku.",
-                color: "purple"
-              }
-            ].map((item, i) => (
-              <div 
-                key={i} 
-                className={`group relative ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                {i < 2 && (
-                  <div className="hidden lg:block absolute top-20 left-[60%] w-[80%] border-t-2 border-dashed border-gray-300"></div>
-                )}
-                
-                <div className="relative bg-white rounded-3xl p-8 shadow-sm hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
-                  <span className="absolute -top-4 -left-4 text-7xl font-bold text-gray-100 group-hover:text-emerald-100 transition-colors">
-                    {item.step}
-                  </span>
-                  
-                  <div className={`relative w-20 h-20 rounded-2xl flex items-center justify-center mb-6 ${
-                    item.color === "blue" ? "bg-blue-100 text-blue-600" :
-                    item.color === "emerald" ? "bg-emerald-100 text-emerald-600" :
-                    "bg-purple-100 text-purple-600"
-                  } group-hover:scale-110 transition-transform`}>
-                    {item.icon}
-                  </div>
-                  
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">{item.title}</h3>
-                  <p className="text-gray-600 leading-relaxed">{item.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-center mt-12">
-            <Link
-              href="/auth/register?role=provider"
-              className="inline-flex items-center gap-2 bg-emerald-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-emerald-600 hover:shadow-xl hover:scale-105 transition-all"
-            >
-              Registrovat se jako fachman
-              {Icons.arrowRight}
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Výhody */}
-      <section className="py-24 bg-gray-900 text-white relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl"></div>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 relative z-10">
-          <div className="text-center mb-16">
-            <span className="inline-block px-4 py-1 bg-white/10 text-white text-sm font-semibold rounded-full mb-4">
-              VÝHODY
-            </span>
-            <h2 className="text-3xl lg:text-5xl font-bold mb-4">
-              Proč používat Fachmani?
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {[
-              { icon: Icons.shield, title: "Ověření fachmani", desc: "Všichni fachmani prochází ověřením identity přes BankID." },
-              { icon: Icons.location, title: "Lokální služby", desc: "Najděte odborníky přímo ve vašem okolí." },
-              { icon: Icons.star, title: "Hodnocení a recenze", desc: "Vybírejte podle reálných zkušeností ostatních." },
-              { icon: Icons.chat, title: "Bezpečná komunikace", desc: "Vše si domluvíte přes náš interní chat." },
-            ].map((item, i) => (
-              <div 
-                key={i} 
-                className={`text-center group ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500/20 to-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
-                  {item.icon}
-                </div>
-                <h3 className="text-xl font-semibold mb-3">{item.title}</h3>
-                <p className="text-gray-400">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="relative rounded-3xl overflow-hidden">
-            <div className="absolute inset-0 gradient-bg"></div>
-            <div className="absolute inset-0 bg-black/10"></div>
-            
-            <div className="relative z-10 px-8 py-16 md:px-16 md:py-24 text-center">
-              <h2 className="text-3xl lg:text-5xl font-bold text-white mb-6">
-                Připraveni začít?
-              </h2>
-              <p className="text-xl text-white/80 mb-10 max-w-2xl mx-auto">
-                Přidejte se k tisícům spokojených uživatelů
-              </p>
-              <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <div className="text-center mt-12">
                 <Link
                   href="/nova-poptavka"
-                  className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 px-8 py-4 rounded-2xl text-lg font-semibold hover:shadow-2xl hover:scale-105 transition-all"
+                  className="inline-flex items-center gap-2 gradient-bg text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:-translate-y-0.5 transition-all"
                 >
-                  Zadat poptávku
+                  Zadat poptávku zdarma
                   {Icons.arrowRight}
-                </Link>
-                <Link
-                  href="/auth/register?role=provider"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-white/30 text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-white/10 transition-all"
-                >
-                  Jsem fachman
                 </Link>
               </div>
             </div>
+          </section>
+
+          {/* Benefits */}
+          <section className="py-16 lg:py-24 bg-gray-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12">
+                <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
+                  Proč využít Fachmani?
+                </h2>
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  { icon: "💰", title: "100% zdarma", desc: "Pro zákazníky neúčtujeme žádné poplatky" },
+                  { icon: "✅", title: "Ověření fachmani", desc: "Každý prochází ověřením přes BankID" },
+                  { icon: "⚡", title: "Rychlé nabídky", desc: "Průměrně 3 nabídky do 24 hodin" },
+                  { icon: "⭐", title: "Reálné recenze", desc: "Hodnocení od skutečných zákazníků" },
+                ].map((item, i) => (
+                  <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 text-center hover:shadow-lg transition-all">
+                    <span className="text-4xl mb-4 block">{item.icon}</span>
+                    <h3 className="font-semibold text-gray-900 mb-2">{item.title}</h3>
+                    <p className="text-sm text-gray-600">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* FAQ */}
+          <section className="py-16 lg:py-24">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                  Časté otázky
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  { q: "Je to opravdu zdarma?", a: "Ano, pro zákazníky je platforma 100% zdarma. Zadávání poptávek, komunikace s fachmany i hodnocení - vše bez poplatků." },
+                  { q: "Jak dlouho trvá než dostanu nabídky?", a: "Většina zákazníků dostane první nabídky do několika hodin. Průměrně máte 3 nabídky během 24 hodin." },
+                  { q: "Musím si vybrat některou nabídku?", a: "Ne, nemáte žádnou povinnost. Můžete si vybrat nabídku, která vám vyhovuje, nebo žádnou - je to na vás." },
+                  { q: "Jak poznám kvalitního fachmana?", a: "Každý fachman má profil s hodnocením, recenzemi a ukázkami práce. Ověření fachmani mají badge BankID." },
+                ].map((item, i) => (
+                  <details key={i} className="group bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    <summary className="flex items-center justify-between p-5 cursor-pointer list-none font-semibold text-gray-900 hover:bg-gray-50">
+                      {item.q}
+                      <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div className="px-5 pb-5 text-gray-600">{item.a}</div>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </section>
+        </>
+      )}
+
+      {/* ==================== PRO FACHMANY ==================== */}
+      {userType === "provider" && (
+        <>
+          {/* Steps */}
+          <section className="py-16 lg:py-24">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12 lg:mb-16">
+                <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
+                  Začněte získávat zakázky
+                </h2>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                  Registrace zabere 5 minut a první měsíc máte zdarma
+                </p>
+              </div>
+
+              <div className="grid lg:grid-cols-3 gap-8">
+                {[
+                  {
+                    step: "01",
+                    icon: "👤",
+                    title: "Vytvořte si profil",
+                    description: "Zaregistrujte se, vyplňte profil a přidejte ukázky své práce.",
+                    details: ["Registrace do 5 minut", "Přidejte fotky prací", "Nastavte si obory"],
+                    color: "cyan"
+                  },
+                  {
+                    step: "02",
+                    icon: "🔍",
+                    title: "Prohlížejte poptávky",
+                    description: "Najděte poptávky ve vašem oboru a okolí. Filtrujte podle lokality nebo rozpočtu.",
+                    details: ["Nové poptávky každý den", "Filtr podle lokality", "Notifikace emailem"],
+                    color: "blue"
+                  },
+                  {
+                    step: "03",
+                    icon: "💼",
+                    title: "Posílejte nabídky",
+                    description: "Pošlete nabídku s vaší cenou a termínem. Komunikujte se zákazníkem a získejte zakázku.",
+                    details: ["3 nabídky měsíčně zdarma", "Přímá komunikace", "Budujete si recenze"],
+                    color: "emerald"
+                  }
+                ].map((item, i) => (
+                  <div key={i} className="relative group">
+                    {i < 2 && (
+                      <div className="hidden lg:block absolute top-16 left-[60%] w-[80%] border-t-2 border-dashed border-gray-200"></div>
+                    )}
+                    
+                    <div className="relative bg-white rounded-3xl p-8 border border-gray-100 shadow-sm hover:shadow-xl hover:border-emerald-200 transition-all duration-300 h-full">
+                      <span className="absolute -top-4 -left-4 w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-sm font-bold text-gray-400 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                        {item.step}
+                      </span>
+                      
+                      <div className="text-5xl mb-6">{item.icon}</div>
+                      
+                      <h3 className="text-xl font-bold text-gray-900 mb-3">{item.title}</h3>
+                      <p className="text-gray-600 mb-6">{item.description}</p>
+                      
+                      <ul className="space-y-2">
+                        {item.details.map((detail, j) => (
+                          <li key={j} className="flex items-center gap-2 text-sm text-gray-500">
+                            <span className={`${
+                              item.color === "cyan" ? "text-cyan-500" :
+                              item.color === "blue" ? "text-blue-500" :
+                              "text-emerald-500"
+                            }`}>{Icons.check}</span>
+                            {detail}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="text-center mt-12">
+                <Link
+                  href="/auth/register?role=provider"
+                  className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:-translate-y-0.5 transition-all"
+                >
+                  Registrovat se zdarma
+                  {Icons.arrowRight}
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          {/* Benefits */}
+          <section className="py-16 lg:py-24 bg-gray-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12">
+                <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
+                  Proč se přidat k Fachmani?
+                </h2>
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  { icon: "🎯", title: "Cílení zákazníci", desc: "Poptávky od lidí, kteří aktivně hledají služby" },
+                  { icon: "📍", title: "Lokální zakázky", desc: "Najděte práci přímo ve vašem okolí" },
+                  { icon: "⭐", title: "Budujte reputaci", desc: "Sbírejte recenze a zvyšujte důvěryhodnost" },
+                  { icon: "📈", title: "Rostěte s námi", desc: "Získejte přístup k novým zákazníkům" },
+                ].map((item, i) => (
+                  <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 text-center hover:shadow-lg transition-all">
+                    <span className="text-4xl mb-4 block">{item.icon}</span>
+                    <h3 className="font-semibold text-gray-900 mb-2">{item.title}</h3>
+                    <p className="text-sm text-gray-600">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* Pricing teaser */}
+          <section className="py-16 lg:py-24">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-8 sm:p-12 text-center text-white">
+                <h2 className="text-3xl font-bold mb-4">
+                  Začněte zdarma
+                </h2>
+                <p className="text-lg text-gray-300 mb-8 max-w-xl mx-auto">
+                  3 nabídky měsíčně zdarma. Pro více nabídek si vyberte Premium od 499 Kč/měsíc.
+                </p>
+                
+                <div className="flex flex-col sm:flex-row justify-center gap-4">
+                  <Link
+                    href="/auth/register?role=provider"
+                    className="inline-flex items-center justify-center gap-2 bg-white text-gray-900 px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-gray-100 transition-all"
+                  >
+                    Registrovat zdarma
+                  </Link>
+                  <Link
+                    href="/cenik"
+                    className="inline-flex items-center justify-center gap-2 border border-white/30 text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-white/10 transition-all"
+                  >
+                    Zobrazit ceník
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* FAQ */}
+          <section className="py-16 lg:py-24 bg-gray-50">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                  Časté otázky
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  { q: "Kolik stojí registrace?", a: "Registrace je zcela zdarma. V základním tarifu můžete poslat 3 nabídky měsíčně bez poplatků." },
+                  { q: "Kolik nabídek mohu poslat?", a: "V tarifu Start máte 3 nabídky měsíčně zdarma. Pro neomezené nabídky doporučujeme Premium (499 Kč/měsíc)." },
+                  { q: "Jak funguje ověření BankID?", a: "Ověření přes BankID zvyšuje vaši důvěryhodnost u zákazníků. Zobrazí se vám badge ověřeného fachmana." },
+                  { q: "Jak získám více zakázek?", a: "Vyplňte kompletní profil, přidejte fotky prací, sbírejte pozitivní recenze a odpovídejte rychle na poptávky." },
+                ].map((item, i) => (
+                  <details key={i} className="group bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    <summary className="flex items-center justify-between p-5 cursor-pointer list-none font-semibold text-gray-900 hover:bg-gray-50">
+                      {item.q}
+                      <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div className="px-5 pb-5 text-gray-600">{item.a}</div>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </section>
+        </>
+      )}
+
+      {/* Final CTA */}
+      <section className="py-16 lg:py-24">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-6">
+            Připraveni začít?
+          </h2>
+          <p className="text-lg text-gray-600 mb-10">
+            {userType === "customer" 
+              ? "Zadejte svou první poptávku a získejte nabídky od ověřených profesionálů."
+              : "Zaregistrujte se a začněte získávat nové zakázky ještě dnes."
+            }
+          </p>
+          
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Link
+              href={userType === "customer" ? "/nova-poptavka" : "/auth/register?role=provider"}
+              className="inline-flex items-center justify-center gap-2 gradient-bg text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:-translate-y-0.5 transition-all"
+            >
+              {userType === "customer" ? "Zadat poptávku zdarma" : "Registrovat jako fachman"}
+              {Icons.arrowRight}
+            </Link>
           </div>
         </div>
       </section>
