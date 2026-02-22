@@ -52,135 +52,116 @@ export default function Home() {
       <Navbar />
 
       {/* ==================== HERO SECTION ==================== */}
-      <section className="relative min-h-[100svh] flex items-center pt-20 pb-8 lg:pt-0 lg:pb-0">
+      <section className="relative pt-24 pb-12 lg:min-h-screen lg:flex lg:items-center lg:pt-0 lg:pb-0">
         {/* Background */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-white to-blue-50"></div>
-          <div className="absolute top-20 right-0 w-[300px] lg:w-[500px] h-[300px] lg:h-[500px] bg-cyan-100/50 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 w-[250px] lg:w-[400px] h-[250px] lg:h-[400px] bg-blue-100/50 rounded-full blur-3xl"></div>
+          <div className="hidden lg:block absolute top-20 right-0 w-[500px] h-[500px] bg-cyan-100/50 rounded-full blur-3xl"></div>
+          <div className="hidden lg:block absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-100/50 rounded-full blur-3xl"></div>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
             
             {/* Left content */}
-            <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+            <div className={`text-center lg:text-left ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 bg-white shadow-md px-3 py-1.5 sm:px-4 sm:py-2 rounded-full mb-4 sm:mb-6">
-                <span className="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5">
+              <div className="inline-flex items-center gap-2 bg-white shadow-md px-3 py-1.5 rounded-full mb-4">
+                <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-full w-full bg-emerald-500"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span className="text-xs sm:text-sm font-medium text-gray-600">
+                <span className="text-xs font-medium text-gray-600">
                   <span className="text-emerald-600 font-bold">{stats.requests}</span> aktivních poptávek
                 </span>
               </div>
 
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 leading-tight mb-4 sm:mb-6">
-                Najděte
-                <span className="relative inline-block mx-1 sm:mx-2">
-                  <span className="gradient-text">fachmana</span>
-                  <svg className="absolute -bottom-1 left-0 w-full" height="6" viewBox="0 0 200 6" fill="none">
-                    <path d="M1 4C50 1 150 1 199 4" stroke="url(#underline)" strokeWidth="3" strokeLinecap="round"/>
-                    <defs>
-                      <linearGradient id="underline" x1="1" y1="3" x2="199" y2="3">
-                        <stop stopColor="#06b6d4"/>
-                        <stop offset="1" stopColor="#3b82f6"/>
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                </span>
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 leading-tight mb-4">
+                Najděte{" "}
+                <span className="gradient-text">fachmana</span>
                 <br />
                 <span className="text-gray-400">pro jakoukoliv práci</span>
               </h1>
 
-              <p className="text-base sm:text-lg lg:text-xl text-gray-600 mb-6 sm:mb-8 max-w-lg">
+              <p className="text-base sm:text-lg text-gray-600 mb-6 max-w-md mx-auto lg:mx-0">
                 Spojíme vás s ověřenými odborníky ve vašem okolí. 
                 Získejte nabídky <span className="text-cyan-600 font-semibold">do 24 hodin</span>.
               </p>
 
               {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6 sm:mb-8">
+              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-6">
                 <Link
                   href="/nova-poptavka"
-                  className="group inline-flex items-center justify-center gap-2 gradient-bg text-white px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl sm:rounded-2xl text-base sm:text-lg font-semibold shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:shadow-cyan-500/30 hover:-translate-y-0.5 transition-all"
+                  className="inline-flex items-center justify-center gap-2 gradient-bg text-white px-6 py-3.5 rounded-xl text-base font-semibold shadow-lg shadow-cyan-500/25"
                 >
                   Zadat poptávku zdarma
-                  <span className="group-hover:translate-x-1 transition-transform">{Icons.arrowRight}</span>
+                  {Icons.arrowRight}
                 </Link>
                 <Link
                   href="/jak-to-funguje"
-                  className="group inline-flex items-center justify-center gap-2 bg-white border-2 border-gray-200 text-gray-700 px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl sm:rounded-2xl text-base sm:text-lg font-semibold hover:border-cyan-200 hover:bg-cyan-50 transition-all"
+                  className="inline-flex items-center justify-center gap-2 bg-white border-2 border-gray-200 text-gray-700 px-6 py-3.5 rounded-xl text-base font-semibold"
                 >
                   Jak to funguje
                 </Link>
               </div>
 
-              {/* 3 Opening Arguments / Štítky */}
-              <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium">
-                  <span className="text-emerald-500">{Icons.check}</span>
-                  Ověření přes BankID
+              {/* Štítky */}
+              <div className="flex flex-wrap gap-2 justify-center lg:justify-start mb-6">
+                <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-medium">
+                  {Icons.check} Ověření přes BankID
                 </div>
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-cyan-50 text-cyan-700 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium">
-                  <span className="text-cyan-500">{Icons.lightning}</span>
-                  Nabídky do 24 hodin
+                <div className="inline-flex items-center gap-1.5 bg-cyan-50 text-cyan-700 px-3 py-1.5 rounded-full text-xs font-medium">
+                  {Icons.lightning} Do 24 hodin
                 </div>
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium">
-                  <span className="text-blue-500">{Icons.shield}</span>
-                  100% zdarma
+                <div className="hidden sm:inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-medium">
+                  {Icons.shield} 100% zdarma
                 </div>
               </div>
 
               {/* Trust indicators */}
-              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-                <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center justify-center lg:justify-start gap-4">
+                <div className="flex items-center gap-2">
                   <div className="flex -space-x-2">
-                    {displayAvatars.map((emoji, i) => (
-                      <div key={i} className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white flex items-center justify-center text-sm sm:text-lg shadow-sm">
+                    {displayAvatars.slice(0, 3).map((emoji, i) => (
+                      <div key={i} className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white flex items-center justify-center text-sm">
                         {emoji}
                       </div>
                     ))}
                   </div>
-                  <span className="text-xs sm:text-sm text-gray-600">
-                    <strong className="text-gray-900">{stats.fachmans}</strong> fachmanů
+                  <span className="text-xs text-gray-600">
+                    <strong>{stats.fachmans}</strong> fachmanů
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="flex text-yellow-400">
-                    {[1,2,3,4,5].map(i => (
-                      <span key={i} className="text-xs sm:text-sm">{Icons.star}</span>
-                    ))}
-                  </div>
-                  <span className="text-xs sm:text-sm text-gray-600">
-                    <strong className="text-gray-900">{stats.rating}</strong> hodnocení
+                <div className="flex items-center gap-1">
+                  <span className="text-yellow-400 text-sm">★</span>
+                  <span className="text-xs text-gray-600">
+                    <strong>{stats.rating}</strong>/5
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Right content - Request Carousel */}
-            <div className={`relative ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
-              <div className="relative max-w-md mx-auto lg:max-w-none">
-                
+            {/* Right content - Carousel - POUZE DESKTOP */}
+            <div className={`hidden lg:block relative ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
+              <div className="relative">
                 {/* Main Card */}
-                <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+                <div className="bg-white rounded-3xl shadow-2xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
                   {/* Header */}
-                  <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-4 sm:px-6 py-3 sm:py-4">
+                  <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5">
+                        <span className="relative flex h-2.5 w-2.5">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-full w-full bg-white"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
                         </span>
-                        <span className="text-white font-semibold text-sm sm:text-base">Nové poptávky</span>
+                        <span className="text-white font-semibold">Nové poptávky</span>
                       </div>
-                      <span className="text-white/80 text-xs sm:text-sm">{currentSlide + 1} / {recentRequests.length}</span>
+                      <span className="text-white/80 text-sm">{currentSlide + 1} / {recentRequests.length}</span>
                     </div>
                   </div>
 
                   {/* Carousel Content */}
-                  <div className="p-4 sm:p-6">
+                  <div className="p-6">
                     <div className="overflow-hidden">
                       <div 
                         className="flex transition-transform duration-300 ease-in-out"
@@ -188,38 +169,29 @@ export default function Home() {
                       >
                         {recentRequests.map((req) => (
                           <div key={req.id} className="w-full flex-shrink-0">
-                            <div className="space-y-3 sm:space-y-4">
-                              {/* Category & Time */}
+                            <div className="space-y-4">
                               <div className="flex items-center justify-between">
-                                <span className="text-2xl sm:text-3xl">{req.category}</span>
-                                <span className="text-xs sm:text-sm text-gray-400">{req.time}</span>
+                                <span className="text-3xl">{req.category}</span>
+                                <span className="text-sm text-gray-400">{req.time}</span>
                               </div>
-
-                              {/* Title */}
-                              <h3 className="text-lg sm:text-xl font-bold text-gray-900">{req.title}</h3>
-
-                              {/* Details */}
-                              <div className="flex flex-wrap gap-2 sm:gap-3">
-                                <span className="inline-flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm text-gray-600 bg-gray-100 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg">
-                                  <span className="text-cyan-500">{Icons.location}</span>
-                                  {req.location}
+                              <h3 className="text-xl font-bold text-gray-900">{req.title}</h3>
+                              <div className="flex flex-wrap gap-3">
+                                <span className="inline-flex items-center gap-1.5 text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg">
+                                  {Icons.location} {req.location}
                                 </span>
-                                <span className="inline-flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm text-gray-600 bg-gray-100 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg">
-                                  <span className="text-emerald-500">{Icons.briefcase}</span>
-                                  {req.budget}
+                                <span className="inline-flex items-center gap-1.5 text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg">
+                                  {Icons.briefcase} {req.budget}
                                 </span>
                               </div>
-
-                              {/* Offers count */}
-                              <div className="flex items-center gap-2 pt-1 sm:pt-2">
+                              <div className="flex items-center gap-2 pt-2">
                                 <div className="flex -space-x-1.5">
                                   {Array(Math.min(req.offers, 3)).fill(0).map((_, j) => (
-                                    <div key={j} className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white text-xs sm:text-sm flex items-center justify-center">
+                                    <div key={j} className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white text-sm flex items-center justify-center">
                                       {avatarEmojis[j]}
                                     </div>
                                   ))}
                                 </div>
-                                <span className="text-xs sm:text-sm text-gray-500">
+                                <span className="text-sm text-gray-500">
                                   {req.offers} {req.offers === 1 ? 'nabídka' : req.offers < 5 ? 'nabídky' : 'nabídek'}
                                 </span>
                               </div>
@@ -229,40 +201,24 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Navigation Arrows */}
-                    <div className="flex items-center justify-between mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-gray-100">
-                      <button 
-                        onClick={prevSlide}
-                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gray-100 hover:bg-cyan-100 text-gray-600 hover:text-cyan-600 flex items-center justify-center transition-colors"
-                        aria-label="Předchozí"
-                      >
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {/* Navigation */}
+                    <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
+                      <button onClick={prevSlide} className="w-10 h-10 rounded-full bg-gray-100 hover:bg-cyan-100 text-gray-600 hover:text-cyan-600 flex items-center justify-center transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
                       </button>
-                      
-                      {/* Dots */}
-                      <div className="flex gap-1.5 sm:gap-2">
+                      <div className="flex gap-2">
                         {recentRequests.map((_, i) => (
                           <button
                             key={i}
                             onClick={() => setCurrentSlide(i)}
-                            className={`h-1.5 sm:h-2 rounded-full transition-all ${
-                              i === currentSlide 
-                                ? 'bg-cyan-500 w-4 sm:w-6' 
-                                : 'bg-gray-200 hover:bg-gray-300 w-1.5 sm:w-2'
-                            }`}
-                            aria-label={`Poptávka ${i + 1}`}
+                            className={`h-2 rounded-full transition-all ${i === currentSlide ? 'bg-cyan-500 w-6' : 'bg-gray-200 w-2'}`}
                           />
                         ))}
                       </div>
-
-                      <button 
-                        onClick={nextSlide}
-                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gray-100 hover:bg-cyan-100 text-gray-600 hover:text-cyan-600 flex items-center justify-center transition-colors"
-                        aria-label="Další"
-                      >
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <button onClick={nextSlide} className="w-10 h-10 rounded-full bg-gray-100 hover:bg-cyan-100 text-gray-600 hover:text-cyan-600 flex items-center justify-center transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </button>
@@ -270,24 +226,24 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Features UNDER the card */}
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-4 sm:mt-6">
-                  <div className="bg-white rounded-xl sm:rounded-2xl shadow-md p-3 sm:p-4 border border-gray-100 flex items-center gap-2 sm:gap-3">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-emerald-100 rounded-lg sm:rounded-xl flex items-center justify-center text-emerald-600">
+                {/* Features under card */}
+                <div className="grid grid-cols-2 gap-4 mt-6">
+                  <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-100 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
                       {Icons.check}
                     </div>
                     <div>
-                      <p className="text-[10px] sm:text-xs text-gray-400">Ověření identity</p>
-                      <p className="font-semibold text-gray-900 text-xs sm:text-sm">BankID</p>
+                      <p className="text-xs text-gray-400">Ověření identity</p>
+                      <p className="font-semibold text-gray-900 text-sm">BankID</p>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl sm:rounded-2xl shadow-md p-3 sm:p-4 border border-gray-100 flex items-center gap-2 sm:gap-3">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-cyan-100 rounded-lg sm:rounded-xl flex items-center justify-center text-cyan-600">
+                  <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-100 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center text-cyan-600">
                       {Icons.lightning}
                     </div>
                     <div>
-                      <p className="text-[10px] sm:text-xs text-gray-400">Odpověď do</p>
-                      <p className="font-semibold text-gray-900 text-xs sm:text-sm">24 hodin</p>
+                      <p className="text-xs text-gray-400">Odpověď do</p>
+                      <p className="font-semibold text-gray-900 text-sm">24 hodin</p>
                     </div>
                   </div>
                 </div>
@@ -358,7 +314,6 @@ export default function Home() {
               }
             ].map((item, i) => (
               <div key={i} className="group relative">
-                {/* Connection line - desktop only */}
                 {i < 2 && (
                   <div className="hidden md:block absolute top-12 left-[60%] w-[80%] border-t-2 border-dashed border-gray-200"></div>
                 )}
@@ -480,7 +435,7 @@ export default function Home() {
       <section className="py-12 sm:py-16 lg:py-24 bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-8 sm:gap-10 lg:gap-16 items-center">
-            <div>
+            <div className="text-center lg:text-left">
               <span className="inline-flex items-center gap-2 bg-white/10 text-cyan-300 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold mb-4 sm:mb-6">
                 PRO PROFESIONÁLY
               </span>
@@ -489,12 +444,12 @@ export default function Home() {
                 <br />
                 <span className="text-cyan-400">Získejte nové zakázky</span>
               </h2>
-              <p className="text-base sm:text-lg text-gray-300 mb-6 sm:mb-8">
+              <p className="text-base sm:text-lg text-gray-300 mb-6 sm:mb-8 max-w-lg mx-auto lg:mx-0">
                 Připojte se k síti profesionálů a nechte zákazníky, 
                 ať najdou právě vás. Začněte zdarma.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
                 <Link
                   href="/auth/register?role=provider"
                   className="inline-flex items-center justify-center gap-2 bg-white text-gray-900 px-6 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-base sm:text-lg font-semibold hover:bg-gray-100 transition-all"
