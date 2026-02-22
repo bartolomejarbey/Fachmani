@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Navbar from "@/app/components/Navbar";
+import Footer from "@/app/components/Footer";
 
 type Category = {
   id: string;
@@ -15,7 +17,9 @@ export default function NovaPoptavka() {
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState("");
+  const [expiryDays, setExpiryDays] = useState(30); // Default
 
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -27,18 +31,32 @@ export default function NovaPoptavka() {
   const [preferredDate, setPreferredDate] = useState("");
 
   useEffect(() => {
-    async function loadCategories() {
-      const { data } = await supabase
+    async function loadData() {
+      // Načteme kategorie
+      const { data: categoriesData } = await supabase
         .from("categories")
         .select("id, name, icon")
         .order("name");
 
-      if (data) {
-        setCategories(data);
+      if (categoriesData) {
+        setCategories(categoriesData);
       }
+
+      // Načteme nastavení expirace z databáze
+      const { data: settingsData } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "platform_settings")
+        .single();
+
+      if (settingsData?.value?.request_expiry_days) {
+        setExpiryDays(settingsData.value.request_expiry_days);
+      }
+
+      setPageLoading(false);
     }
 
-    loadCategories();
+    loadData();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,18 +67,18 @@ export default function NovaPoptavka() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      router.push("/auth/login");
+      router.push("/auth/login?redirect=/nova-poptavka");
       return;
     }
 
-    // Vypočítáme datum expirace (14 dní)
+    // Vypočítáme datum expirace podle nastavení
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 14);
+    expiresAt.setDate(expiresAt.getDate() + expiryDays);
 
     const { data, error: insertError } = await supabase
       .from("requests")
       .insert({
-        user_id: user.id,
+        customer_id: user.id,
         category_id: categoryId || null,
         title,
         description,
@@ -84,32 +102,37 @@ export default function NovaPoptavka() {
     router.push(`/poptavka/${data.id}`);
   };
 
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigace */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-blue-600">
-            Fachmani
-          </Link>
-          <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
-            Zpět na dashboard
-          </Link>
-        </div>
-      </nav>
+      <Navbar />
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Nová poptávka</h1>
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Nová poptávka</h1>
+          <p className="text-gray-600">Popište co potřebujete a získejte nabídky od ověřených fachmanů</p>
+        </div>
 
         {error && (
-          <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl mb-6">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Název poptávky *
             </label>
             <input
@@ -118,19 +141,19 @@ export default function NovaPoptavka() {
               onChange={(e) => setTitle(e.target.value)}
               required
               placeholder="např. Výměna vodovodní baterie"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Kategorie *
             </label>
             <select
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
             >
               <option value="">Vyberte kategorii</option>
               {categories.map((cat) => (
@@ -142,7 +165,7 @@ export default function NovaPoptavka() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Popis *
             </label>
             <textarea
@@ -151,13 +174,13 @@ export default function NovaPoptavka() {
               required
               rows={4}
               placeholder="Popište co potřebujete, jaký je stav, případně další detaily..."
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
             />
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Město / Obec *
               </label>
               <input
@@ -166,11 +189,11 @@ export default function NovaPoptavka() {
                 onChange={(e) => setLocation(e.target.value)}
                 required
                 placeholder="např. Praha"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 PSČ
               </label>
               <input
@@ -178,14 +201,14 @@ export default function NovaPoptavka() {
                 value={postalCode}
                 onChange={(e) => setPostalCode(e.target.value)}
                 placeholder="např. 11000"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
               />
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Rozpočet od (Kč)
               </label>
               <input
@@ -193,11 +216,11 @@ export default function NovaPoptavka() {
                 value={budgetMin}
                 onChange={(e) => setBudgetMin(e.target.value)}
                 placeholder="např. 1000"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Rozpočet do (Kč)
               </label>
               <input
@@ -205,38 +228,40 @@ export default function NovaPoptavka() {
                 value={budgetMax}
                 onChange={(e) => setBudgetMax(e.target.value)}
                 placeholder="např. 5000"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Preferovaný termín
             </label>
             <input
               type="date"
               value={preferredDate}
               onChange={(e) => setPreferredDate(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
             />
           </div>
 
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-blue-800">
-              ℹ️ Poptávka bude aktivní 14 dní. Během této doby vám budou moci ověření fachmani posílat své nabídky.
+          <div className="bg-cyan-50 border border-cyan-100 p-4 rounded-xl">
+            <p className="text-sm text-cyan-800">
+              ℹ️ Poptávka bude aktivní <strong>{expiryDays} dní</strong>. Během této doby vám budou moci ověření fachmani posílat své nabídky.
             </p>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 transition-all"
           >
             {loading ? "Odesílám..." : "Zveřejnit poptávku"}
           </button>
         </form>
       </div>
+
+      <Footer />
     </div>
   );
 }
