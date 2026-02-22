@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import Navbar from "@/app/components/Navbar";
+import Footer from "@/app/components/Footer";
+import { Icons } from "@/app/components/Icons";
 
 type Category = {
   id: string;
@@ -25,15 +28,48 @@ type Request = {
   expires_at: string;
 };
 
+type Provider = {
+  id: string;
+  full_name: string;
+  is_verified: boolean;
+  subscription_type: string;
+  bio: string | null;
+  hourly_rate: number | null;
+  locations: string[] | null;
+  rating: number;
+  review_count: number;
+};
+
+// České lokality pro filtr
+const locations = [
+  "Všechny lokality",
+  "Praha",
+  "Brno",
+  "Ostrava",
+  "Plzeň",
+  "Liberec",
+  "Olomouc",
+  "České Budějovice",
+  "Hradec Králové",
+  "Pardubice",
+  "Zlín",
+];
+
 export default function KategorieDetail() {
   const params = useParams();
   const slug = params.slug as string;
 
   const [category, setCategory] = useState<Category | null>(null);
   const [requests, setRequests] = useState<Request[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState<"requests" | "providers">("requests");
+  const [selectedLocation, setSelectedLocation] = useState("Všechny lokality");
 
   useEffect(() => {
+    setMounted(true);
+
     async function loadData() {
       // Načteme kategorii
       const { data: catData } = await supabase
@@ -56,6 +92,69 @@ export default function KategorieDetail() {
         if (reqData) {
           setRequests(reqData);
         }
+
+        // Načteme fachmany v této kategorii
+        const { data: providerCategoriesData } = await supabase
+          .from("provider_categories")
+          .select("provider_id")
+          .eq("category_id", catData.id);
+
+        if (providerCategoriesData && providerCategoriesData.length > 0) {
+          const providerIds = providerCategoriesData.map(pc => pc.provider_id);
+          
+          // Načteme provider_profiles
+          const { data: providerProfilesData } = await supabase
+            .from("provider_profiles")
+            .select("id, user_id, bio, hourly_rate, locations")
+            .in("id", providerIds);
+
+          if (providerProfilesData) {
+            // Pro každý provider_profile načteme profil uživatele
+            const userIds = providerProfilesData.map(pp => pp.user_id);
+            
+            const { data: profilesData } = await supabase
+              .from("profiles")
+              .select("id, full_name, is_verified, subscription_type")
+              .in("id", userIds)
+              .eq("role", "provider");
+
+            // Načteme recenze
+            const { data: reviewsData } = await supabase
+              .from("reviews")
+              .select("provider_id, rating")
+              .in("provider_id", userIds);
+
+            // Spojíme data
+            const providersWithData: Provider[] = providerProfilesData.map(pp => {
+              const profile = profilesData?.find(p => p.id === pp.user_id);
+              const reviews = reviewsData?.filter(r => r.provider_id === pp.user_id) || [];
+              const avgRating = reviews.length > 0 
+                ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length 
+                : 0;
+
+              return {
+                id: pp.user_id,
+                full_name: profile?.full_name || "Neznámý",
+                is_verified: profile?.is_verified || false,
+                subscription_type: profile?.subscription_type || "free",
+                bio: pp.bio,
+                hourly_rate: pp.hourly_rate,
+                locations: pp.locations,
+                rating: Math.round(avgRating * 10) / 10,
+                review_count: reviews.length,
+              };
+            });
+
+            // Seřadíme - premium nahoře, pak podle hodnocení
+            providersWithData.sort((a, b) => {
+              if (a.subscription_type === "premium" && b.subscription_type !== "premium") return -1;
+              if (a.subscription_type !== "premium" && b.subscription_type === "premium") return 1;
+              return b.rating - a.rating;
+            });
+
+            setProviders(providersWithData);
+          }
+        }
       }
 
       setLoading(false);
@@ -71,136 +170,313 @@ export default function KategorieDetail() {
     return diff > 0 ? diff : 0;
   };
 
+  // Filtrování podle lokality
+  const filteredRequests = selectedLocation === "Všechny lokality"
+    ? requests
+    : requests.filter(r => r.location.toLowerCase().includes(selectedLocation.toLowerCase()));
+
+  const filteredProviders = selectedLocation === "Všechny lokality"
+    ? providers
+    : providers.filter(p => p.locations?.some(loc => 
+        loc.toLowerCase().includes(selectedLocation.toLowerCase())
+      ));
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p>Načítám...</p>
+      <div className="min-h-screen bg-white">
+        <Navbar />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600">Načítám...</p>
+          </div>
+        </div>
+        <Footer />
       </div>
     );
   }
 
   if (!category) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">Kategorie nenalezena</p>
-          <Link href="/kategorie" className="text-blue-600 hover:underline">
-            Zpět na kategorie
-          </Link>
+      <div className="min-h-screen bg-white">
+        <Navbar />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Kategorie nenalezena</h2>
+            <p className="text-gray-600 mb-6">Tato kategorie neexistuje nebo byla odstraněna.</p>
+            <Link href="/kategorie" className="text-cyan-600 font-semibold hover:text-cyan-700">
+              ← Zpět na všechny kategorie
+            </Link>
+          </div>
         </div>
+        <Footer />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigace */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-blue-600">
-            Fachmani
-          </Link>
-          <div className="space-x-4">
-            <Link href="/kategorie" className="text-gray-600 hover:text-gray-900">
-              Všechny kategorie
-            </Link>
-            <Link href="/auth/login" className="text-gray-600 hover:text-gray-900">
-              Přihlásit se
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        {/* Hlavička kategorie */}
-        <div className="mb-8">
-          <Link href="/kategorie" className="text-blue-600 hover:underline text-sm">
-            ← Všechny kategorie
-          </Link>
-          <div className="flex items-center gap-4 mt-4">
-            <span className="text-5xl">{category.icon}</span>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{category.name}</h1>
-              <p className="text-gray-600 mt-1">{category.description}</p>
+      {/* Hero */}
+      <section className="relative pt-28 pb-12 bg-white border-b">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-white to-blue-50"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+            <Link 
+              href="/kategorie" 
+              className="inline-flex items-center gap-2 text-gray-500 hover:text-cyan-600 mb-6 transition-colors"
+            >
+              ← Všechny kategorie
+            </Link>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+              <div className="w-20 h-20 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-2xl flex items-center justify-center text-5xl">
+                {category.icon}
+              </div>
+              <div>
+                <h1 className="text-3xl lg:text-4xl font-bold text-gray-900">{category.name}</h1>
+                <p className="text-gray-600 mt-1 max-w-2xl">
+                  {category.description || `Najděte ověřené odborníky v kategorii ${category.name}`}
+                </p>
+              </div>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Seznam poptávek */}
-        <div className="mb-6 flex justify-between items-center">
-          <h2 className="text-xl font-semibold">
-            Aktivní poptávky ({requests.length})
-          </h2>
-          <Link
-            href="/nova-poptavka"
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            + Zadat poptávku
-          </Link>
-        </div>
+      {/* Filters & Tabs */}
+      <section className="bg-white border-b sticky top-16 z-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            {/* Tabs */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setActiveTab("requests")}
+                className={`px-5 py-2.5 rounded-xl font-medium transition-all ${
+                  activeTab === "requests"
+                    ? "bg-cyan-500 text-white shadow-md"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                📋 Poptávky ({filteredRequests.length})
+              </button>
+              <button
+                onClick={() => setActiveTab("providers")}
+                className={`px-5 py-2.5 rounded-xl font-medium transition-all ${
+                  activeTab === "providers"
+                    ? "bg-cyan-500 text-white shadow-md"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                👷 Fachmani ({filteredProviders.length})
+              </button>
+            </div>
 
-        {requests.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-600 mb-4">
-              V této kategorii zatím nejsou žádné aktivní poptávky.
-            </p>
-            <Link
-              href="/nova-poptavka"
-              className="text-blue-600 hover:underline"
-            >
-              Buďte první a zadejte poptávku
-            </Link>
+            {/* Location Filter */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500">📍 Lokalita:</span>
+              <select
+                value={selectedLocation}
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                className="px-4 py-2 bg-gray-100 border-0 rounded-xl text-gray-700 font-medium focus:ring-2 focus:ring-cyan-500"
+              >
+                {locations.map(loc => (
+                  <option key={loc} value={loc}>{loc}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        ) : (
-          <div className="grid gap-6">
-            {requests.map((request) => (
-              <div key={request.id} className="bg-white rounded-lg shadow p-6">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-xl font-semibold">{request.title}</h3>
-                    <p className="text-gray-600 mt-2 line-clamp-2">
-                      {request.description}
-                    </p>
-                  </div>
-                  <span className="text-sm text-gray-500">
-                    Zbývá {daysLeft(request.expires_at)} dní
-                  </span>
-                </div>
+        </div>
+      </section>
 
-                <div className="flex items-center gap-6 mt-4 text-sm text-gray-600">
-                  <span>📍 {request.location}</span>
-                  {(request.budget_min || request.budget_max) && (
-                    <span>
-                      💰 {request.budget_min && `${request.budget_min} Kč`}
-                      {request.budget_min && request.budget_max && " - "}
-                      {request.budget_max && `${request.budget_max} Kč`}
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex justify-between items-center mt-4 pt-4 border-t">
-                  <span className="text-sm text-gray-500">
-                    {new Date(request.created_at).toLocaleDateString("cs-CZ")}
-                  </span>
+      {/* Content */}
+      <section className="py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          
+          {/* Requests Tab */}
+          {activeTab === "requests" && (
+            <>
+              {filteredRequests.length === 0 ? (
+                <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                  <div className="text-5xl mb-4">📭</div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Žádné aktivní poptávky</h3>
+                  <p className="text-gray-600 mb-6">
+                    V této kategorii {selectedLocation !== "Všechny lokality" && `v lokalitě ${selectedLocation} `}
+                    zatím nejsou žádné aktivní poptávky.
+                  </p>
                   <Link
-                    href={`/poptavka/${request.id}`}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                    href="/nova-poptavka"
+                    className="inline-flex items-center gap-2 gradient-bg text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
                   >
-                    Zobrazit detail
+                    Zadat první poptávku
+                    {Icons.arrowRight}
                   </Link>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ) : (
+                <div className="grid gap-4">
+                  {filteredRequests.map((request, i) => (
+                    <Link
+                      key={request.id}
+                      href={`/poptavka/${request.id}`}
+                      className={`block bg-white rounded-2xl shadow-sm p-6 hover:shadow-lg transition-all hover:-translate-y-0.5 border border-gray-100 ${
+                        mounted ? 'animate-fade-in-up' : 'opacity-0'
+                      }`}
+                      style={{ animationDelay: `${i * 50}ms` }}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-bold text-gray-900 mb-2">{request.title}</h3>
+                          <p className="text-gray-600 line-clamp-2 mb-4">{request.description}</p>
+                          
+                          <div className="flex flex-wrap gap-3">
+                            <span className="inline-flex items-center gap-1.5 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
+                              📍 {request.location}
+                            </span>
+                            {(request.budget_min || request.budget_max) && (
+                              <span className="inline-flex items-center gap-1.5 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
+                                💰 {request.budget_min && `${request.budget_min.toLocaleString()} Kč`}
+                                {request.budget_min && request.budget_max && " - "}
+                                {request.budget_max && `${request.budget_max.toLocaleString()} Kč`}
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1.5 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
+                              📅 {new Date(request.created_at).toLocaleDateString("cs-CZ")}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex sm:flex-col items-center sm:items-end gap-3">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            daysLeft(request.expires_at) <= 3 
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {daysLeft(request.expires_at) > 0 
+                              ? `Zbývá ${daysLeft(request.expires_at)} dní`
+                              : 'Vypršelo'
+                            }
+                          </span>
+                          <span className="text-cyan-600 font-semibold text-sm">
+                            Zobrazit detail →
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-10 mt-16">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-gray-400">© 2025 Fachmani. Všechna práva vyhrazena.</p>
+          {/* Providers Tab */}
+          {activeTab === "providers" && (
+            <>
+              {filteredProviders.length === 0 ? (
+                <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                  <div className="text-5xl mb-4">👷</div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Žádní fachmani</h3>
+                  <p className="text-gray-600 mb-6">
+                    V této kategorii {selectedLocation !== "Všechny lokality" && `v lokalitě ${selectedLocation} `}
+                    zatím nejsou registrovaní fachmani.
+                  </p>
+                  <Link
+                    href="/auth/register?role=provider"
+                    className="inline-flex items-center gap-2 gradient-bg text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                  >
+                    Registrovat se jako fachman
+                    {Icons.arrowRight}
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredProviders.map((provider, i) => (
+                    <Link
+                      key={provider.id}
+                      href={`/fachman/${provider.id}`}
+                      className={`block bg-white rounded-2xl shadow-sm p-6 hover:shadow-lg transition-all hover:-translate-y-0.5 border border-gray-100 ${
+                        mounted ? 'animate-fade-in-up' : 'opacity-0'
+                      }`}
+                      style={{ animationDelay: `${i * 50}ms` }}
+                    >
+                      {/* Premium badge */}
+                      {provider.subscription_type === "premium" && (
+                        <div className="mb-3">
+                          <span className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                            ⭐ PREMIUM
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex items-start gap-4">
+                        <div className="w-14 h-14 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
+                          👷
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-bold text-gray-900 truncate">{provider.full_name}</h3>
+                            {provider.is_verified && (
+                              <span className="text-emerald-500 flex-shrink-0" title="Ověřený">✓</span>
+                            )}
+                          </div>
+                          
+                          {provider.rating > 0 && (
+                            <div className="flex items-center gap-1 mb-2">
+                              <span className="text-yellow-400">★</span>
+                              <span className="font-semibold text-gray-900">{provider.rating}</span>
+                              <span className="text-gray-400 text-sm">({provider.review_count})</span>
+                            </div>
+                          )}
+                          
+                          {provider.bio && (
+                            <p className="text-gray-600 text-sm line-clamp-2 mb-3">{provider.bio}</p>
+                          )}
+                          
+                          <div className="flex flex-wrap gap-2">
+                            {provider.hourly_rate && (
+                              <span className="text-sm text-cyan-600 font-semibold">
+                                {provider.hourly_rate} Kč/hod
+                              </span>
+                            )}
+                            {provider.locations && provider.locations.length > 0 && (
+                              <span className="text-sm text-gray-500">
+                                📍 {provider.locations.slice(0, 2).join(", ")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
-      </footer>
+      </section>
+
+      {/* CTA */}
+      <section className="py-12">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            Nenašli jste co hledáte?
+          </h2>
+          <p className="text-gray-600 mb-6">
+            Zadejte poptávku a fachmani se vám ozvou sami.
+          </p>
+          <Link
+            href="/nova-poptavka"
+            className="inline-flex items-center gap-2 gradient-bg text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:-translate-y-0.5 transition-all"
+          >
+            Zadat poptávku zdarma
+            {Icons.arrowRight}
+          </Link>
+        </div>
+      </section>
+
+      <Footer />
     </div>
   );
 }
