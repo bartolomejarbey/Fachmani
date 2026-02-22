@@ -1,21 +1,37 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import CookieBanner from "./components/CookieBanner";
+import dynamic from "next/dynamic";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// Jednodušší font - rychlejší načítání
+const inter = Inter({
+  subsets: ["latin", "latin-ext"],
+  display: "swap", // Zobrazí fallback font dokud se nenačte
+  preload: true,
+  variable: "--font-inter",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+// Lazy load CookieBanner - není potřeba hned
+const CookieBanner = dynamic(() => import("./components/CookieBanner"), {
+  ssr: false,
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#06b6d4",
+};
 
 export const metadata: Metadata = {
   title: "Fachmani - Najdi ověřeného fachmana",
   description: "Platforma pro propojení zákazníků s ověřenými poskytovateli služeb",
+  robots: "index, follow",
+  openGraph: {
+    title: "Fachmani - Najdi ověřeného fachmana",
+    description: "Platforma pro propojení zákazníků s ověřenými poskytovateli služeb",
+    type: "website",
+    locale: "cs_CZ",
+  },
 };
 
 export default function RootLayout({
@@ -24,8 +40,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="cs">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="cs" className={inter.variable}>
+      <head>
+        {/* Preconnect k Supabase */}
+        <link rel="preconnect" href="https://supabase.co" />
+        <link rel="dns-prefetch" href="https://supabase.co" />
+      </head>
+      <body className="font-sans antialiased">
         {children}
         <CookieBanner />
       </body>
