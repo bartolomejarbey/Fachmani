@@ -6,7 +6,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
-import { Icons } from "@/app/components/Icons";
 
 type Category = {
   id: string;
@@ -59,7 +58,6 @@ export default function FachmanDetailPage() {
 
   const loadFachman = async () => {
     if (isSeed) {
-      // === FIKTIVNÍ FACHMAN ===
       const { data: seedData } = await supabase
         .from("seed_providers")
         .select("*")
@@ -67,13 +65,11 @@ export default function FachmanDetailPage() {
         .single();
 
       if (seedData) {
-        // Načteme kategorie
         const { data: categoriesData } = await supabase
           .from("categories")
           .select("id, name, icon")
           .in("id", seedData.category_ids || []);
 
-        // Načteme fiktivní recenze
         const { data: seedReviewsData } = await supabase
           .from("seed_reviews")
           .select("*")
@@ -107,7 +103,6 @@ export default function FachmanDetailPage() {
         });
       }
     } else {
-      // === REÁLNÝ FACHMAN ===
       const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
@@ -115,20 +110,17 @@ export default function FachmanDetailPage() {
         .single();
 
       if (profileData) {
-        // Provider profile
         const { data: providerProfileData } = await supabase
           .from("provider_profiles")
           .select("*")
           .eq("user_id", realId)
           .single();
 
-        // Categories
         const { data: providerCategoriesData } = await supabase
           .from("provider_categories")
           .select("categories(id, name, icon)")
           .eq("provider_id", realId);
 
-        // Reviews
         const { data: reviewsData } = await supabase
           .from("reviews")
           .select(`
@@ -141,7 +133,6 @@ export default function FachmanDetailPage() {
           .eq("provider_id", realId)
           .order("created_at", { ascending: false });
 
-        // Promo
         const { data: promoData } = await supabase
           .from("promotions")
           .select("type")
@@ -248,7 +239,6 @@ export default function FachmanDetailPage() {
                   {fachman.full_name?.charAt(0).toUpperCase()}
                 </span>
               </div>
-              {/* Badges */}
               {isTopProfile && (
                 <div className="absolute -top-2 -right-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs px-3 py-1 rounded-full font-semibold shadow-lg">
                   🚀 Top
@@ -272,7 +262,6 @@ export default function FachmanDetailPage() {
                 )}
               </div>
 
-              {/* Rating */}
               {fachman.rating > 0 && (
                 <div className="flex items-center gap-2 mb-4">
                   <div className="flex items-center gap-1">
@@ -290,7 +279,6 @@ export default function FachmanDetailPage() {
                 </div>
               )}
 
-              {/* Categories */}
               {fachman.categories.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   {fachman.categories.map(cat => (
@@ -301,7 +289,6 @@ export default function FachmanDetailPage() {
                 </div>
               )}
 
-              {/* Location & Price */}
               <div className="flex flex-wrap gap-4 text-gray-600">
                 {fachman.locations && fachman.locations.length > 0 && (
                   <span className="flex items-center gap-1">
@@ -325,7 +312,6 @@ export default function FachmanDetailPage() {
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-8">
-              {/* Bio */}
               {fachman.bio && (
                 <div className="bg-white rounded-2xl p-6 shadow-sm">
                   <h2 className="text-lg font-bold text-gray-900 mb-4">O mně</h2>
@@ -333,7 +319,6 @@ export default function FachmanDetailPage() {
                 </div>
               )}
 
-              {/* Reviews */}
               <div className="bg-white rounded-2xl p-6 shadow-sm">
                 <h2 className="text-lg font-bold text-gray-900 mb-4">
                   Hodnocení ({fachman.review_count})
@@ -378,7 +363,6 @@ export default function FachmanDetailPage() {
 
             {/* Sidebar */}
             <div className="space-y-6">
-              {/* Contact Card */}
               <div className="bg-white rounded-2xl p-6 shadow-sm sticky top-24">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Kontaktovat</h3>
 
