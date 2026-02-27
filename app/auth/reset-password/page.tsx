@@ -1,5 +1,3 @@
-mkdir -p ~/Documents/fachmani/app/auth/reset-password
-cat > ~/Documents/fachmani/app/auth/reset-password/page.tsx << 'EOF'
 "use client";
 
 import { useState, useEffect } from "react";
@@ -18,13 +16,11 @@ export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Supabase automaticky zpracuje token z URL
     supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setReady(true);
       }
     });
-    // Dej čas na zpracování tokenu
     setTimeout(() => setReady(true), 1000);
   }, []);
 
@@ -103,4 +99,3 @@ export default function ResetPasswordPage() {
     </div>
   );
 }
-EOF
