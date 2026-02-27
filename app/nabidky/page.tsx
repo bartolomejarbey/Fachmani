@@ -115,3 +115,4 @@ export default function NabidkyPage() {
     </div>
   );
 }
+// force redeploy Fri Feb 27 13:06:07 CET 2026
