@@ -113,7 +113,7 @@ export default function Login() {
                     <input type="checkbox" className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500" />
                     <span className="text-sm text-gray-600">Zapamatovat si mě</span>
                   </label>
-                  <Link href="/auth/reset-password" className="text-sm text-cyan-600 hover:text-cyan-700">
+                  <Link href="/auth/forgot-password" className="text-sm text-cyan-600 hover:text-cyan-700">
                     Zapomenuté heslo?
                   </Link>
                 </div>
