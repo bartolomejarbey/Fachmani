@@ -196,7 +196,7 @@ export default function FAQ() {
                 {Icons.arrowRight}
               </Link>
               
-                href="mailto:podpora@fachmani.cz"
+                <a href="mailto:podpora@fachmani.cz"
                 className="inline-flex items-center justify-center gap-2 bg-white border-2 border-gray-200 text-gray-700 px-8 py-4 rounded-2xl font-semibold hover:border-cyan-200 transition-all"
               >
                 📧 podpora@fachmani.cz
