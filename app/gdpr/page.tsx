@@ -1,186 +1,228 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import Navbar from "@/app/components/Navbar";
+import Footer from "@/app/components/Footer";
 
 export default function GDPR() {
+  const [mounted, setMounted] = useState(false);
+  const [activeSection, setActiveSection] = useState<string | null>("spravce");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const sections = [
+    {
+      id: "spravce",
+      title: "1. Správce osobních údajů",
+      icon: "🏢",
+      content: `Správcem osobních údajů je společnost Fachmani s.r.o., IČO: 12345678, se sídlem Příkladná 123, 110 00 Praha 1 (dále jen „Správce").
+
+Kontakt pro záležitosti ochrany osobních údajů: gdpr@fachmani.cz`
+    },
+    {
+      id: "udaje",
+      title: "2. Jaké údaje zpracováváme",
+      icon: "📋",
+      content: `V rámci poskytování služeb platformy Fachmani zpracováváme následující kategorie osobních údajů:
+
+- Identifikační údaje: jméno, příjmení, email, telefonní číslo
+- Přihlašovací údaje: email, heslo (šifrované)
+- Údaje z ověření: údaje z BankID pro ověřené fachmany
+- Údaje o aktivitě: poptávky, nabídky, zprávy, hodnocení
+- Technické údaje: IP adresa, typ prohlížeče, cookies
+- Fakturační údaje: u Premium členství adresa, IČO (pokud je uvedeno)`
+    },
+    {
+      id: "ucely",
+      title: "3. Účely zpracování",
+      icon: "🎯",
+      content: `Vaše osobní údaje zpracováváme pro tyto účely:
+
+- Poskytování služeb platformy (propojení zákazníků a fachmanů)
+- Správa uživatelského účtu
+- Ověření identity fachmanů
+- Komunikace s uživateli (notifikace, podpora)
+- Zlepšování služeb a analýza používání
+- Plnění právních povinností
+- Zasílání obchodních sdělení (pouze se souhlasem)`
+    },
+    {
+      id: "zaklad",
+      title: "4. Právní základ zpracování",
+      icon: "⚖️",
+      content: `Osobní údaje zpracováváme na základě:
+
+- Plnění smlouvy – pro poskytování služeb platformy
+- Oprávněný zájem – pro zlepšování služeb a ochranu před podvody
+- Právní povinnost – pro plnění zákonných požadavků
+- Souhlas – pro zasílání marketingových sdělení`
+    },
+    {
+      id: "doba",
+      title: "5. Doba uchovávání údajů",
+      icon: "⏱️",
+      content: `Osobní údaje uchováváme po dobu:
+
+- Po dobu trvání účtu a 3 roky po jeho zrušení
+- Fakturační údaje po dobu stanovenou zákonem (10 let)
+- Údaje zpracovávané na základě souhlasu do jeho odvolání`
+    },
+    {
+      id: "sdileni",
+      title: "6. Sdílení údajů",
+      icon: "🔗",
+      content: `Vaše osobní údaje můžeme sdílet s:
+
+- Druhými uživateli platformy (v rozsahu nutném pro poskytnutí služby)
+- Poskytovateli technických služeb (hosting, emailing)
+- Poskytovatelem ověření identity (BankID)
+- Státními orgány (pokud to vyžaduje zákon)
+
+Všichni naši partneři jsou vázáni povinností mlčenlivosti a zpracovávají údaje pouze podle našich pokynů.`
+    },
+    {
+      id: "prava",
+      title: "7. Vaše práva",
+      icon: "✋",
+      content: `V souvislosti se zpracováním osobních údajů máte tato práva:
+
+- Právo na přístup – získat informace o zpracování vašich údajů
+- Právo na opravu – opravit nepřesné nebo doplnit neúplné údaje
+- Právo na výmaz – požádat o smazání údajů („právo být zapomenut")
+- Právo na omezení zpracování – omezit způsob zpracování
+- Právo na přenositelnost – získat údaje ve strojově čitelném formátu
+- Právo vznést námitku – proti zpracování na základě oprávněného zájmu
+- Právo odvolat souhlas – kdykoli odvolat udělený souhlas
+
+Pro uplatnění svých práv nás kontaktujte na gdpr@fachmani.cz.`
+    },
+    {
+      id: "cookies",
+      title: "8. Cookies",
+      icon: "🍪",
+      content: `Naše platforma používá cookies pro:
+
+- Nezbytné cookies – pro fungování webu (přihlášení, bezpečnost)
+- Analytické cookies – pro analýzu návštěvnosti (Google Analytics)
+- Marketingové cookies – pro personalizaci reklam (pouze se souhlasem)
+
+Nastavení cookies můžete změnit v nastavení vašeho prohlížeče.`
+    },
+    {
+      id: "zabezpeceni",
+      title: "9. Zabezpečení",
+      icon: "🔒",
+      content: `Přijímáme vhodná technická a organizační opatření k ochraně vašich osobních údajů před neoprávněným přístupem, ztrátou nebo zneužitím. 
+
+Používáme šifrování, zabezpečené servery a pravidelně aktualizujeme naše bezpečnostní postupy.`
+    },
+    {
+      id: "kontakt",
+      title: "10. Kontakt a stížnosti",
+      icon: "📬",
+      content: `V případě dotazů ohledně zpracování osobních údajů nás kontaktujte:
+
+Email: gdpr@fachmani.cz
+Adresa: Fachmani s.r.o., Příkladná 123, 110 00 Praha 1
+
+Máte také právo podat stížnost u Úřadu pro ochranu osobních údajů (www.uoou.cz).`
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navigace */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-blue-600">
-            Fachmani
-          </Link>
-          <div className="space-x-4">
-            <Link href="/jak-to-funguje" className="text-gray-600 hover:text-gray-900">
-              Jak to funguje
-            </Link>
-            <Link href="/auth/login" className="text-gray-600 hover:text-gray-900">
-              Přihlásit se
-            </Link>
+    <div className="min-h-screen bg-white">
+      <Navbar />
+
+      {/* Hero */}
+      <section className="relative pt-32 pb-16 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-cyan-50"></div>
+        <div className="absolute top-20 left-10 w-72 h-72 bg-emerald-200/30 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-200/30 rounded-full blur-3xl animate-float animation-delay-200"></div>
+
+        <div className="max-w-4xl mx-auto px-4 relative z-10">
+          <div className={`text-center ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+            <span className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
+              🔒 OCHRANA SOUKROMÍ
+            </span>
+            <h1 className="text-3xl lg:text-5xl font-bold text-gray-900 mb-4">
+              Zásady ochrany osobních údajů
+            </h1>
+            <p className="text-lg text-gray-600">
+              Platné od 1. ledna 2025
+            </p>
           </div>
         </div>
-      </nav>
+      </section>
 
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        <h1 className="text-3xl font-bold mb-8">Zásady ochrany osobních údajů</h1>
-        <p className="text-gray-500 mb-8">Platné od 1. 1. 2025</p>
-
-        <div className="bg-white rounded-xl shadow-sm p-8 space-y-8">
-          <section>
-            <h2 className="text-xl font-semibold mb-4">1. Správce osobních údajů</h2>
-            <p className="text-gray-600 mb-3">
-              Správcem osobních údajů je společnost Fachmani s.r.o., IČO: 12345678, se sídlem Příkladná 123, 110 00 Praha 1 (dále jen „Správce").
-            </p>
+      {/* Content */}
+      <section className="py-12">
+        <div className="max-w-4xl mx-auto px-4">
+          {/* Quick summary */}
+          <div className={`bg-gradient-to-br from-emerald-50 to-cyan-50 rounded-2xl p-6 mb-8 border border-emerald-100 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+            <h2 className="font-semibold text-gray-900 mb-3">📝 Stručně</h2>
             <p className="text-gray-600">
-              Kontakt pro záležitosti ochrany osobních údajů: gdpr@fachmani.cz
+              Vaše soukromí je pro nás prioritou. Zpracováváme pouze údaje nezbytné pro fungování platformy. 
+              Vaše data nikdy neprodáváme třetím stranám. Máte plnou kontrolu nad svými údaji.
             </p>
-          </section>
+          </div>
 
-          <section>
-            <h2 className="text-xl font-semibold mb-4">2. Jaké údaje zpracováváme</h2>
-            <p className="text-gray-600 mb-3">
-              V rámci poskytování služeb platformy Fachmani zpracováváme následující kategorie osobních údajů:
-            </p>
-            <ul className="list-disc list-inside text-gray-600 space-y-2 ml-4">
-              <li><strong>Identifikační údaje:</strong> jméno, příjmení, email, telefonní číslo</li>
-              <li><strong>Přihlašovací údaje:</strong> email, heslo (šifrované)</li>
-              <li><strong>Údaje z ověření:</strong> údaje z BankID pro ověřené fachmany</li>
-              <li><strong>Údaje o aktivitě:</strong> poptávky, nabídky, zprávy, hodnocení</li>
-              <li><strong>Technické údaje:</strong> IP adresa, typ prohlížeče, cookies</li>
-              <li><strong>Fakturační údaje:</strong> u Premium členství adresa, IČO (pokud je uvedeno)</li>
-            </ul>
-          </section>
+          {/* Accordion */}
+          <div className="space-y-3">
+            {sections.map((section, index) => (
+              <div
+                key={section.id}
+                className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all hover:shadow-md ${
+                  mounted ? 'animate-fade-in-up' : 'opacity-0'
+                }`}
+                style={{ animationDelay: `${index * 30}ms` }}
+              >
+                <button
+                  onClick={() => setActiveSection(activeSection === section.id ? null : section.id)}
+                  className="w-full px-6 py-5 flex items-center justify-between text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{section.icon}</span>
+                    <span className="font-semibold text-gray-900">{section.title}</span>
+                  </div>
+                  <span className={`text-cyan-500 transition-transform flex-shrink-0 ${
+                    activeSection === section.id ? 'rotate-180' : ''
+                  }`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </button>
+                {activeSection === section.id && (
+                  <div className="px-6 pb-5 text-gray-600 border-t border-gray-100 pt-4 whitespace-pre-line">
+                    {section.content}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
 
-          <section>
-            <h2 className="text-xl font-semibold mb-4">3. Účely zpracování</h2>
-            <p className="text-gray-600 mb-3">
-              Vaše osobní údaje zpracováváme pro tyto účely:
-            </p>
-            <ul className="list-disc list-inside text-gray-600 space-y-2 ml-4">
-              <li>Poskytování služeb platformy (propojení zákazníků a fachmanů)</li>
-              <li>Správa uživatelského účtu</li>
-              <li>Ověření identity fachmanů</li>
-              <li>Komunikace s uživateli (notifikace, podpora)</li>
-              <li>Zlepšování služeb a analýza používání</li>
-              <li>Plnění právních povinností</li>
-              <li>Zasílání obchodních sdělení (pouze se souhlasem)</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mb-4">4. Právní základ zpracování</h2>
-            <p className="text-gray-600 mb-3">
-              Osobní údaje zpracováváme na základě:
-            </p>
-            <ul className="list-disc list-inside text-gray-600 space-y-2 ml-4">
-              <li><strong>Plnění smlouvy</strong> – pro poskytování služeb platformy</li>
-              <li><strong>Oprávněný zájem</strong> – pro zlepšování služeb a ochranu před podvody</li>
-              <li><strong>Právní povinnost</strong> – pro plnění zákonných požadavků</li>
-              <li><strong>Souhlas</strong> – pro zasílání marketingových sdělení</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mb-4">5. Doba uchovávání údajů</h2>
-            <p className="text-gray-600 mb-3">
-              Osobní údaje uchováváme po dobu:
-            </p>
-            <ul className="list-disc list-inside text-gray-600 space-y-2 ml-4">
-              <li>Po dobu trvání účtu a 3 roky po jeho zrušení</li>
-              <li>Fakturační údaje po dobu stanovenou zákonem (10 let)</li>
-              <li>Údaje zpracovávané na základě souhlasu do jeho odvolání</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mb-4">6. Sdílení údajů</h2>
-            <p className="text-gray-600 mb-3">
-              Vaše osobní údaje můžeme sdílet s:
-            </p>
-            <ul className="list-disc list-inside text-gray-600 space-y-2 ml-4">
-              <li>Druhými uživateli platformy (v rozsahu nutném pro poskytnutí služby)</li>
-              <li>Poskytovateli technických služeb (hosting, emailing)</li>
-              <li>Poskytovatelem ověření identity (BankID)</li>
-              <li>Státními orgány (pokud to vyžaduje zákon)</li>
-            </ul>
-            <p className="text-gray-600 mt-3">
-              Všichni naši partneři jsou vázáni povinností mlčenlivosti a zpracovávají údaje pouze podle našich pokynů.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mb-4">7. Vaše práva</h2>
-            <p className="text-gray-600 mb-3">
-              V souvislosti se zpracováním osobních údajů máte tato práva:
-            </p>
-            <ul className="list-disc list-inside text-gray-600 space-y-2 ml-4">
-              <li><strong>Právo na přístup</strong> – získat informace o zpracování vašich údajů</li>
-              <li><strong>Právo na opravu</strong> – opravit nepřesné nebo doplnit neúplné údaje</li>
-              <li><strong>Právo na výmaz</strong> – požádat o smazání údajů („právo být zapomenut")</li>
-              <li><strong>Právo na omezení zpracování</strong> – omezit způsob zpracování</li>
-              <li><strong>Právo na přenositelnost</strong> – získat údaje ve strojově čitelném formátu</li>
-              <li><strong>Právo vznést námitku</strong> – proti zpracování na základě oprávněného zájmu</li>
-              <li><strong>Právo odvolat souhlas</strong> – kdykoli odvolat udělený souhlas</li>
-            </ul>
-            <p className="text-gray-600 mt-3">
-              Pro uplatnění svých práv nás kontaktujte na gdpr@fachmani.cz.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mb-4">8. Cookies</h2>
-            <p className="text-gray-600 mb-3">
-              Naše platforma používá cookies pro:
-            </p>
-            <ul className="list-disc list-inside text-gray-600 space-y-2 ml-4">
-              <li><strong>Nezbytné cookies</strong> – pro fungování webu (přihlášení, bezpečnost)</li>
-              <li><strong>Analytické cookies</strong> – pro analýzu návštěvnosti (Google Analytics)</li>
-              <li><strong>Marketingové cookies</strong> – pro personalizaci reklam (pouze se souhlasem)</li>
-            </ul>
-            <p className="text-gray-600 mt-3">
-              Nastavení cookies můžete změnit v nastavení vašeho prohlížeče.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mb-4">9. Zabezpečení</h2>
-            <p className="text-gray-600">
-              Přijímáme vhodná technická a organizační opatření k ochraně vašich osobních údajů před neoprávněným přístupem, ztrátou nebo zneužitím. Používáme šifrování, zabezpečené servery a pravidelně aktualizujeme naše bezpečnostní postupy.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mb-4">10. Kontakt a stížnosti</h2>
-            <p className="text-gray-600 mb-3">
-              V případě dotazů ohledně zpracování osobních údajů nás kontaktujte:
-            </p>
-            <p className="text-gray-600 mb-3">
-              Email: gdpr@fachmani.cz<br />
-              Adresa: Fachmani s.r.o., Příkladná 123, 110 00 Praha 1
-            </p>
-            <p className="text-gray-600">
-              Máte také právo podat stížnost u Úřadu pro ochranu osobních údajů (www.uoou.cz).
-            </p>
-          </section>
-        </div>
-
-        <div className="mt-8 text-center">
-          <Link href="/" className="text-blue-600 hover:underline">
-            ← Zpět na hlavní stránku
-          </Link>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-8 mt-12">
-        <div className="max-w-7xl mx-auto px-4 text-center text-gray-400">
-          <p>© 2025 Fachmani. Všechna práva vyhrazena.</p>
-          <div className="mt-4 space-x-4">
-            <Link href="/vop" className="hover:text-white">VOP</Link>
-            <Link href="/gdpr" className="hover:text-white">GDPR</Link>
-            <Link href="/kontakt" className="hover:text-white">Kontakt</Link>
+          {/* Related */}
+          <div className="mt-12 p-6 bg-gray-50 rounded-2xl">
+            <h3 className="font-semibold text-gray-900 mb-4">Související dokumenty</h3>
+            <div className="flex flex-wrap gap-4">
+              <Link href="/vop" className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 font-medium">
+                📄 Obchodní podmínky →
+              </Link>
+              <Link href="/faq" className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 font-medium">
+                ❓ Časté dotazy →
+              </Link>
+              <Link href="/kontakt" className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 font-medium">
+                📧 Kontakt →
+              </Link>
+            </div>
           </div>
         </div>
-      </footer>
+      </section>
+
+      <Footer />
     </div>
   );
 }

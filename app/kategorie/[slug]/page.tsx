@@ -38,10 +38,12 @@ type Provider = {
   locations: string[] | null;
   rating: number;
   review_count: number;
+  is_seed: boolean;
+  has_promo: boolean;
+  promo_type: string | null;
 };
 
-// České lokality pro filtr
-const locations = [
+const locationOptions = [
   "Všechny lokality",
   "Praha",
   "Brno",
@@ -69,99 +71,141 @@ export default function KategorieDetail() {
 
   useEffect(() => {
     setMounted(true);
-
-    async function loadData() {
-      // Načteme kategorii
-      const { data: catData } = await supabase
-        .from("categories")
-        .select("*")
-        .eq("slug", slug)
-        .single();
-
-      if (catData) {
-        setCategory(catData);
-
-        // Načteme poptávky v této kategorii
-        const { data: reqData } = await supabase
-          .from("requests")
-          .select("*")
-          .eq("category_id", catData.id)
-          .eq("status", "active")
-          .order("created_at", { ascending: false });
-
-        if (reqData) {
-          setRequests(reqData);
-        }
-
-        // Načteme fachmany v této kategorii
-        const { data: providerCategoriesData } = await supabase
-          .from("provider_categories")
-          .select("provider_id")
-          .eq("category_id", catData.id);
-
-        if (providerCategoriesData && providerCategoriesData.length > 0) {
-          const providerIds = providerCategoriesData.map(pc => pc.provider_id);
-          
-          // Načteme provider_profiles
-          const { data: providerProfilesData } = await supabase
-            .from("provider_profiles")
-            .select("id, user_id, bio, hourly_rate, locations")
-            .in("id", providerIds);
-
-          if (providerProfilesData) {
-            // Pro každý provider_profile načteme profil uživatele
-            const userIds = providerProfilesData.map(pp => pp.user_id);
-            
-            const { data: profilesData } = await supabase
-              .from("profiles")
-              .select("id, full_name, is_verified, subscription_type")
-              .in("id", userIds)
-              .eq("role", "provider");
-
-            // Načteme recenze
-            const { data: reviewsData } = await supabase
-              .from("reviews")
-              .select("provider_id, rating")
-              .in("provider_id", userIds);
-
-            // Spojíme data
-            const providersWithData: Provider[] = providerProfilesData.map(pp => {
-              const profile = profilesData?.find(p => p.id === pp.user_id);
-              const reviews = reviewsData?.filter(r => r.provider_id === pp.user_id) || [];
-              const avgRating = reviews.length > 0 
-                ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length 
-                : 0;
-
-              return {
-                id: pp.user_id,
-                full_name: profile?.full_name || "Neznámý",
-                is_verified: profile?.is_verified || false,
-                subscription_type: profile?.subscription_type || "free",
-                bio: pp.bio,
-                hourly_rate: pp.hourly_rate,
-                locations: pp.locations,
-                rating: Math.round(avgRating * 10) / 10,
-                review_count: reviews.length,
-              };
-            });
-
-            // Seřadíme - premium nahoře, pak podle hodnocení
-            providersWithData.sort((a, b) => {
-              if (a.subscription_type === "premium" && b.subscription_type !== "premium") return -1;
-              if (a.subscription_type !== "premium" && b.subscription_type === "premium") return 1;
-              return b.rating - a.rating;
-            });
-
-            setProviders(providersWithData);
-          }
-        }
-      }
-
-      setLoading(false);
-    }
-
     loadData();
   }, [slug]);
+
+  const loadData = async () => {
+    // Načteme kategorii
+    const { data: catData } = await supabase
+      .from("categories")
+      .select("*")
+      .eq("slug", slug)
+      .single();
+
+    if (!catData) {
+      setLoading(false);
+      return;
+    }
+
+    setCategory(catData);
+
+    // === Načteme poptávky v této kategorii ===
+    const { data: reqData } = await supabase
+      .from("requests")
+      .select("*")
+      .eq("category_id", catData.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: false });
+
+    setRequests(reqData || []);
+
+    // === Načteme fachmany v této kategorii ===
+    const allProviders: Provider[] = [];
+
+    // 1. REÁLNÍ fachmani
+    const { data: providerCategoriesData } = await supabase
+      .from("provider_categories")
+      .select("provider_id")
+      .eq("category_id", catData.id);
+
+    if (providerCategoriesData && providerCategoriesData.length > 0) {
+      const providerIds = providerCategoriesData.map(pc => pc.provider_id);
+
+      // Načteme profily
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, full_name, is_verified, subscription_type")
+        .in("id", providerIds)
+        .eq("role", "provider");
+
+      // Načteme provider_profiles
+      const { data: providerProfilesData } = await supabase
+        .from("provider_profiles")
+        .select("user_id, bio, hourly_rate, locations")
+        .in("user_id", providerIds);
+
+      // Načteme recenze
+      const { data: reviewsData } = await supabase
+        .from("reviews")
+        .select("provider_id, rating")
+        .in("provider_id", providerIds);
+
+      // Načteme aktivní promo
+      const { data: promosData } = await supabase
+        .from("promotions")
+        .select("provider_id, type")
+        .eq("status", "active")
+        .gte("ends_at", new Date().toISOString())
+        .in("provider_id", providerIds);
+
+      profilesData?.forEach(profile => {
+        const pp = providerProfilesData?.find(p => p.user_id === profile.id);
+        const revs = reviewsData?.filter(r => r.provider_id === profile.id) || [];
+        const promo = promosData?.find(p => p.provider_id === profile.id);
+
+        const avgRating = revs.length > 0
+          ? Math.round((revs.reduce((sum, r) => sum + r.rating, 0) / revs.length) * 10) / 10
+          : 0;
+
+        allProviders.push({
+          id: profile.id,
+          full_name: profile.full_name,
+          is_verified: profile.is_verified,
+          subscription_type: profile.subscription_type || "free",
+          bio: pp?.bio || null,
+          hourly_rate: pp?.hourly_rate || null,
+          locations: pp?.locations || null,
+          rating: avgRating,
+          review_count: revs.length,
+          is_seed: false,
+          has_promo: !!promo,
+          promo_type: promo?.type || null,
+        });
+      });
+    }
+
+    // 2. FIKTIVNÍ fachmani v této kategorii
+    const { data: seedData } = await supabase
+      .from("seed_providers")
+      .select("*")
+      .eq("is_active", true)
+      .contains("category_ids", [catData.id]);
+
+    seedData?.forEach(seed => {
+      allProviders.push({
+        id: `seed_${seed.id}`,
+        full_name: seed.full_name,
+        is_verified: seed.is_verified,
+        subscription_type: "premium",
+        bio: seed.bio,
+        hourly_rate: seed.hourly_rate,
+        locations: seed.locations,
+        rating: seed.rating || 0,
+        review_count: seed.review_count || 0,
+        is_seed: true,
+        has_promo: true,
+        promo_type: "top_profile",
+      });
+    });
+
+    // Seřadíme: promo > premium > verified > rating
+    allProviders.sort((a, b) => {
+      if (a.has_promo && !b.has_promo) return -1;
+      if (!a.has_promo && b.has_promo) return 1;
+
+      const subOrder: Record<string, number> = { business: 3, premium: 2, free: 1 };
+      const subDiff = (subOrder[b.subscription_type] || 0) - (subOrder[a.subscription_type] || 0);
+      if (subDiff !== 0) return subDiff;
+
+      if (a.is_verified && !b.is_verified) return -1;
+      if (!a.is_verified && b.is_verified) return 1;
+
+      return b.rating - a.rating;
+    });
+
+    setProviders(allProviders);
+    setLoading(false);
+  };
 
   const daysLeft = (expiresAt: string) => {
     const now = new Date();
@@ -177,7 +221,7 @@ export default function KategorieDetail() {
 
   const filteredProviders = selectedLocation === "Všechny lokality"
     ? providers
-    : providers.filter(p => p.locations?.some(loc => 
+    : providers.filter(p => p.locations?.some(loc =>
         loc.toLowerCase().includes(selectedLocation.toLowerCase())
       ));
 
@@ -222,11 +266,11 @@ export default function KategorieDetail() {
       {/* Hero */}
       <section className="relative pt-28 pb-12 bg-white border-b">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-white to-blue-50"></div>
-        
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <Link 
-              href="/kategorie" 
+            <Link
+              href="/kategorie"
               className="inline-flex items-center gap-2 text-gray-500 hover:text-cyan-600 mb-6 transition-colors"
             >
               ← Všechny kategorie
@@ -283,7 +327,7 @@ export default function KategorieDetail() {
                 onChange={(e) => setSelectedLocation(e.target.value)}
                 className="px-4 py-2 bg-gray-100 border-0 rounded-xl text-gray-700 font-medium focus:ring-2 focus:ring-cyan-500"
               >
-                {locations.map(loc => (
+                {locationOptions.map(loc => (
                   <option key={loc} value={loc}>{loc}</option>
                 ))}
               </select>
@@ -295,7 +339,7 @@ export default function KategorieDetail() {
       {/* Content */}
       <section className="py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
+
           {/* Requests Tab */}
           {activeTab === "requests" && (
             <>
@@ -330,7 +374,7 @@ export default function KategorieDetail() {
                         <div className="flex-1">
                           <h3 className="text-lg font-bold text-gray-900 mb-2">{request.title}</h3>
                           <p className="text-gray-600 line-clamp-2 mb-4">{request.description}</p>
-                          
+
                           <div className="flex flex-wrap gap-3">
                             <span className="inline-flex items-center gap-1.5 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
                               📍 {request.location}
@@ -347,14 +391,14 @@ export default function KategorieDetail() {
                             </span>
                           </div>
                         </div>
-                        
+
                         <div className="flex sm:flex-col items-center sm:items-end gap-3">
                           <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            daysLeft(request.expires_at) <= 3 
+                            daysLeft(request.expires_at) <= 3
                               ? 'bg-red-100 text-red-700'
                               : 'bg-emerald-100 text-emerald-700'
                           }`}>
-                            {daysLeft(request.expires_at) > 0 
+                            {daysLeft(request.expires_at) > 0
                               ? `Zbývá ${daysLeft(request.expires_at)} dní`
                               : 'Vypršelo'
                             }
@@ -392,64 +436,76 @@ export default function KategorieDetail() {
                 </div>
               ) : (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredProviders.map((provider, i) => (
-                    <Link
-                      key={provider.id}
-                      href={`/fachman/${provider.id}`}
-                      className={`block bg-white rounded-2xl shadow-sm p-6 hover:shadow-lg transition-all hover:-translate-y-0.5 border border-gray-100 ${
-                        mounted ? 'animate-fade-in-up' : 'opacity-0'
-                      }`}
-                      style={{ animationDelay: `${i * 50}ms` }}
-                    >
-                      {/* Premium badge */}
-                      {provider.subscription_type === "premium" && (
-                        <div className="mb-3">
-                          <span className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                            ⭐ PREMIUM
-                          </span>
-                        </div>
-                      )}
+                  {filteredProviders.map((provider, i) => {
+                    const isPremium = provider.subscription_type === "premium" || provider.subscription_type === "business";
+                    const isTopProfile = provider.has_promo && provider.promo_type === "top_profile";
 
-                      <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
-                          👷
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-bold text-gray-900 truncate">{provider.full_name}</h3>
-                            {provider.is_verified && (
-                              <span className="text-emerald-500 flex-shrink-0" title="Ověřený">✓</span>
+                    return (
+                      <Link
+                        key={provider.id}
+                        href={`/fachman/${provider.id}`}
+                        className={`block bg-white rounded-2xl shadow-sm p-6 hover:shadow-lg transition-all hover:-translate-y-0.5 border border-gray-100 relative ${
+                          isTopProfile ? "ring-2 ring-yellow-400/50 bg-yellow-50/30" :
+                          isPremium ? "ring-2 ring-cyan-500/30" : ""
+                        } ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}
+                        style={{ animationDelay: `${i * 50}ms` }}
+                      >
+                        {/* Badges */}
+                        {(isTopProfile || isPremium) && (
+                          <div className="absolute -top-2 left-4">
+                            {isTopProfile ? (
+                              <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                🚀 Top
+                              </span>
+                            ) : (
+                              <span className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                ⭐ Premium
+                              </span>
                             )}
                           </div>
-                          
-                          {provider.rating > 0 && (
-                            <div className="flex items-center gap-1 mb-2">
-                              <span className="text-yellow-400">★</span>
-                              <span className="font-semibold text-gray-900">{provider.rating}</span>
-                              <span className="text-gray-400 text-sm">({provider.review_count})</span>
+                        )}
+
+                        <div className="flex items-start gap-4 mt-2">
+                          <div className="w-14 h-14 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
+                            👷
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-bold text-gray-900 truncate">{provider.full_name}</h3>
+                              {provider.is_verified && (
+                                <span className="text-emerald-500 flex-shrink-0" title="Ověřený">✓</span>
+                              )}
                             </div>
-                          )}
-                          
-                          {provider.bio && (
-                            <p className="text-gray-600 text-sm line-clamp-2 mb-3">{provider.bio}</p>
-                          )}
-                          
-                          <div className="flex flex-wrap gap-2">
-                            {provider.hourly_rate && (
-                              <span className="text-sm text-cyan-600 font-semibold">
-                                {provider.hourly_rate} Kč/hod
-                              </span>
+
+                            {provider.rating > 0 && (
+                              <div className="flex items-center gap-1 mb-2">
+                                <span className="text-yellow-400">★</span>
+                                <span className="font-semibold text-gray-900">{provider.rating}</span>
+                                <span className="text-gray-400 text-sm">({provider.review_count})</span>
+                              </div>
                             )}
-                            {provider.locations && provider.locations.length > 0 && (
-                              <span className="text-sm text-gray-500">
-                                📍 {provider.locations.slice(0, 2).join(", ")}
-                              </span>
+
+                            {provider.bio && (
+                              <p className="text-gray-600 text-sm line-clamp-2 mb-3">{provider.bio}</p>
                             )}
+
+                            <div className="flex flex-wrap gap-2">
+                              {provider.hourly_rate && (
+                                <span className="text-sm text-cyan-600 font-semibold">
+                                  {provider.hourly_rate} Kč/hod
+                                </span>
+                              )}
+                              {provider.locations && provider.locations.length > 0 && (
+                                <span className="text-sm text-gray-500">
+                                  📍 {provider.locations.slice(0, 2).join(", ")}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </>

@@ -54,24 +54,20 @@ export default function Home() {
   }, []);
 
   const loadStats = async () => {
-    // Počet reálných fachmanů
     const { count: realProviders } = await supabase
       .from("profiles")
       .select("*", { count: "exact", head: true })
       .eq("role", "provider");
 
-    // Počet fiktivních fachmanů
     const { count: seedProviders } = await supabase
       .from("seed_providers")
       .select("*", { count: "exact", head: true });
 
-    // Počet aktivních poptávek
     const { count: activeRequests } = await supabase
       .from("requests")
       .select("*", { count: "exact", head: true })
       .eq("status", "active");
 
-    // Počet dokončených poptávek
     const { count: completedRequests } = await supabase
       .from("requests")
       .select("*", { count: "exact", head: true })
@@ -100,7 +96,6 @@ export default function Home() {
       .limit(6);
 
     if (data) {
-      // Načteme počty nabídek
       const requestIds = data.map(r => r.id);
       const { data: offersData } = await supabase
         .from("offers")
@@ -159,17 +154,17 @@ export default function Home() {
                 </span>
               </div>
 
-              {/* Title - STEJNÝ NA MOBILU I PC */}
+              {/* Title */}
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6" style={{ lineHeight: "1.1" }}>
                 Najděte{" "}
                 <span className="bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
-                  profesionála
+                  fachmana
                 </span>
                 <br />
                 <span className="text-gray-400">na cokoliv</span>
               </h1>
 
-              {/* Desc - STEJNÝ NA MOBILU I PC */}
+              {/* Desc */}
               <p className="text-lg sm:text-xl text-gray-600 mb-8 max-w-lg mx-auto lg:mx-0">
                 Od řemeslníků po marketing, IT až po hlídání dětí. Získejte nabídky od ověřených profesionálů do 24 hodin.
               </p>
@@ -230,7 +225,6 @@ export default function Home() {
             <div>
               {recentRequests.length > 0 ? (
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                  {/* Header */}
                   <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-4 sm:px-6 py-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -241,7 +235,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Content */}
                   <div className="p-4 sm:p-6">
                     <div className="overflow-hidden">
                       <div 
@@ -282,7 +275,6 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Navigation */}
                     <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
                       <button onClick={prevSlide} className="w-10 h-10 rounded-full bg-gray-100 hover:bg-cyan-100 text-gray-600 hover:text-cyan-600 flex items-center justify-center transition-colors">
                         ←
@@ -312,7 +304,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Features under card - only on desktop */}
               <div className="hidden lg:grid grid-cols-2 gap-4 mt-6">
                 <div className="bg-white rounded-xl shadow-md p-4 border border-gray-100 flex items-center gap-3">
                   <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-lg">✓</div>
