@@ -54,9 +54,9 @@ export default function Navbar() {
 
   const navLinks = [
     { href: "/poptavky", label: "Poptávky", icon: "📋" },
+    { href: "/nabidky", label: "Nabídky", icon: "💼" },
     { href: "/fachmani", label: "Fachmani", icon: "👷" },
     { href: "/feed", label: "Feed", icon: "📸", isNew: true },
-    { href: "/kategorie", label: "Kategorie", icon: "🗂️" },
     { href: "/cenik", label: "Ceník", icon: "💎" },
   ];
 
@@ -66,14 +66,14 @@ export default function Navbar() {
     <>
       <nav className={`fixed w-full z-50 transition-all duration-300 ${
         scrolled 
-          ? "bg-white/80 backdrop-blur-xl shadow-lg shadow-black/5 py-2" 
-          : "bg-white/50 backdrop-blur-sm py-3"
+          ? "bg-white/90 backdrop-blur-xl shadow-lg shadow-black/5 py-2" 
+          : "bg-white/70 backdrop-blur-md py-3"
       }`}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-16">
             
             {/* Logo */}
-            <Link href="/" className="flex-shrink-0">
+            <Link href="/" className="flex-shrink-0 hover:opacity-80 transition-opacity">
               <Image 
                 src="/logo.png" 
                 alt="Fachmani" 
@@ -133,7 +133,7 @@ export default function Navbar() {
                       <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center text-white text-sm font-bold">
                         {userName?.charAt(0) || "?"}
                       </div>
-                      <span className="font-semibold text-gray-700 text-sm">{userName?.split(" ")[0] || "Menu"}</span>
+                      <span className="font-semibold text-gray-700 text-sm max-w-24 truncate">{userName?.split(" ")[0] || "Menu"}</span>
                       <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
@@ -142,7 +142,7 @@ export default function Navbar() {
                     {/* Dropdown */}
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
                       <div className="px-4 py-3 border-b border-gray-100">
-                        <p className="text-sm font-semibold text-gray-900">{userName}</p>
+                        <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
                         <p className="text-xs text-gray-500 capitalize">{userRole === "provider" ? "Fachman" : userRole}</p>
                       </div>
                       
@@ -152,10 +152,16 @@ export default function Navbar() {
                       </Link>
                       
                       {userRole === "provider" && (
-                        <Link href="/dashboard/fachman/profil" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
-                          <span className="text-lg">👤</span>
-                          <span className="text-sm font-medium">Můj profil</span>
-                        </Link>
+                        <>
+                          <Link href="/dashboard/fachman/profil" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
+                            <span className="text-lg">👤</span>
+                            <span className="text-sm font-medium">Můj profil</span>
+                          </Link>
+                          <Link href="/dashboard/fachman/nabidky" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
+                            <span className="text-lg">💼</span>
+                            <span className="text-sm font-medium">Moje nabídky</span>
+                          </Link>
+                        </>
                       )}
                       
                       <Link href="/zpravy" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
@@ -270,14 +276,24 @@ export default function Navbar() {
                   </Link>
 
                   {userRole === "provider" && (
-                    <Link
-                      href="/dashboard/fachman/profil"
-                      onClick={() => setIsOpen(false)}
-                      className="flex items-center gap-3 px-4 py-3.5 text-gray-700 hover:bg-gray-50 rounded-2xl transition-all"
-                    >
-                      <span className="text-xl">👤</span>
-                      <span className="font-semibold">Můj profil</span>
-                    </Link>
+                    <>
+                      <Link
+                        href="/dashboard/fachman/profil"
+                        onClick={() => setIsOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3.5 text-gray-700 hover:bg-gray-50 rounded-2xl transition-all"
+                      >
+                        <span className="text-xl">👤</span>
+                        <span className="font-semibold">Můj profil</span>
+                      </Link>
+                      <Link
+                        href="/dashboard/fachman/nabidky"
+                        onClick={() => setIsOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3.5 text-gray-700 hover:bg-gray-50 rounded-2xl transition-all"
+                      >
+                        <span className="text-xl">💼</span>
+                        <span className="font-semibold">Moje nabídky</span>
+                      </Link>
+                    </>
                   )}
 
                   <Link
