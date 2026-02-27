@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import NotificationBell from "./NotificationBell";
-import { Icons } from "./Icons";
 
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -38,9 +38,7 @@ export default function Navbar() {
 
     checkUser();
 
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
+    const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -54,242 +52,280 @@ export default function Navbar() {
 
   const dashboardLink = userRole === "provider" ? "/dashboard/fachman" : userRole === "admin" ? "/admin" : "/dashboard";
 
+  const navLinks = [
+    { href: "/poptavky", label: "Poptávky", icon: "📋" },
+    { href: "/fachmani", label: "Fachmani", icon: "👷" },
+    { href: "/feed", label: "Feed", icon: "📸", isNew: true },
+    { href: "/kategorie", label: "Kategorie", icon: "🗂️" },
+    { href: "/cenik", label: "Ceník", icon: "💎" },
+  ];
+
+  const isActive = (href: string) => pathname === href;
+
   return (
-    <nav className={`fixed w-full z-50 transition-all duration-500 ${
-      scrolled 
-        ? "bg-white/95 backdrop-blur-md shadow-2xl shadow-cyan-500/10 py-2" 
-        : "bg-transparent py-4"
-    }`}>
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex justify-between items-center">
-          {/* Logo - VĚTŠÍ */}
-          <Link href="/" className="flex items-center hover:scale-105 transition-transform duration-300">
-            <Image 
-              src="/logo.png" 
-              alt="Fachmani" 
-              width={180} 
-              height={60}
-              className="h-14 md:h-16 w-auto drop-shadow-lg"
-              priority
-            />
-          </Link>
-
-          {/* Desktop menu */}
-          <div className="hidden lg:flex items-center space-x-1">
-            <Link 
-              href="/poptavky" 
-              className="group px-4 py-2 text-gray-700 hover:text-cyan-500 rounded-xl transition-all font-semibold relative overflow-hidden"
-            >
-              <span className="relative z-10">Poptávky</span>
-              <span className="absolute inset-0 bg-gradient-to-r from-cyan-50 to-cyan-100 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-xl"></span>
-            </Link>
-            <Link 
-              href="/fachmani" 
-              className="group px-4 py-2 text-gray-700 hover:text-cyan-500 rounded-xl transition-all font-semibold relative overflow-hidden"
-            >
-              <span className="relative z-10">Fachmani</span>
-              <span className="absolute inset-0 bg-gradient-to-r from-cyan-50 to-cyan-100 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-xl"></span>
-            </Link>
-            <Link 
-              href="/kategorie" 
-              className="group px-4 py-2 text-gray-700 hover:text-cyan-500 rounded-xl transition-all font-semibold relative overflow-hidden"
-            >
-              <span className="relative z-10">Kategorie</span>
-              <span className="absolute inset-0 bg-gradient-to-r from-cyan-50 to-cyan-100 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-xl"></span>
-            </Link>
-            <Link 
-              href="/cenik" 
-              className="group px-4 py-2 text-gray-700 hover:text-cyan-500 rounded-xl transition-all font-semibold relative overflow-hidden"
-            >
-              <span className="relative z-10">Ceník</span>
-              <span className="absolute inset-0 bg-gradient-to-r from-cyan-50 to-cyan-100 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-xl"></span>
-            </Link>
-            <Link 
-              href="/jak-to-funguje" 
-              className="group px-4 py-2 text-gray-700 hover:text-cyan-500 rounded-xl transition-all font-semibold relative overflow-hidden"
-            >
-              <span className="relative z-10">Jak to funguje</span>
-              <span className="absolute inset-0 bg-gradient-to-r from-cyan-50 to-cyan-100 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-xl"></span>
-            </Link>
+    <>
+      <nav className={`fixed w-full z-50 transition-all duration-300 ${
+        scrolled 
+          ? "bg-white/80 backdrop-blur-xl shadow-lg shadow-black/5 py-2" 
+          : "bg-white/50 backdrop-blur-sm py-3"
+      }`}>
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex justify-between items-center h-16">
             
-            {isLoggedIn ? (
-              <>
-                <div className="w-px h-8 bg-gradient-to-b from-transparent via-gray-300 to-transparent mx-3"></div>
-                <NotificationBell />
-                <Link 
-                  href="/zpravy" 
-                  className="p-2.5 text-gray-600 hover:text-cyan-500 hover:bg-cyan-50 rounded-xl transition-all"
-                >
-                  {Icons.chat}
-                </Link>
-                {userRole === "provider" && (
-                  <Link 
-                    href="/dashboard/fachman/profil" 
-                    className="px-4 py-2 text-gray-700 hover:text-cyan-500 font-semibold transition-all"
+            {/* Logo */}
+            <Link href="/" className="flex-shrink-0">
+              <Image 
+                src="/logo.png" 
+                alt="Fachmani" 
+                width={160} 
+                height={50}
+                className="h-12 w-auto"
+                priority
+              />
+            </Link>
+
+            {/* Desktop Navigation */}
+            <div className="hidden lg:flex items-center">
+              {/* Main Links */}
+              <div className="flex items-center bg-gray-100/80 rounded-2xl p-1.5">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      isActive(link.href)
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
                   >
-                    Můj profil
+                    <span className="flex items-center gap-1.5">
+                      {link.label}
+                      {link.isNew && (
+                        <span className="bg-gradient-to-r from-pink-500 to-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                          NEW
+                        </span>
+                      )}
+                    </span>
                   </Link>
-                )}
-                <Link 
-                  href={dashboardLink} 
-                  className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl transition-all font-bold"
-                >
-                  {userName || "Dashboard"}
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all font-semibold"
-                >
-                  Odhlásit
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="w-px h-8 bg-gradient-to-b from-transparent via-gray-300 to-transparent mx-3"></div>
-                <Link 
-                  href="/auth/login" 
-                  className="px-5 py-2.5 text-gray-700 hover:text-cyan-500 font-bold transition-all"
-                >
-                  Přihlásit se
-                </Link>
-                <Link 
-                  href="/auth/register" 
-                  className="relative group ml-2"
-                >
-                  <span className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-cyan-500 rounded-2xl blur-md opacity-70 group-hover:opacity-100 transition-opacity"></span>
-                  <span className="relative block bg-gradient-to-r from-cyan-400 to-cyan-500 text-white px-7 py-3 rounded-2xl font-bold hover:shadow-xl hover:shadow-cyan-500/40 hover:scale-105 transition-all duration-300">
-                    Registrace
-                  </span>
-                </Link>
-              </>
-            )}
-          </div>
-
-          {/* Mobile hamburger */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="lg:hidden p-3 text-gray-700 hover:text-cyan-500 hover:bg-cyan-50 rounded-2xl transition-all"
-          >
-            {isOpen ? (
-              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            )}
-          </button>
-        </div>
-
-        {/* Mobile menu */}
-        {isOpen && (
-          <div className="lg:hidden mt-4 pb-6 animate-fade-in">
-            <div className="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl shadow-cyan-500/10 p-6 border border-gray-100">
-              <div className="flex flex-col space-y-2">
-                <Link 
-                  href="/poptavky" 
-                  className="px-5 py-4 text-gray-700 hover:text-cyan-500 hover:bg-cyan-50 rounded-2xl font-bold text-lg transition-all"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Poptávky
-                </Link>
-                <Link 
-                  href="/fachmani" 
-                  className="px-5 py-4 text-gray-700 hover:text-cyan-500 hover:bg-cyan-50 rounded-2xl font-bold text-lg transition-all"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Fachmani
-                </Link>
-                <Link 
-                  href="/kategorie" 
-                  className="px-5 py-4 text-gray-700 hover:text-cyan-500 hover:bg-cyan-50 rounded-2xl font-bold text-lg transition-all"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Kategorie
-                </Link>
-                <Link 
-                  href="/cenik" 
-                  className="px-5 py-4 text-gray-700 hover:text-cyan-500 hover:bg-cyan-50 rounded-2xl font-bold text-lg transition-all"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Ceník
-                </Link>
-                <Link 
-                  href="/jak-to-funguje" 
-                  className="px-5 py-4 text-gray-700 hover:text-cyan-500 hover:bg-cyan-50 rounded-2xl font-bold text-lg transition-all"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Jak to funguje
-                </Link>
-                
-                {isLoggedIn ? (
-                  <>
-                    <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-3"></div>
-                    <Link 
-                      href="/zpravy" 
-                      className="px-5 py-4 text-gray-700 hover:text-cyan-500 hover:bg-cyan-50 rounded-2xl font-bold text-lg transition-all flex items-center gap-3"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      {Icons.chat} Zprávy
-                    </Link>
-                    {userRole === "provider" && (
-                      <Link 
-                        href="/dashboard/fachman/profil" 
-                        className="px-5 py-4 text-gray-700 hover:text-cyan-500 hover:bg-cyan-50 rounded-2xl font-bold text-lg transition-all"
-                        onClick={() => setIsOpen(false)}
-                      >
-                        Můj profil
-                      </Link>
-                    )}
-                    <Link 
-                      href={dashboardLink} 
-                      className="px-5 py-4 text-gray-700 hover:text-cyan-500 hover:bg-cyan-50 rounded-2xl font-bold text-lg transition-all"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      {userName || "Dashboard"}
-                    </Link>
-                    <button
-                      onClick={() => {
-                        handleLogout();
-                        setIsOpen(false);
-                      }}
-                      className="px-5 py-4 text-left text-red-500 hover:bg-red-50 rounded-2xl font-bold text-lg transition-all"
-                    >
-                      Odhlásit se
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-3"></div>
-                    <Link 
-                      href="/auth/login" 
-                      className="px-5 py-4 text-gray-700 hover:text-cyan-500 hover:bg-cyan-50 rounded-2xl font-bold text-lg transition-all"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      Přihlásit se
-                    </Link>
-                    <Link 
-                      href="/auth/register" 
-                      className="mt-2 bg-gradient-to-r from-cyan-400 to-cyan-500 text-white px-6 py-4 rounded-2xl text-center font-bold text-lg shadow-lg shadow-cyan-500/30"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      Registrace
-                    </Link>
-                    <Link 
-                      href="/auth/register?role=provider" 
-                      className="mt-2 bg-gradient-to-r from-gray-800 to-gray-900 text-white px-6 py-4 rounded-2xl text-center font-bold text-lg"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      Jsem fachman
-                    </Link>
-                  </>
-                )}
+                ))}
               </div>
+
+              {/* Divider */}
+              <div className="w-px h-8 bg-gray-200 mx-4"></div>
+
+              {/* Right Side */}
+              {isLoggedIn ? (
+                <div className="flex items-center gap-2">
+                  <NotificationBell />
+                  
+                  <Link 
+                    href="/zpravy" 
+                    className="relative p-2.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </Link>
+
+                  {/* User Menu */}
+                  <div className="relative group">
+                    <button className="flex items-center gap-3 pl-3 pr-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-2xl transition-all">
+                      <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center text-white text-sm font-bold">
+                        {userName?.charAt(0) || "?"}
+                      </div>
+                      <span className="font-semibold text-gray-700 text-sm">{userName?.split(" ")[0] || "Menu"}</span>
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {/* Dropdown */}
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <p className="text-sm font-semibold text-gray-900">{userName}</p>
+                        <p className="text-xs text-gray-500 capitalize">{userRole === "provider" ? "Fachman" : userRole}</p>
+                      </div>
+                      
+                      <Link href={dashboardLink} className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
+                        <span className="text-lg">🏠</span>
+                        <span className="text-sm font-medium">Dashboard</span>
+                      </Link>
+                      
+                      {userRole === "provider" && (
+                        <Link href="/dashboard/fachman/profil" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
+                          <span className="text-lg">👤</span>
+                          <span className="text-sm font-medium">Můj profil</span>
+                        </Link>
+                      )}
+                      
+                      <Link href="/zpravy" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
+                        <span className="text-lg">💬</span>
+                        <span className="text-sm font-medium">Zprávy</span>
+                      </Link>
+                      
+                      <div className="border-t border-gray-100 mt-2 pt-2">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <span className="text-lg">🚪</span>
+                          <span className="text-sm font-medium">Odhlásit se</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Link 
+                    href="/auth/login" 
+                    className="px-5 py-2.5 text-gray-700 hover:text-gray-900 font-semibold text-sm transition-colors"
+                  >
+                    Přihlásit se
+                  </Link>
+                  <Link 
+                    href="/auth/register" 
+                    className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold text-sm rounded-xl hover:shadow-lg hover:shadow-cyan-500/25 transition-all"
+                  >
+                    Registrace
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="lg:hidden p-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
+            >
+              {isOpen ? (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Mobile Menu Overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setIsOpen(false)}></div>
+          
+          <div className="absolute top-20 left-4 right-4 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden animate-fade-in">
+            <div className="p-4">
+              {/* Navigation Links */}
+              <div className="space-y-1">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setIsOpen(false)}
+                    className={`flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all ${
+                      isActive(link.href)
+                        ? "bg-cyan-50 text-cyan-600"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="text-xl">{link.icon}</span>
+                      <span className="font-semibold">{link.label}</span>
+                    </span>
+                    {link.isNew && (
+                      <span className="bg-gradient-to-r from-pink-500 to-orange-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                        NEW
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+
+              <div className="h-px bg-gray-100 my-4"></div>
+
+              {isLoggedIn ? (
+                <div className="space-y-1">
+                  {/* User Info */}
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center text-white text-lg font-bold">
+                      {userName?.charAt(0) || "?"}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">{userName}</p>
+                      <p className="text-sm text-gray-500 capitalize">{userRole === "provider" ? "Fachman" : userRole}</p>
+                    </div>
+                  </div>
+
+                  <Link
+                    href={dashboardLink}
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3.5 text-gray-700 hover:bg-gray-50 rounded-2xl transition-all"
+                  >
+                    <span className="text-xl">🏠</span>
+                    <span className="font-semibold">Dashboard</span>
+                  </Link>
+
+                  {userRole === "provider" && (
+                    <Link
+                      href="/dashboard/fachman/profil"
+                      onClick={() => setIsOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3.5 text-gray-700 hover:bg-gray-50 rounded-2xl transition-all"
+                    >
+                      <span className="text-xl">👤</span>
+                      <span className="font-semibold">Můj profil</span>
+                    </Link>
+                  )}
+
+                  <Link
+                    href="/zpravy"
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3.5 text-gray-700 hover:bg-gray-50 rounded-2xl transition-all"
+                  >
+                    <span className="text-xl">💬</span>
+                    <span className="font-semibold">Zprávy</span>
+                  </Link>
+
+                  <button
+                    onClick={() => { handleLogout(); setIsOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-red-600 hover:bg-red-50 rounded-2xl transition-all"
+                  >
+                    <span className="text-xl">🚪</span>
+                    <span className="font-semibold">Odhlásit se</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Link
+                    href="/auth/login"
+                    onClick={() => setIsOpen(false)}
+                    className="block w-full text-center px-6 py-3.5 text-gray-700 font-semibold border-2 border-gray-200 rounded-2xl hover:bg-gray-50 transition-all"
+                  >
+                    Přihlásit se
+                  </Link>
+                  <Link
+                    href="/auth/register"
+                    onClick={() => setIsOpen(false)}
+                    className="block w-full text-center px-6 py-3.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-2xl hover:shadow-lg transition-all"
+                  >
+                    Registrace
+                  </Link>
+                  <Link
+                    href="/auth/register?role=provider"
+                    onClick={() => setIsOpen(false)}
+                    className="block w-full text-center px-6 py-3.5 bg-gray-900 text-white font-semibold rounded-2xl hover:bg-gray-800 transition-all"
+                  >
+                    🔧 Jsem fachman
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </div>
-    </nav>
+        </div>
+      )}
+    </>
   );
 }
