@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Footer() {
   return (
@@ -8,11 +9,17 @@ export default function Footer() {
         <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-8">
           {/* Logo a popis */}
           <div className="lg:col-span-2">
-            <Link href="/" className="text-3xl font-bold gradient-text">
-              Fachmani
+            <Link href="/" className="inline-block">
+              <Image
+                src="/logo.png"
+                alt="Fachmani"
+                width={240}
+                height={75}
+                className="h-16 w-auto brightness-0 invert"
+              />
             </Link>
             <p className="text-gray-400 mt-4 max-w-sm">
-              Platforma pro propojení zákazníků s ověřenými poskytovateli služeb. 
+              Platforma pro propojení zákazníků s ověřenými profesionály.
               Najděte fachmana snadno a rychle.
             </p>
             <div className="flex gap-4 mt-6">
@@ -120,7 +127,7 @@ export default function Footer() {
       <div className="border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-gray-500 text-sm">
-            © 2025 Fachmani. Všechna práva vyhrazena.
+            © 2026 Fachmani. Všechna práva vyhrazena.
           </p>
           <div className="flex gap-6 text-sm text-gray-500">
             <Link href="/vop" className="hover:text-white transition-colors">

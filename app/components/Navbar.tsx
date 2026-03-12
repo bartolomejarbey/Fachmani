@@ -74,12 +74,12 @@ export default function Navbar() {
             
             {/* Logo */}
             <Link href="/" className="flex-shrink-0 hover:opacity-80 transition-opacity">
-              <Image 
-                src="/logo.png" 
-                alt="Fachmani" 
-                width={160} 
-                height={50}
-                className="h-12 w-auto"
+              <Image
+                src="/logo.png"
+                alt="Fachmani"
+                width={320}
+                height={100}
+                className="h-20 w-auto"
                 priority
               />
             </Link>
