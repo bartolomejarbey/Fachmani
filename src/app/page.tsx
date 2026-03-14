@@ -773,13 +773,11 @@ function ServiceModal({
 
 function ROICalculator() {
   const [clients, setClients] = useState(30);
-  const [hoursPerWeek, setHoursPerWeek] = useState(15);
+  const [hoursPerWeek, setHoursPerWeek] = useState(5);
 
-  const hourlyRate = 800;
-  const monthlyHoursSaved = Math.round(hoursPerWeek * 0.7 * 4.33);
+  const hourlyRate = 500;
+  const monthlyHoursSaved = Math.round(hoursPerWeek * 0.6 * 4);
   const monthlySaving = monthlyHoursSaved * hourlyRate;
-  const yearlySaving = monthlySaving * 12;
-  const finatiqCost = clients <= 30 ? 490 : clients <= 100 ? 990 : 1990;
 
   return (
     <section className="bg-[#0b1629] py-24 relative border-t border-white/[.04]">
@@ -826,42 +824,48 @@ function ROICalculator() {
               </div>
               <input
                 type="range"
-                min={5}
-                max={40}
+                min={2}
+                max={20}
                 step={1}
                 value={hoursPerWeek}
                 onChange={(e) => setHoursPerWeek(Number(e.target.value))}
                 className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#22d3ee] [&::-webkit-slider-thumb]:cursor-pointer"
               />
               <div className="flex justify-between mt-1">
-                <span className="font-[DM_Sans] text-[.65rem] text-white/20">5h</span>
-                <span className="font-[DM_Sans] text-[.65rem] text-white/20">40h</span>
+                <span className="font-[DM_Sans] text-[.65rem] text-white/20">2h</span>
+                <span className="font-[DM_Sans] text-[.65rem] text-white/20">20h</span>
               </div>
             </div>
 
+            {/* Breakdown */}
+            <div className="mb-8 space-y-1.5">
+              <p className="font-[DM_Sans] text-sm text-white/40">
+                {hoursPerWeek} h/týden × 4 týdny = {hoursPerWeek * 4} h měsíčně
+              </p>
+              <p className="font-[DM_Sans] text-sm text-white/60">
+                Finatiq ušetří 60 % → {Math.round(hoursPerWeek * 4 * 0.6)} h měsíčně
+              </p>
+            </div>
+
             {/* Results */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white/[.03] border border-white/[.06] p-4 text-center">
-                <p className="font-[JetBrains_Mono] text-[.6rem] tracking-[3px] text-white/30 uppercase mb-1">Hodin ušetřeno / měs.</p>
-                <p className="font-[Oswald] text-2xl font-bold text-[#22d3ee]">{monthlyHoursSaved}h</p>
+                <p className="font-[JetBrains_Mono] text-[.6rem] tracking-[3px] text-white/30 uppercase mb-1">Úspora času</p>
+                <p className="font-[Oswald] text-2xl font-bold text-[#22d3ee]">{monthlyHoursSaved}h / měsíc</p>
               </div>
               <div className="bg-white/[.03] border border-white/[.06] p-4 text-center">
-                <p className="font-[JetBrains_Mono] text-[.6rem] tracking-[3px] text-white/30 uppercase mb-1">Úspora / měs.</p>
-                <p className="font-[Oswald] text-2xl font-bold text-white">{monthlySaving.toLocaleString("cs-CZ")} Kč</p>
-              </div>
-              <div className="bg-white/[.03] border border-white/[.06] p-4 text-center">
-                <p className="font-[JetBrains_Mono] text-[.6rem] tracking-[3px] text-white/30 uppercase mb-1">Úspora / rok</p>
-                <p className="font-[Oswald] text-2xl font-bold text-white">{yearlySaving.toLocaleString("cs-CZ")} Kč</p>
+                <p className="font-[JetBrains_Mono] text-[.6rem] tracking-[3px] text-white/30 uppercase mb-1">Finanční úspora</p>
+                <p className="font-[Oswald] text-2xl font-bold text-white">{monthlySaving.toLocaleString("cs-CZ")} Kč / měsíc</p>
               </div>
               <div className="bg-[#22d3ee]/[.06] border border-[#22d3ee]/20 p-4 text-center">
                 <p className="font-[JetBrains_Mono] text-[.6rem] tracking-[3px] text-white/30 uppercase mb-1">Cena Finatiq</p>
-                <p className="font-[Oswald] text-2xl font-bold text-[#22d3ee]">{finatiqCost} Kč</p>
-                <p className="font-[DM_Sans] text-[.65rem] text-white/25 mt-0.5">/ měsíc bez DPH</p>
+                <p className="font-[Oswald] text-2xl font-bold text-[#22d3ee]">od 0 Kč</p>
+                <p className="font-[DM_Sans] text-[.65rem] text-white/25 mt-0.5">Free tier navždy</p>
               </div>
             </div>
 
             <p className="font-[DM_Sans] text-xs text-white/20 text-center mt-6">
-              * Kalkulace předpokládá 70% úsporu admin. času při sazbě 800 Kč/h.
+              * Kalkulace předpokládá 60 % úsporu administrativního času při sazbě 500 Kč/h.
             </p>
           </div>
         </Reveal>
@@ -1530,8 +1534,8 @@ export default function LandingPage() {
           </Reveal>
           <Reveal delay={400}>
             <p className="text-center text-white/20 font-[DM_Sans] text-xs mt-4 max-w-xl mx-auto">
-              Průměrný finanční poradce ušetří s Finatiq 12+ hodin týdně na administrativě.
-              Při hodinové sazbě 800 Kč to je úspora přes 38 000 Kč měsíčně — investice se vrátí už v prvním týdnu.
+              Průměrný finanční poradce ušetří s Finatiq 60 % administrativního času.
+              Při sazbě 500 Kč/h se investice vrátí už za pár dní.
             </p>
           </Reveal>
         </div>

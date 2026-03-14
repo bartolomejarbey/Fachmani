@@ -276,8 +276,8 @@ export default function CenikPage() {
         </Reveal>
         <Reveal delay={400}>
           <p className="text-center text-white/20 font-[DM_Sans] text-xs mt-4 max-w-xl mx-auto">
-            Průměrný finanční poradce ušetří s Finatiq 12+ hodin týdně na administrativě.
-            Při hodinové sazbě 800 Kč to je úspora přes 38 000 Kč měsíčně — investice se vrátí už v prvním týdnu.
+            Průměrný finanční poradce ušetří s Finatiq 60 % administrativního času.
+            Při sazbě 500 Kč/h se investice vrátí už za pár dní.
           </p>
         </Reveal>
       </section>

@@ -5,10 +5,40 @@ import { createServerClient } from "@supabase/ssr";
 const alwaysPublicPaths = ["/", "/funkce", "/cenik", "/kontakt", "/proc-my", "/podminky", "/gdpr", "/fakturace", "/p/", "/ref/"];
 
 /* Login/register paths — public for guests, redirect logged-in users to dashboard */
-const authPaths = ["/login", "/portal/login", "/register", "/forgot-password"];
+const authPaths = ["/login", "/portal/login", "/register", "/forgot-password", "/reset-password"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // 0. Custom domain detection — BEFORE everything else
+  const hostname = request.headers.get("host")?.replace(":3000", "").replace(":3001", "") || "";
+  const mainDomains = ["localhost", "finatiq.cz", "www.finatiq.cz"];
+  const isCustomDomain = hostname && !mainDomains.includes(hostname) && !hostname.includes("vercel.app");
+
+  if (isCustomDomain) {
+    // API calls — pass through (matcher already excludes /api/ but just in case)
+    if (pathname.startsWith("/api/") || pathname.startsWith("/_next/")) {
+      return NextResponse.next();
+    }
+
+    // Auth pages on custom domain — pass through with x-custom-domain header
+    if (pathname === "/login" || pathname === "/portal/login" || pathname.startsWith("/login/")) {
+      const response = NextResponse.next({ request });
+      response.headers.set("x-custom-domain", hostname);
+      return response;
+    }
+
+    // Protected paths (advisor/portal dashboards) — let normal auth flow handle
+    if (pathname.startsWith("/advisor") || pathname.startsWith("/portal") || pathname.startsWith("/superadmin")) {
+      // Fall through to normal middleware logic below
+    } else {
+      // Root or any other path on custom domain → rewrite to /p/custom?domain=hostname
+      const url = request.nextUrl.clone();
+      url.pathname = "/p/custom";
+      url.searchParams.set("domain", hostname);
+      return NextResponse.rewrite(url);
+    }
+  }
 
   // 1. Always-public paths — no auth check at all
   const isAlwaysPublic =
