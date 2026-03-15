@@ -26,7 +26,7 @@ type RecentActivity = {
   admin_name: string;
   target_type: string;
   created_at: string;
-  details: any;
+  details: Record<string, unknown> | null;
 };
 
 export default function AdminDashboard() {
@@ -105,7 +105,7 @@ export default function AdminDashboard() {
       if (activityData) {
         setRecentActivity(activityData.map(a => ({
           ...a,
-          admin_name: (a.profiles as any)?.full_name || "System",
+          admin_name: (a.profiles as { full_name?: string } | null)?.full_name || "System",
         })));
       }
 

@@ -87,7 +87,7 @@ export default function MojeNabidkyPage() {
       .eq("provider_id", userId)
       .order("created_at", { ascending: false });
 
-    if (offersData) setOffers(offersData as any);
+    if (offersData) setOffers(offersData as unknown as ServiceOffer[]);
     setLoading(false);
   };
 

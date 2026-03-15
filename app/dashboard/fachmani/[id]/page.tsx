@@ -85,7 +85,10 @@ export default function FachmanProfile() {
           .eq("provider_id", providerData.id);
 
         if (categoriesData) {
-          setCategories(categoriesData.map((c: any) => c.categories).filter(Boolean));
+          setCategories(categoriesData.flatMap((c) => {
+            const cat = (c as unknown as { categories: { id: string; name: string; icon: string } | null }).categories;
+            return cat ? [cat] : [];
+          }));
         }
       }
 

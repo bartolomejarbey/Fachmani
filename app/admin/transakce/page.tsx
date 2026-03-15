@@ -51,8 +51,8 @@ export default function AdminTransakce() {
     if (data) {
       const enriched = data.map(t => ({
         ...t,
-        user_name: (t.profiles as any)?.full_name,
-        user_email: (t.profiles as any)?.email,
+        user_name: (t.profiles as { full_name?: string; email?: string } | null)?.full_name,
+        user_email: (t.profiles as { full_name?: string; email?: string } | null)?.email,
       }));
       setTransactions(enriched);
 

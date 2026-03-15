@@ -50,8 +50,8 @@ export default function AdminFaktury() {
     if (data) {
       setInvoices(data.map(inv => ({
         ...inv,
-        user_name: (inv.profiles as any)?.full_name,
-        user_email: (inv.profiles as any)?.email,
+        user_name: (inv.profiles as { full_name?: string; email?: string } | null)?.full_name,
+        user_email: (inv.profiles as { full_name?: string; email?: string } | null)?.email,
       })));
     }
 
@@ -59,7 +59,7 @@ export default function AdminFaktury() {
   };
 
   const handleStatusChange = async (invoiceId: string, newStatus: string) => {
-    const updates: any = { status: newStatus };
+    const updates: Record<string, string> = { status: newStatus };
     
     if (newStatus === "sent") {
       updates.sent_at = new Date().toISOString();

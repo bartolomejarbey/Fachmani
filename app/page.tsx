@@ -9,24 +9,13 @@ import { useSettings } from "@/lib/useSettings";
 
 const avatarEmojis = ["👨‍🔧", "👩‍🔧", "👨‍🎨", "👷", "👩‍💻", "👨‍🏫"];
 
-const categories = [
-  { icon: "🔧", name: "Instalatér", slug: "instalater", count: 34 },
-  { icon: "⚡", name: "Elektrikář", slug: "elektrikar", count: 28 },
-  { icon: "🎨", name: "Malíř", slug: "malir", count: 19 },
-  { icon: "🪚", name: "Truhlář", slug: "truhlar", count: 15 },
-  { icon: "💻", name: "Web & IT", slug: "web-it", count: 52 },
-  { icon: "📈", name: "Marketing", slug: "marketing", count: 38 },
-  { icon: "👶", name: "Hlídání dětí", slug: "hlidani-deti", count: 45 },
-  { icon: "🐕", name: "Péče o zvířata", slug: "pece-o-zvirata", count: 23 },
-  { icon: "✨", name: "Úklid", slug: "uklid", count: 67 },
-  { icon: "🏠", name: "Rekonstrukce", slug: "rekonstrukce", count: 31 },
-  { icon: "📦", name: "Stěhování", slug: "stehovani", count: 18 },
-  { icon: "📸", name: "Foto & Video", slug: "foto-video", count: 42 },
-  { icon: "🎓", name: "Doučování", slug: "doucovani", count: 56 },
-  { icon: "💪", name: "Fitness trenér", slug: "fitness", count: 29 },
-  { icon: "🌿", name: "Zahradník", slug: "zahradnik", count: 21 },
-  { icon: "🚗", name: "Autoservis", slug: "autoservis", count: 33 },
-];
+type Category = {
+  id: string;
+  icon: string;
+  name: string;
+  slug: string;
+  count: number;
+};
 
 type Request = {
   id: string;
@@ -46,13 +35,16 @@ export default function Home() {
     providers: 0,
     requests: 0,
     completed: 0,
+    avgRating: 0,
   });
+  const [categories, setCategories] = useState<Category[]>([]);
   const [recentRequests, setRecentRequests] = useState<Request[]>([]);
 
   useEffect(() => {
     setMounted(true);
     loadStats();
     loadRecentRequests();
+    loadCategories();
   }, []);
 
   const loadStats = async () => {
@@ -75,11 +67,44 @@ export default function Home() {
       .select("*", { count: "exact", head: true })
       .eq("status", "completed");
 
+    const { data: ratingData } = await supabase
+      .from("reviews")
+      .select("rating");
+
+    const avgRating = ratingData && ratingData.length > 0
+      ? Math.round((ratingData.reduce((sum, r) => sum + r.rating, 0) / ratingData.length) * 10) / 10
+      : 4.8;
+
     setStats({
       providers: (realProviders || 0) + (seedProviders || 0),
       requests: activeRequests || 0,
       completed: completedRequests || 0,
+      avgRating,
     });
+  };
+
+  const loadCategories = async () => {
+    const { data: cats } = await supabase
+      .from("categories")
+      .select("id, name, icon, slug")
+      .order("name");
+
+    if (cats) {
+      const { data: providerCategories } = await supabase
+        .from("provider_categories")
+        .select("category_id");
+
+      const counts: Record<string, number> = {};
+      providerCategories?.forEach((pc) => {
+        counts[pc.category_id] = (counts[pc.category_id] || 0) + 1;
+      });
+
+      setCategories(cats.map(c => ({
+        ...c,
+        slug: c.slug || c.name.toLowerCase().replace(/\s+/g, "-"),
+        count: counts[c.id] || 0,
+      })));
+    }
   };
 
   const loadRecentRequests = async () => {
@@ -111,7 +136,7 @@ export default function Home() {
 
       setRecentRequests(data.map(r => ({
         ...r,
-        category_icon: (r.categories as any)?.icon || "📋",
+        category_icon: (r.categories as { icon?: string } | null)?.icon || "📋",
         offers_count: offersCounts[r.id] || 0,
       })));
     }
@@ -217,7 +242,7 @@ export default function Home() {
                 <div className="flex items-center gap-1">
                   <span className="text-yellow-400 text-xl">★</span>
                   <span className="text-sm text-gray-600">
-                    <strong className="text-gray-900">4.8</strong>/5
+                    <strong className="text-gray-900">{stats.avgRating}</strong>/5
                   </span>
                 </div>
               </div>
@@ -335,7 +360,7 @@ export default function Home() {
               { value: `${stats.providers}+`, label: "Profesionálů" },
               { value: stats.requests.toString(), label: "Aktivních poptávek" },
               { value: `${stats.completed}+`, label: "Dokončených zakázek" },
-              { value: "4.8/5", label: "Průměrné hodnocení" },
+              { value: `${stats.avgRating}/5`, label: "Průměrné hodnocení" },
             ].map((stat, i) => (
               <div key={i} className="text-center">
                 <div className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">{stat.value}</div>

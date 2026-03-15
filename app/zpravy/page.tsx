@@ -54,6 +54,7 @@ export default function Zpravy() {
         // Seskupíme zprávy podle request_id a druhého uživatele
         const convMap = new Map<string, Conversation>();
         
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         messages.forEach((msg: any) => {
           const otherUserId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
           const otherUserName = msg.sender_id === user.id 

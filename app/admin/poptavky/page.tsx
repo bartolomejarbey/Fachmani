@@ -73,10 +73,10 @@ export default function AdminPoptavky() {
 
       const enrichedData = data.map(r => ({
         ...r,
-        customer_name: (r.profiles as any)?.full_name,
-        customer_email: (r.profiles as any)?.email,
-        category_name: (r.categories as any)?.name,
-        category_icon: (r.categories as any)?.icon,
+        customer_name: (r.profiles as { full_name?: string; email?: string } | null)?.full_name,
+        customer_email: (r.profiles as { full_name?: string; email?: string } | null)?.email,
+        category_name: (r.categories as { name?: string; icon?: string } | null)?.name,
+        category_icon: (r.categories as { name?: string; icon?: string } | null)?.icon,
         offers_count: offersCounts[r.id] || 0,
       }));
 

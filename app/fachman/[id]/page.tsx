@@ -146,7 +146,7 @@ export default function FachmanDetailPage() {
           id: r.id,
           rating: r.rating,
           comment: r.comment || "",
-          customer_name: (r.profiles as any)?.full_name || "Zákazník",
+          customer_name: (r.profiles as { full_name?: string } | null)?.full_name || "Zákazník",
           created_at: r.created_at,
         }));
 
@@ -167,9 +167,10 @@ export default function FachmanDetailPage() {
           bio: providerProfileData?.bio || null,
           hourly_rate: providerProfileData?.hourly_rate || null,
           locations: providerProfileData?.locations || null,
-          categories: (providerCategoriesData || [])
-            .map((pc: any) => pc.categories)
-            .filter(Boolean),
+          categories: (providerCategoriesData || []).flatMap((pc) => {
+            const cat = (pc as unknown as { categories: { id: string; name: string; icon: string } | null }).categories;
+            return cat ? [cat] : [];
+          }),
           rating: avgRating,
           review_count: reviews.length,
           reviews,

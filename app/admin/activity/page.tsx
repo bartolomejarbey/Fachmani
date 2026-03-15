@@ -10,7 +10,7 @@ type Activity = {
   action: string;
   target_type: string | null;
   target_id: string | null;
-  details: any;
+  details: Record<string, unknown> | null;
   created_at: string;
   admin_name?: string;
   admin_email?: string;
@@ -66,8 +66,8 @@ export default function AdminActivity() {
     if (data) {
       const enriched = data.map(a => ({
         ...a,
-        admin_name: (a.profiles as any)?.full_name,
-        admin_email: (a.profiles as any)?.email,
+        admin_name: (a.profiles as { full_name?: string; email?: string } | null)?.full_name,
+        admin_email: (a.profiles as { full_name?: string; email?: string } | null)?.email,
       }));
 
       if (page === 0) {
@@ -86,7 +86,7 @@ export default function AdminActivity() {
     return actionLabels[action] || { label: action, icon: "📌", color: "text-slate-400" };
   };
 
-  const formatDetails = (details: any) => {
+  const formatDetails = (details: Record<string, unknown> | null) => {
     if (!details) return null;
     return Object.entries(details)
       .map(([key, value]) => `${key}: ${value}`)

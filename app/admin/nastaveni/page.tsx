@@ -75,7 +75,7 @@ export default function AdminNastaveni() {
     setLoading(false);
   };
 
-  const saveSetting = async (key: string, value: any) => {
+  const saveSetting = async (key: string, value: Record<string, unknown>) => {
     setSaving(true);
 
     const { data: { user } } = await supabase.auth.getUser();

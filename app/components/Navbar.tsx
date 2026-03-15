@@ -77,8 +77,8 @@ export default function Navbar() {
               <Image
                 src="/logo.png"
                 alt="Fachmani"
-                width={320}
-                height={100}
+                width={280}
+                height={160}
                 className="h-40 w-auto"
                 priority
               />

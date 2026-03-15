@@ -98,7 +98,7 @@ export default function SeznamFachmanu() {
       // Spojíme data
       profilesData.forEach(profile => {
         const providerProfile = providerProfilesData?.find(pp => pp.user_id === profile.id);
-        const cats = providerCategoriesData?.filter((pc: any) => pc.provider_id === profile.id) || [];
+        const cats = providerCategoriesData?.filter((pc: { provider_id: string }) => pc.provider_id === profile.id) || [];
         const revs = reviewsData?.filter(r => r.provider_id === profile.id) || [];
         const promo = promosData?.find(p => p.provider_id === profile.id);
 
@@ -114,7 +114,10 @@ export default function SeznamFachmanu() {
           bio: providerProfile?.bio || null,
           hourly_rate: providerProfile?.hourly_rate || null,
           locations: providerProfile?.locations || null,
-          categories: cats.map((c: any) => c.categories).filter(Boolean),
+          categories: cats.flatMap((c) => {
+            const cat = (c as unknown as { categories: { id: string; name: string; icon: string } | null }).categories;
+            return cat ? [cat] : [];
+          }),
           rating: avgRating,
           review_count: revs.length,
           is_seed: false,

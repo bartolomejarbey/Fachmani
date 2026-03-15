@@ -87,8 +87,8 @@ export default function Dashboard() {
 
       setRequests(requestsData.map(r => ({
         ...r,
-        category_name: (r.categories as any)?.name,
-        category_icon: (r.categories as any)?.icon,
+        category_name: (r.categories as { name?: string; icon?: string } | null)?.name,
+        category_icon: (r.categories as { name?: string; icon?: string } | null)?.icon,
         offers_count: offersCounts[r.id] || 0,
       })));
     }

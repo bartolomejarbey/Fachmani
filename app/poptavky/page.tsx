@@ -79,8 +79,8 @@ export default function PoptavkyPage() {
         offers_count: offersCounts[r.id] || 0,
       }));
 
-      setRequests(requestsWithCounts as any);
-      setFilteredRequests(requestsWithCounts as any);
+      setRequests(requestsWithCounts as unknown as Request[]);
+      setFilteredRequests(requestsWithCounts as unknown as Request[]);
     }
 
     setLoading(false);

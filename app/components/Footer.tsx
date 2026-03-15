@@ -74,8 +74,8 @@ export default function Footer() {
                 <Image
                   src="/logo.png"
                   alt="Fachmani"
-                  width={500}
-                  height={160}
+                  width={392}
+                  height={224}
                   className="h-48 md:h-56 w-auto drop-shadow-[0_0_30px_rgba(6,182,212,0.3)]"
                   style={{ filter: "none" }}
                 />

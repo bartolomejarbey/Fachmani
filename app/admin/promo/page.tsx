@@ -76,9 +76,9 @@ export default function AdminPromo() {
     if (promoData) {
       setPromotions(promoData.map(p => ({
         ...p,
-        provider_name: (p.provider as any)?.full_name,
-        provider_email: (p.provider as any)?.email,
-        created_by_name: (p.creator as any)?.full_name,
+        provider_name: (p.provider as { full_name?: string; email?: string } | null)?.full_name,
+        provider_email: (p.provider as { full_name?: string; email?: string } | null)?.email,
+        created_by_name: (p.creator as { full_name?: string } | null)?.full_name,
       })));
     }
 

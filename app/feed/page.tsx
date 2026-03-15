@@ -38,7 +38,7 @@ const REACTIONS = ["👍", "❤️", "😂", "😮", "👏", "🔥"];
 export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; profile?: { full_name?: string; role?: string } } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
   const [newPostContent, setNewPostContent] = useState("");
@@ -82,7 +82,13 @@ export default function FeedPage() {
       .order("created_at", { ascending: false });
 
     if (postsData) {
-      const postsWithDetails = postsData.map((post: any) => {
+      type PostRow = Record<string, unknown> & {
+        post_likes?: { user_id: string }[];
+        post_comments?: { id: string; content: string; created_at: string; user_id: string; profiles: { full_name: string } }[];
+        post_reactions?: { user_id: string; emoji: string }[];
+      };
+
+      const postsWithDetails = postsData.map((post: PostRow) => {
         const likes = post.post_likes || [];
         const comments = post.post_comments || [];
         const reactions = post.post_reactions || [];
@@ -91,12 +97,12 @@ export default function FeedPage() {
           ...post,
           likes_count: likes.length,
           comments_count: comments.length,
-          user_liked: user ? likes.some((l: any) => l.user_id === user.id) : false,
+          user_liked: user ? likes.some((l) => l.user_id === user.id) : false,
           user_reactions: user
-            ? reactions.filter((r: any) => r.user_id === user.id).map((r: any) => r.emoji)
+            ? reactions.filter((r) => r.user_id === user.id).map((r) => r.emoji)
             : [],
           comments: comments
-            .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
             .slice(0, 5),
           post_likes: undefined,
           post_comments: undefined,
@@ -104,7 +110,7 @@ export default function FeedPage() {
         };
       });
 
-      setPosts(postsWithDetails);
+      setPosts(postsWithDetails as unknown as Post[]);
     }
     setLoading(false);
   };
