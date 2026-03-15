@@ -126,6 +126,7 @@ export default function NotificationBell() {
     <div className="relative">
       <button
         onClick={() => setShowDropdown(!showDropdown)}
+        aria-label="Notifikace"
         className="relative p-2 text-gray-600 hover:text-gray-900"
       >
         <span className="text-xl">🔔</span>

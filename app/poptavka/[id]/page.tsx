@@ -8,6 +8,7 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 import ReviewForm from "@/app/components/ReviewForm";
+import { useSettings } from "@/lib/useSettings";
 
 type Request = {
   id: string;
@@ -21,7 +22,7 @@ type Request = {
   status: string;
   created_at: string;
   expires_at: string;
-  customer_id: string;
+  user_id: string;
   categories: { name: string; icon: string } | null;
   profiles: { full_name: string } | null;
 };
@@ -48,6 +49,7 @@ type UserProfile = {
 export default function PoptavkaDetail() {
   const params = useParams();
   const router = useRouter();
+  const { settings } = useSettings();
   const [request, setRequest] = useState<Request | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +91,7 @@ export default function PoptavkaDetail() {
           .from("reviews")
           .select("id")
           .eq("request_id", params.id)
-          .eq("customer_id", user.id)
+          .eq("user_id", user.id)
           .single();
 
         if (reviewData) {
@@ -125,10 +127,12 @@ export default function PoptavkaDetail() {
     loadData();
   }, [params.id]);
 
+  const freeLimit = settings.platform.free_offers_per_month;
+
   const canSendOffer = () => {
     if (!userProfile) return false;
     if (userProfile.subscription_type === "free") {
-      return userProfile.monthly_offers_count < 3;
+      return userProfile.monthly_offers_count < freeLimit;
     }
     return true;
   };
@@ -136,7 +140,7 @@ export default function PoptavkaDetail() {
   const getRemainingOffers = () => {
     if (!userProfile) return 0;
     if (userProfile.subscription_type !== "free") return "∞";
-    return 3 - userProfile.monthly_offers_count;
+    return freeLimit - userProfile.monthly_offers_count;
   };
 
   const handleSubmitOffer = async (e: React.FormEvent) => {
@@ -172,7 +176,7 @@ export default function PoptavkaDetail() {
     }
 
     await supabase.from("notifications").insert({
-      user_id: request?.customer_id,
+      user_id: request?.user_id,
       type: "new_offer",
       title: "Nová nabídka",
       message: `Na vaši poptávku "${request?.title}" přišla nová nabídka za ${parseInt(offerPrice).toLocaleString()} Kč.`,
@@ -258,7 +262,7 @@ export default function PoptavkaDetail() {
     );
   }
 
-  const isOwner = currentUser === request.customer_id;
+  const isOwner = currentUser === request.user_id;
   const isProvider = userProfile?.role === "provider";
   const isVerified = userProfile?.is_verified || false;
   const canOffer = isProvider && isVerified && !isOwner && request.status === "active";
@@ -353,7 +357,7 @@ export default function PoptavkaDetail() {
                 <div className="relative z-10 p-8 text-white">
                   <h2 className="text-2xl font-bold mb-2">Jste fachman? Reagujte na tuto poptávku!</h2>
                   <p className="text-white/80 mb-6">
-                    Zaregistrujte se a pošlete svou nabídku. První 3 nabídky měsíčně jsou zdarma.
+                    Zaregistrujte se a pošlete svou nabídku. První {freeLimit} nabídky měsíčně jsou zdarma.
                   </p>
                   <div className="flex flex-wrap gap-4">
                     <Link
@@ -634,7 +638,7 @@ export default function PoptavkaDetail() {
                 {userProfile?.subscription_type === "free" && (
                   <div className={`bg-cyan-50 border-2 border-cyan-200 rounded-2xl p-4 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
                     <p className="text-cyan-800 font-semibold mb-1">
-                      Zbývající nabídky: {getRemainingOffers()}/3
+                      Zbývající nabídky: {getRemainingOffers()}/{freeLimit}
                     </p>
                     <Link
                       href="/dashboard/fachman/predplatne"

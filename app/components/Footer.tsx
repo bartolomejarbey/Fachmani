@@ -8,13 +8,26 @@ import { supabase } from "@/lib/supabase";
 export default function Footer() {
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+  const [subscribeError, setSubscribeError] = useState("");
 
   const handleNewsletter = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-    await supabase.from("newsletter_subscribers").insert({ email });
+    if (!email || subscribing) return;
+    setSubscribing(true);
+    setSubscribeError("");
+
+    const { error } = await supabase.from("newsletter_subscribers").insert({ email });
+
+    if (error) {
+      setSubscribeError(error.code === "23505" ? "Tento email je již přihlášen." : "Něco se pokazilo, zkuste to znovu.");
+      setSubscribing(false);
+      return;
+    }
+
     setSubscribed(true);
     setEmail("");
+    setSubscribing(false);
   };
 
   return (
@@ -169,13 +182,18 @@ export default function Footer() {
               {subscribed ? (
                 <p className="text-cyan-400 font-semibold text-lg">✓ Děkujeme za přihlášení k odběru!</p>
               ) : (
-                <form onSubmit={handleNewsletter} className="flex flex-col sm:flex-row gap-3 max-w-lg mx-auto">
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="vas@email.cz" required
-                    className="flex-1 px-5 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all" />
-                  <button type="submit" className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-2xl hover:shadow-lg hover:shadow-cyan-500/25 hover:-translate-y-0.5 transition-all duration-300">
-                    Odebírat
-                  </button>
-                </form>
+                <>
+                  <form onSubmit={handleNewsletter} className="flex flex-col sm:flex-row gap-3 max-w-lg mx-auto">
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="vas@email.cz" required
+                      className="flex-1 px-5 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all" />
+                    <button type="submit" disabled={subscribing} className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-2xl hover:shadow-lg hover:shadow-cyan-500/25 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50">
+                      {subscribing ? "Odesílám..." : "Odebírat"}
+                    </button>
+                  </form>
+                  {subscribeError && (
+                    <p className="text-red-400 text-sm mt-3">{subscribeError}</p>
+                  )}
+                </>
               )}
             </div>
           </div>

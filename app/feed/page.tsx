@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import Pagination from "@/app/components/Pagination";
 
 type Post = {
   id: string;
@@ -38,12 +39,14 @@ export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [newPostContent, setNewPostContent] = useState("");
   const [newPostImage, setNewPostImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
   const [openComments, setOpenComments] = useState<string | null>(null);
-  const [newComment, setNewComment] = useState("");
+  const [newComments, setNewComments] = useState<Record<string, string>>({});
   const [showReactions, setShowReactions] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -138,11 +141,17 @@ export default function FeedPage() {
       }
     }
 
-    await supabase.from("posts").insert({
+    const { error } = await supabase.from("posts").insert({
       user_id: currentUser.id,
       content: newPostContent.trim(),
       image_url: imageUrl,
     });
+
+    if (error) {
+      alert("Nepodařilo se publikovat příspěvek.");
+      setPosting(false);
+      return;
+    }
 
     setNewPostContent("");
     setNewPostImage(null);
@@ -194,15 +203,21 @@ export default function FeedPage() {
   };
 
   const handleComment = async (postId: string) => {
-    if (!currentUser || !newComment.trim()) return;
+    const comment = newComments[postId]?.trim();
+    if (!currentUser || !comment) return;
 
-    await supabase.from("post_comments").insert({
+    const { error } = await supabase.from("post_comments").insert({
       post_id: postId,
       user_id: currentUser.id,
-      content: newComment.trim(),
+      content: comment,
     });
 
-    setNewComment("");
+    if (error) {
+      alert("Nepodařilo se odeslat komentář.");
+      return;
+    }
+
+    setNewComments((prev) => ({ ...prev, [postId]: "" }));
     loadPosts();
   };
 
@@ -309,7 +324,7 @@ export default function FeedPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              {posts.map((post) => (
+              {posts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((post) => (
                 <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                   {/* Post Header */}
                   <div className="p-6 pb-4">
@@ -419,8 +434,8 @@ export default function FeedPage() {
                           <div className="flex-1 flex gap-2">
                             <input
                               type="text"
-                              value={newComment}
-                              onChange={(e) => setNewComment(e.target.value)}
+                              value={newComments[post.id] || ""}
+                              onChange={(e) => setNewComments((prev) => ({ ...prev, [post.id]: e.target.value }))}
                               placeholder="Napište komentář..."
                               className="flex-1 bg-white rounded-xl px-4 py-2 border border-gray-200 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                               onKeyDown={(e) => e.key === "Enter" && handleComment(post.id)}
@@ -439,6 +454,17 @@ export default function FeedPage() {
                 </div>
               ))}
             </div>
+          )}
+
+          {posts.length > ITEMS_PER_PAGE && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(posts.length / ITEMS_PER_PAGE)}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            />
           )}
         </div>
       </div>

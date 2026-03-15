@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminLayout from "../components/AdminLayout";
 import Link from "next/link";
+import { useAdminActions } from "../hooks/useAdminActions";
 
 type Fachman = {
   id: string;
@@ -20,6 +21,7 @@ type Fachman = {
 };
 
 export default function AdminFachmani() {
+  const { handleVerify: sharedHandleVerify } = useAdminActions();
   const [fachmani, setFachmani] = useState<Fachman[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -41,21 +43,8 @@ export default function AdminFachmani() {
     setLoading(false);
   };
 
-  const handleVerify = async (id: string, verify: boolean) => {
-    await supabase
-      .from("profiles")
-      .update({ is_verified: verify })
-      .eq("id", id);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("admin_activity_log").insert({
-      admin_id: user?.id,
-      action: verify ? "verify_user" : "unverify_user",
-      target_type: "user",
-      target_id: id,
-    });
-
-    loadFachmani();
+  const handleVerify = (id: string, verify: boolean) => {
+    sharedHandleVerify(id, verify, loadFachmani);
   };
 
   const filteredFachmani = fachmani.filter((f) => {

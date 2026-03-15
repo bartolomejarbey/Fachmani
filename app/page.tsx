@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import { useSettings } from "@/lib/useSettings";
 
 const avatarEmojis = ["👨‍🔧", "👩‍🔧", "👨‍🎨", "👷", "👩‍💻", "👨‍🏫"];
 
@@ -38,6 +39,7 @@ type Request = {
 };
 
 export default function Home() {
+  const { settings } = useSettings();
   const [mounted, setMounted] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [stats, setStats] = useState({
@@ -438,7 +440,7 @@ export default function Home() {
             {[
               { icon: "🛡️", title: "Ověření profesionálové", desc: "Každý prochází ověřením přes BankID" },
               { icon: "⭐", title: "Reálné recenze", desc: "Hodnocení od skutečných zákazníků" },
-              { icon: "⚡", title: "Rychlé nabídky", desc: "Průměrně 3 nabídky do 24 hodin" },
+              { icon: "⚡", title: "Rychlé nabídky", desc: `Průměrně ${settings.platform.free_offers_per_month} nabídky do 24 hodin` },
               { icon: "💬", title: "Bezpečný chat", desc: "Komunikace přímo v aplikaci" },
             ].map((item, i) => (
               <div key={i} className="text-center p-4 lg:p-6">
@@ -489,7 +491,7 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-4 lg:gap-5">
               {[
                 { value: "0 Kč", label: "Registrace zdarma" },
-                { value: "3×", label: "Nabídky měsíčně zdarma" },
+                { value: `${settings.platform.free_offers_per_month}×`, label: "Nabídky měsíčně zdarma" },
                 { value: "24h", label: "Průměrná odezva" },
                 { value: "98%", label: "Spokojených klientů" },
               ].map((stat, i) => (

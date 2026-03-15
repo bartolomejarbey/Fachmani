@@ -6,6 +6,7 @@ import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
+import Pagination from "@/app/components/Pagination";
 
 type Category = {
   id: string;
@@ -39,6 +40,8 @@ export default function SeznamFachmanu() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
   useEffect(() => {
     setMounted(true);
@@ -199,6 +202,7 @@ export default function SeznamFachmanu() {
     }
 
     setFilteredFachmani(result);
+    setCurrentPage(1);
   }, [fachmani, selectedCategory, locationFilter, verifiedOnly]);
 
   return (
@@ -315,7 +319,7 @@ export default function SeznamFachmanu() {
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredFachmani.map((fachman, i) => {
+              {filteredFachmani.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((fachman, i) => {
                 const isPremium = fachman.subscription_type === "premium" || fachman.subscription_type === "business";
                 const isTopProfile = fachman.has_promo && fachman.promo_type === "top_profile";
 
@@ -414,6 +418,17 @@ export default function SeznamFachmanu() {
                 );
               })}
             </div>
+          )}
+
+          {filteredFachmani.length > ITEMS_PER_PAGE && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredFachmani.length / ITEMS_PER_PAGE)}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            />
           )}
         </div>
       </section>

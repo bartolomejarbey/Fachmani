@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useSettings } from "@/lib/useSettings";
 
 export default function ProFachmany() {
+  const { settings } = useSettings();
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigace */}
@@ -197,7 +201,7 @@ export default function ProFachmany() {
               <h3 className="font-semibold text-lg mb-2">Start</h3>
               <p className="text-3xl font-bold mb-4">Zdarma</p>
               <ul className="text-sm text-gray-600 space-y-2 mb-6">
-                <li>✓ 3 nabídky měsíčně</li>
+                <li>✓ {settings.platform.free_offers_per_month} nabídky měsíčně</li>
                 <li>✓ Základní profil</li>
                 <li>✓ Chat se zákazníky</li>
               </ul>
@@ -214,7 +218,7 @@ export default function ProFachmany() {
                 Doporučujeme
               </span>
               <h3 className="font-semibold text-lg mb-2">Premium</h3>
-              <p className="text-3xl font-bold mb-4">499 Kč<span className="text-sm font-normal">/měs</span></p>
+              <p className="text-3xl font-bold mb-4">{settings.subscriptions.premium_monthly} Kč<span className="text-sm font-normal">/měs</span></p>
               <ul className="text-sm text-gray-600 space-y-2 mb-6">
                 <li>✓ Neomezené nabídky</li>
                 <li>✓ Zvýrazněný profil</li>
@@ -231,7 +235,7 @@ export default function ProFachmany() {
 
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
               <h3 className="font-semibold text-lg mb-2">Business</h3>
-              <p className="text-3xl font-bold mb-4">1 299 Kč<span className="text-sm font-normal">/měs</span></p>
+              <p className="text-3xl font-bold mb-4">{settings.subscriptions.business_monthly.toLocaleString()} Kč<span className="text-sm font-normal">/měs</span></p>
               <ul className="text-sm text-gray-600 space-y-2 mb-6">
                 <li>✓ Vše z Premium</li>
                 <li>✓ Firemní profil</li>

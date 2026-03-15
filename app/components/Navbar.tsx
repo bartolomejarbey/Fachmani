@@ -118,8 +118,9 @@ export default function Navbar() {
                 <div className="flex items-center gap-2">
                   <NotificationBell />
                   
-                  <Link 
-                    href="/zpravy" 
+                  <Link
+                    href="/zpravy"
+                    aria-label="Zprávy"
                     className="relative p-2.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -202,6 +203,7 @@ export default function Navbar() {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsOpen(!isOpen)}
+              aria-label={isOpen ? "Zavřít menu" : "Otevřít menu"}
               className="lg:hidden p-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
             >
               {isOpen ? (

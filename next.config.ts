@@ -1,13 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  
   // Komprese
   compress: true,
   
@@ -16,9 +9,6 @@ const nextConfig: NextConfig = {
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60 * 60 * 24 * 30, // 30 dní cache
   },
-  
-  // Optimalizace buildu
-  swcMinify: true,
   
   // Experimentální optimalizace
   experimental: {
@@ -38,7 +28,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: '/:all*(js|css)',
+        source: '/_next/static/:path*',
         headers: [
           {
             key: 'Cache-Control',

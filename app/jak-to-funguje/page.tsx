@@ -5,8 +5,12 @@ import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
+import { useSettings } from "@/lib/useSettings";
 
 export default function JakToFunguje() {
+  const { settings } = useSettings();
+  const freeLimit = settings.platform.free_offers_per_month;
+  const premiumPrice = settings.subscriptions.premium_monthly;
   const [userType, setUserType] = useState<"customer" | "provider">("customer");
 
   return (
@@ -88,7 +92,7 @@ export default function JakToFunguje() {
                     icon: "📨",
                     title: "Dostanete nabídky",
                     description: "Ověření fachmani z vašeho okolí vám pošlou nabídky s cenou a termínem.",
-                    details: ["Průměrně 3 nabídky", "Do 24 hodin", "Vidíte hodnocení fachmanů"],
+                    details: [`Průměrně ${freeLimit} nabídky`, "Do 24 hodin", "Vidíte hodnocení fachmanů"],
                     color: "blue"
                   },
                   {
@@ -157,7 +161,7 @@ export default function JakToFunguje() {
                 {[
                   { icon: "💰", title: "100% zdarma", desc: "Pro zákazníky neúčtujeme žádné poplatky" },
                   { icon: "✅", title: "Ověření fachmani", desc: "Každý prochází ověřením přes BankID" },
-                  { icon: "⚡", title: "Rychlé nabídky", desc: "Průměrně 3 nabídky do 24 hodin" },
+                  { icon: "⚡", title: "Rychlé nabídky", desc: `Průměrně ${freeLimit} nabídky do 24 hodin` },
                   { icon: "⭐", title: "Reálné recenze", desc: "Hodnocení od skutečných zákazníků" },
                 ].map((item, i) => (
                   <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 text-center hover:shadow-lg transition-all">
@@ -182,7 +186,7 @@ export default function JakToFunguje() {
               <div className="space-y-4">
                 {[
                   { q: "Je to opravdu zdarma?", a: "Ano, pro zákazníky je platforma 100% zdarma. Zadávání poptávek, komunikace s fachmany i hodnocení - vše bez poplatků." },
-                  { q: "Jak dlouho trvá než dostanu nabídky?", a: "Většina zákazníků dostane první nabídky do několika hodin. Průměrně máte 3 nabídky během 24 hodin." },
+                  { q: "Jak dlouho trvá než dostanu nabídky?", a: `Většina zákazníků dostane první nabídky do několika hodin. Průměrně máte ${freeLimit} nabídky během 24 hodin.` },
                   { q: "Musím si vybrat některou nabídku?", a: "Ne, nemáte žádnou povinnost. Můžete si vybrat nabídku, která vám vyhovuje, nebo žádnou - je to na vás." },
                   { q: "Jak poznám kvalitního fachmana?", a: "Každý fachman má profil s hodnocením, recenzemi a ukázkami práce. Ověření fachmani mají badge BankID." },
                 ].map((item, i) => (
@@ -238,7 +242,7 @@ export default function JakToFunguje() {
                     icon: "💼",
                     title: "Posílejte nabídky",
                     description: "Pošlete nabídku s vaší cenou a termínem. Komunikujte se zákazníkem a získejte zakázku.",
-                    details: ["3 nabídky měsíčně zdarma", "Přímá komunikace", "Budujete si recenze"],
+                    details: [`${freeLimit} nabídky měsíčně zdarma`, "Přímá komunikace", "Budujete si recenze"],
                     color: "emerald"
                   }
                 ].map((item, i) => (
@@ -320,7 +324,7 @@ export default function JakToFunguje() {
                   Začněte zdarma
                 </h2>
                 <p className="text-lg text-gray-300 mb-8 max-w-xl mx-auto">
-                  3 nabídky měsíčně zdarma. Pro více nabídek si vyberte Premium od 499 Kč/měsíc.
+                  {freeLimit} nabídky měsíčně zdarma. Pro více nabídek si vyberte Premium od {premiumPrice} Kč/měsíc.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -352,8 +356,8 @@ export default function JakToFunguje() {
 
               <div className="space-y-4">
                 {[
-                  { q: "Kolik stojí registrace?", a: "Registrace je zcela zdarma. V základním tarifu můžete poslat 3 nabídky měsíčně bez poplatků." },
-                  { q: "Kolik nabídek mohu poslat?", a: "V tarifu Start máte 3 nabídky měsíčně zdarma. Pro neomezené nabídky doporučujeme Premium (499 Kč/měsíc)." },
+                  { q: "Kolik stojí registrace?", a: `Registrace je zcela zdarma. V základním tarifu můžete poslat ${freeLimit} nabídky měsíčně bez poplatků.` },
+                  { q: "Kolik nabídek mohu poslat?", a: `V tarifu Start máte ${freeLimit} nabídky měsíčně zdarma. Pro neomezené nabídky doporučujeme Premium (${premiumPrice} Kč/měsíc).` },
                   { q: "Jak funguje ověření BankID?", a: "Ověření přes BankID zvyšuje vaši důvěryhodnost u zákazníků. Zobrazí se vám badge ověřeného fachmana." },
                   { q: "Jak získám více zakázek?", a: "Vyplňte kompletní profil, přidejte fotky prací, sbírejte pozitivní recenze a odpovídejte rychle na poptávky." },
                 ].map((item, i) => (

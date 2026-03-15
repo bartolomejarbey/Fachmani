@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminLayout from "../components/AdminLayout";
+import { useAdminActions } from "../hooks/useAdminActions";
 
 type TeamMember = {
   id: string;
@@ -15,6 +16,7 @@ type TeamMember = {
 };
 
 export default function AdminTym() {
+  const { handleChangeAdminRole: sharedHandleAdminRole, logAction } = useAdminActions();
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [allUsers, setAllUsers] = useState<{ id: string; email: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,62 +73,22 @@ export default function AdminTym() {
     e.preventDefault();
     setSaving(true);
 
-    await supabase
-      .from("profiles")
-      .update({ admin_role: selectedRole })
-      .eq("id", selectedUser);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("admin_activity_log").insert({
-      admin_id: user?.id,
-      action: "add_team_member",
-      target_type: "user",
-      target_id: selectedUser,
-      details: { role: selectedRole },
+    sharedHandleAdminRole(selectedUser, selectedRole, () => {
+      setSelectedUser("");
+      setSelectedRole("sales");
+      setShowModal(false);
+      setSaving(false);
+      loadData();
     });
-
-    setSelectedUser("");
-    setSelectedRole("sales");
-    setShowModal(false);
-    setSaving(false);
-    loadData();
   };
 
-  const handleChangeRole = async (userId: string, newRole: string) => {
-    await supabase
-      .from("profiles")
-      .update({ admin_role: newRole })
-      .eq("id", userId);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("admin_activity_log").insert({
-      admin_id: user?.id,
-      action: "change_team_role",
-      target_type: "user",
-      target_id: userId,
-      details: { new_role: newRole },
-    });
-
-    loadData();
+  const handleChangeRole = (userId: string, newRole: string) => {
+    sharedHandleAdminRole(userId, newRole, loadData);
   };
 
   const handleRemoveMember = async (userId: string, memberName: string) => {
     if (!confirm(`Opravdu odebrat ${memberName} z týmu?`)) return;
-
-    await supabase
-      .from("profiles")
-      .update({ admin_role: null })
-      .eq("id", userId);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("admin_activity_log").insert({
-      admin_id: user?.id,
-      action: "remove_team_member",
-      target_type: "user",
-      target_id: userId,
-    });
-
-    loadData();
+    sharedHandleAdminRole(userId, null, loadData);
   };
 
   const getRoleBadge = (role: string) => {

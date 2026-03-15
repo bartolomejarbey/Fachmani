@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import Pagination from "@/app/components/Pagination";
+import { useSettings } from "@/lib/useSettings";
 
 type Category = {
   id: string;
@@ -26,6 +28,7 @@ type Request = {
 };
 
 export default function PoptavkyPage() {
+  const { settings } = useSettings();
   const [requests, setRequests] = useState<Request[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<Request[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -35,6 +38,8 @@ export default function PoptavkyPage() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [sortBy, setSortBy] = useState("newest");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
   useEffect(() => {
     setMounted(true);
@@ -42,7 +47,7 @@ export default function PoptavkyPage() {
   }, []);
 
   const loadData = async () => {
-    await supabase.rpc('expire_old_requests').catch(() => {});
+    await supabase.rpc('expire_old_requests');
 
     const { data: categoriesData } = await supabase
       .from("categories")
@@ -103,6 +108,7 @@ export default function PoptavkyPage() {
     }
 
     setFilteredRequests(result);
+    setCurrentPage(1);
   }, [requests, selectedCategory, locationFilter, sortBy]);
 
   const daysLeft = (expiresAt: string) => {
@@ -164,7 +170,7 @@ export default function PoptavkyPage() {
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Jste profesionál?</h2>
                   <p className="text-gray-600 mt-1">
-                    Registrujte se a reagujte na poptávky. <strong>3 nabídky měsíčně zdarma!</strong>
+                    Registrujte se a reagujte na poptávky. <strong>{settings.platform.free_offers_per_month} nabídky měsíčně zdarma!</strong>
                   </p>
                 </div>
               </div>
@@ -261,7 +267,7 @@ export default function PoptavkyPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredRequests.map((request, i) => (
+              {filteredRequests.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((request, i) => (
                 <div 
                   key={request.id} 
                   className={`bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg hover:border-cyan-300 transition-all ${
@@ -328,6 +334,17 @@ export default function PoptavkyPage() {
                 </div>
               ))}
             </div>
+          )}
+
+          {filteredRequests.length > ITEMS_PER_PAGE && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredRequests.length / ITEMS_PER_PAGE)}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            />
           )}
 
           {/* CTA Bottom */}

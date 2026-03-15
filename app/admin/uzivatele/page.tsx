@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminLayout from "../components/AdminLayout";
 import { useSearchParams } from "next/navigation";
+import { useAdminActions } from "../hooks/useAdminActions";
 
 type User = {
   id: string;
@@ -20,7 +21,8 @@ type User = {
 function UzivateleContent() {
   const searchParams = useSearchParams();
   const initialFilter = searchParams.get("filter") || "all";
-  
+  const { handleVerify: sharedHandleVerify, handleChangeAdminRole: sharedHandleAdminRole, logAction } = useAdminActions();
+
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState(initialFilter);
@@ -61,59 +63,31 @@ function UzivateleContent() {
     user.email?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleVerify = async (userId: string, verify: boolean) => {
-    await supabase
-      .from("profiles")
-      .update({ is_verified: verify })
-      .eq("id", userId);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("admin_activity_log").insert({
-      admin_id: user?.id,
-      action: verify ? "verify_user" : "unverify_user",
-      target_type: "user",
-      target_id: userId,
-    });
-
-    loadUsers();
+  const handleVerify = (userId: string, verify: boolean) => {
+    sharedHandleVerify(userId, verify, loadUsers);
   };
 
   const handleChangeRole = async (userId: string, newRole: string) => {
-    await supabase
+    const { error } = await supabase
       .from("profiles")
       .update({ role: newRole })
       .eq("id", userId);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("admin_activity_log").insert({
-      admin_id: user?.id,
-      action: "change_role",
-      target_type: "user",
-      target_id: userId,
-      details: { new_role: newRole },
-    });
+    if (error) {
+      alert("Nepodařilo se změnit roli.");
+      return;
+    }
 
+    await logAction("change_role", "user", userId, { new_role: newRole });
     loadUsers();
     setShowModal(false);
   };
 
-  const handleChangeAdminRole = async (userId: string, adminRole: string | null) => {
-    await supabase
-      .from("profiles")
-      .update({ admin_role: adminRole })
-      .eq("id", userId);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("admin_activity_log").insert({
-      admin_id: user?.id,
-      action: "change_admin_role",
-      target_type: "user",
-      target_id: userId,
-      details: { new_admin_role: adminRole },
+  const handleChangeAdminRole = (userId: string, adminRole: string | null) => {
+    sharedHandleAdminRole(userId, adminRole, () => {
+      loadUsers();
+      setShowModal(false);
     });
-
-    loadUsers();
-    setShowModal(false);
   };
 
   const handleChangeSubscription = async (userId: string, subscription: string) => {

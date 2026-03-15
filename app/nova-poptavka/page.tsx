@@ -64,6 +64,12 @@ export default function NovaPoptavka() {
     setLoading(true);
     setError("");
 
+    if (budgetMin && budgetMax && parseInt(budgetMin) > parseInt(budgetMax)) {
+      setError("Rozpočet od nemůže být větší než rozpočet do.");
+      setLoading(false);
+      return;
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -78,7 +84,7 @@ export default function NovaPoptavka() {
     const { data, error: insertError } = await supabase
       .from("requests")
       .insert({
-        customer_id: user.id,
+        user_id: user.id,
         category_id: categoryId || null,
         title,
         description,

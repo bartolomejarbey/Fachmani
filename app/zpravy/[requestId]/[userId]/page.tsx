@@ -42,7 +42,7 @@ export default function ChatPage() {
   async function loadMessages(userId: string) {
     const { data } = await supabase
       .from("messages")
-      .select("id, content, sender_id, created_at")
+      .select("id, content, sender_id, receiver_id, created_at")
       .eq("request_id", requestId)
       .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`)
       .order("created_at", { ascending: true });
@@ -103,9 +103,11 @@ export default function ChatPage() {
   }, [requestId, otherUserId, router]);
 
   useEffect(() => {
-    // Real-time subscription pro nové zprávy
+    // Don't subscribe until currentUser is loaded
+    if (!currentUser) return;
+
     const channel = supabase
-      .channel("messages")
+      .channel(`messages-${requestId}-${currentUser}`)
       .on(
         "postgres_changes",
         {
@@ -116,7 +118,6 @@ export default function ChatPage() {
         },
         (payload) => {
           const newMsg = payload.new as Message;
-          // Přidáme zprávu pokud je součástí této konverzace
           if (
             (newMsg.sender_id === currentUser && newMsg.receiver_id === otherUserId) ||
             (newMsg.sender_id === otherUserId && newMsg.receiver_id === currentUser)

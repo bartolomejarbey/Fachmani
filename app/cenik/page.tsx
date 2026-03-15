@@ -1,75 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useState } from "react";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
-
-type PricingSettings = {
-  top_profile_7d: number;
-  boost_feed_1d: number;
-  premium_badge_30d: number;
-  extra_offer: number;
-};
-
-type SubscriptionSettings = {
-  premium_monthly: number;
-  premium_quarterly: number;
-  business_monthly: number;
-  business_quarterly: number;
-};
-
-type PlatformSettings = {
-  free_offers_per_month: number;
-};
+import { useSettings } from "@/lib/useSettings";
 
 export default function Cenik() {
+  const { settings, loaded: settingsLoaded } = useSettings();
+  const pricing = settings.pricing;
+  const subscriptions = settings.subscriptions;
+  const platform = settings.platform;
+  const loading = !settingsLoaded;
+
   const [userType, setUserType] = useState<"customer" | "provider">("customer");
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "quarterly">("monthly");
-  const [loading, setLoading] = useState(true);
-  
-  const [pricing, setPricing] = useState<PricingSettings>({
-    top_profile_7d: 99,
-    boost_feed_1d: 49,
-    premium_badge_30d: 199,
-    extra_offer: 29,
-  });
-  
-  const [subscriptions, setSubscriptions] = useState<SubscriptionSettings>({
-    premium_monthly: 499,
-    premium_quarterly: 399,
-    business_monthly: 1299,
-    business_quarterly: 1039,
-  });
-  
-  const [platform, setPlatform] = useState<PlatformSettings>({
-    free_offers_per_month: 3,
-  });
-
-  useEffect(() => {
-    async function loadSettings() {
-      const { data } = await supabase
-        .from("system_settings")
-        .select("key, value");
-
-      if (data) {
-        data.forEach((setting) => {
-          if (setting.key === "pricing") {
-            setPricing(setting.value);
-          } else if (setting.key === "subscription_prices") {
-            setSubscriptions(setting.value);
-          } else if (setting.key === "platform_settings") {
-            setPlatform(setting.value);
-          }
-        });
-      }
-      setLoading(false);
-    }
-
-    loadSettings();
-  }, []);
 
   const getPremiumPrice = () => {
     return billingPeriod === "monthly" 

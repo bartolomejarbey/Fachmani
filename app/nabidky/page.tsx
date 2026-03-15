@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import Pagination from "@/app/components/Pagination";
 
 type Category = { id: string; name: string; icon: string };
 type ServiceOffer = {
@@ -29,6 +30,8 @@ export default function NabidkyPage() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [sortBy, setSortBy] = useState("newest");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
   useEffect(() => { loadData(); }, []);
 
@@ -46,6 +49,7 @@ export default function NabidkyPage() {
     if (locationFilter) r = r.filter(o => o.location?.toLowerCase().includes(locationFilter.toLowerCase()));
     r.sort((a, b) => sortBy === "price_low" ? (a.price_from || 0) - (b.price_from || 0) : sortBy === "price_high" ? (b.price_from || 0) - (a.price_from || 0) : new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     setFilteredOffers(r);
+    setCurrentPage(1);
   }, [offers, selectedCategory, locationFilter, sortBy]);
 
   const formatPrice = (o: ServiceOffer) => {
@@ -89,7 +93,7 @@ export default function NabidkyPage() {
           <p className="text-gray-600 mb-6"><strong>{filteredOffers.length}</strong> {filteredOffers.length === 1 ? "nabídka" : filteredOffers.length < 5 ? "nabídky" : "nabídek"}</p>
           {loading ? <div className="text-center py-20"><div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div></div> : filteredOffers.length === 0 ? <div className="bg-gray-50 rounded-3xl p-16 text-center"><div className="text-6xl mb-6">🔧</div><h3 className="text-2xl font-bold">Žádné nabídky</h3></div> : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredOffers.map(o => (
+              {filteredOffers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map(o => (
                 <div key={o.id} className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg hover:border-emerald-300 transition-all">
                   <div className="flex items-start justify-between mb-4"><div className="w-12 h-12 bg-gradient-to-br from-emerald-50 to-cyan-50 border border-emerald-100 rounded-xl flex items-center justify-center text-xl">{o.categories?.icon || "🔧"}</div><span className="text-xs text-gray-400">{timeAgo(o.created_at)}</span></div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2">{o.title}</h3>
@@ -103,6 +107,16 @@ export default function NabidkyPage() {
               ))}
             </div>
           )}
+          {filteredOffers.length > ITEMS_PER_PAGE && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredOffers.length / ITEMS_PER_PAGE)}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            />
+          )}
           <div className="mt-20 bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-10 lg:p-14 text-center">
             <div className="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-8"><span className="text-4xl">💼</span></div>
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">Jste fachman?</h2>
@@ -115,4 +129,3 @@ export default function NabidkyPage() {
     </div>
   );
 }
-// force redeploy Fri Feb 27 13:06:07 CET 2026

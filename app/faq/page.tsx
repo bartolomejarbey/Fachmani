@@ -5,8 +5,10 @@ import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
+import { useSettings } from "@/lib/useSettings";
 
 export default function FAQ() {
+  const { settings } = useSettings();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<"customer" | "provider">("customer");
   const [openQuestion, setOpenQuestion] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export default function FAQ() {
     {
       id: "c3",
       question: "Jak dlouho je poptávka aktivní?",
-      answer: "Poptávka je aktivní 30 dní od vytvoření. Během této doby vám mohou fachmani posílat své nabídky. Po uplynutí doby se poptávka automaticky uzavře."
+      answer: `Poptávka je aktivní ${settings.platform.request_expiry_days} dní od vytvoření. Během této doby vám mohou fachmani posílat své nabídky. Po uplynutí doby se poptávka automaticky uzavře.`
     },
     {
       id: "c4",

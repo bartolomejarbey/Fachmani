@@ -28,6 +28,7 @@ type Request = {
   category_name?: string;
   category_icon?: string;
   offers_count?: number;
+  categories?: { id: string; name: string; icon: string } | null;
 };
 
 type Offer = {

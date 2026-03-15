@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSettings } from "@/lib/useSettings";
 
 type Profile = {
   id: string;
@@ -16,6 +17,7 @@ type Profile = {
 
 export default function Predplatne() {
   const router = useRouter();
+  const { settings } = useSettings();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
@@ -75,7 +77,7 @@ export default function Predplatne() {
       await supabase.from("subscriptions").insert({
         user_id: profile.id,
         plan: plan,
-        price: plan === "premium" ? 499 : 1299,
+        price: plan === "premium" ? settings.subscriptions.premium_monthly : settings.subscriptions.business_monthly,
         expires_at: expiresAt.toISOString(),
       });
 
@@ -104,9 +106,10 @@ export default function Predplatne() {
     setUpgrading(false);
   };
 
+  const freeLimit = settings.platform.free_offers_per_month;
   const getOffersRemaining = () => {
     if (profile?.subscription_type !== "free") return "Neomezené";
-    return `${3 - (profile?.monthly_offers_count || 0)} z 3`;
+    return `${freeLimit - (profile?.monthly_offers_count || 0)} z ${freeLimit}`;
   };
 
   if (loading) {
@@ -191,7 +194,7 @@ export default function Predplatne() {
             <h3 className="font-semibold text-lg mb-2">Start</h3>
             <p className="text-3xl font-bold mb-4">Zdarma</p>
             <ul className="text-sm text-gray-600 space-y-2 mb-6">
-              <li>✓ 3 nabídky měsíčně</li>
+              <li>✓ {freeLimit} nabídky měsíčně</li>
               <li>✓ Základní profil</li>
               <li>✓ Interní chat</li>
             </ul>
@@ -213,7 +216,7 @@ export default function Predplatne() {
             profile?.subscription_type === "premium" ? "border-blue-600" : "border-transparent"
           }`}>
             <h3 className="font-semibold text-lg mb-2">Premium</h3>
-            <p className="text-3xl font-bold mb-4">499 Kč<span className="text-sm font-normal text-gray-500">/měsíc</span></p>
+            <p className="text-3xl font-bold mb-4">{settings.subscriptions.premium_monthly} Kč<span className="text-sm font-normal text-gray-500">/měsíc</span></p>
             <ul className="text-sm text-gray-600 space-y-2 mb-6">
               <li>✓ Neomezené nabídky</li>
               <li>✓ Zvýrazněný profil</li>
@@ -238,7 +241,7 @@ export default function Predplatne() {
             profile?.subscription_type === "business" ? "border-blue-600" : "border-transparent"
           }`}>
             <h3 className="font-semibold text-lg mb-2">Business</h3>
-            <p className="text-3xl font-bold mb-4">1 299 Kč<span className="text-sm font-normal text-gray-500">/měsíc</span></p>
+            <p className="text-3xl font-bold mb-4">{settings.subscriptions.business_monthly.toLocaleString()} Kč<span className="text-sm font-normal text-gray-500">/měsíc</span></p>
             <ul className="text-sm text-gray-600 space-y-2 mb-6">
               <li>✓ Vše z Premium</li>
               <li>✓ Firemní profil</li>

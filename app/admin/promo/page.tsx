@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminLayout from "../components/AdminLayout";
+import { useSettings } from "@/lib/useSettings";
 
 type Promotion = {
   id: string;
@@ -25,14 +26,14 @@ type Provider = {
   email: string;
 };
 
-const promoTypes = [
-  { key: "top_profile", label: "🚀 Topování profilu", price: 99, duration: 7 },
-  { key: "boost_feed", label: "📣 Boost na feedu", price: 49, duration: 1 },
-  { key: "premium_badge", label: "⭐ Premium badge", price: 199, duration: 30 },
-  { key: "priority_requests", label: "🎯 Přednostní poptávky", price: 79, duration: 7 },
-];
-
 export default function AdminPromo() {
+  const { settings } = useSettings();
+  const promoTypes = [
+    { key: "top_profile", label: "🚀 Topování profilu", price: settings.pricing.top_profile_7d, duration: 7 },
+    { key: "boost_feed", label: "📣 Boost na feedu", price: settings.pricing.boost_feed_1d, duration: 1 },
+    { key: "premium_badge", label: "⭐ Premium badge", price: settings.pricing.premium_badge_30d, duration: 30 },
+    { key: "priority_requests", label: "🎯 Přednostní poptávky", price: 79, duration: 7 },
+  ];
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);

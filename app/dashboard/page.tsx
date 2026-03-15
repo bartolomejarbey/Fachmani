@@ -69,7 +69,7 @@ export default function Dashboard() {
         id, title, status, created_at, expires_at, location,
         categories (name, icon)
       `)
-      .eq("customer_id", user.id)
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     if (requestsData) {

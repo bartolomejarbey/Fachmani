@@ -15,7 +15,7 @@ type Request = {
   status: string;
   created_at: string;
   expires_at: string;
-  customer_id: string;
+  user_id: string;
   category_id: string;
   customer_name?: string;
   customer_email?: string;
@@ -41,7 +41,7 @@ export default function AdminPoptavky() {
       .from("requests")
       .select(`
         *,
-        profiles:customer_id (full_name, email),
+        profiles:user_id (full_name, email),
         categories:category_id (name, icon)
       `)
       .order("created_at", { ascending: false });
