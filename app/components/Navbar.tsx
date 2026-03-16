@@ -118,8 +118,8 @@ export default function Navbar() {
               {/* Right Side */}
               {authLoading ? (
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gray-200 rounded-xl animate-pulse" />
-                  <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />
+                  <div className="w-24 h-10 bg-gray-100 rounded-xl animate-pulse" />
+                  <div className="w-24 h-10 bg-gray-200 rounded-xl animate-pulse" />
                 </div>
               ) : isLoggedIn ? (
                 <div className="flex items-center gap-2">
@@ -263,14 +263,9 @@ export default function Navbar() {
               <div className="h-px bg-gray-100 my-4"></div>
 
               {authLoading ? (
-                <div className="px-4 py-3 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gray-200 rounded-2xl animate-pulse" />
-                    <div className="space-y-2">
-                      <div className="w-24 h-4 bg-gray-200 rounded animate-pulse" />
-                      <div className="w-16 h-3 bg-gray-200 rounded animate-pulse" />
-                    </div>
-                  </div>
+                <div className="space-y-3 px-4">
+                  <div className="w-full h-12 bg-gray-100 rounded-2xl animate-pulse" />
+                  <div className="w-full h-12 bg-gray-100 rounded-2xl animate-pulse" />
                 </div>
               ) : isLoggedIn ? (
                 <div className="space-y-1">

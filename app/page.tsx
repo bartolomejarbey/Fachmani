@@ -197,7 +197,11 @@ export default function Home() {
               <div className="inline-flex items-center gap-2 bg-white shadow-md px-4 py-2 rounded-full mb-6">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span className="text-sm text-gray-600">
-                  <strong className="text-emerald-600">{stats.requests}</strong> aktivních poptávek
+                  {dataLoaded ? (
+                    <strong className="text-emerald-600">{stats.requests}</strong>
+                  ) : (
+                    <span className="inline-block w-5 h-4 bg-emerald-200 rounded animate-pulse align-middle" />
+                  )}{" "}aktivních poptávek
                 </span>
               </div>
 
@@ -246,29 +250,47 @@ export default function Home() {
               </div>
 
               {/* Trust */}
-              <div className="flex items-center justify-center lg:justify-start gap-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex -space-x-2">
-                    {(topProviders.length > 0 ? topProviders.slice(0, 4) : [{id:"1",full_name:"F",avatar_url:null},{id:"2",full_name:"A",avatar_url:null},{id:"3",full_name:"C",avatar_url:null},{id:"4",full_name:"H",avatar_url:null}]).map((provider) => (
-                      provider.avatar_url ? (
-                        <img key={provider.id} src={provider.avatar_url} alt={provider.full_name} className="w-10 h-10 rounded-full border-2 border-white object-cover" />
-                      ) : (
-                        <div key={provider.id} className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white flex items-center justify-center text-sm font-bold text-cyan-700">
-                          {provider.full_name.charAt(0)}
-                        </div>
-                      )
-                    ))}
-                  </div>
-                  <span className="text-sm text-gray-600">
-                    <strong className="text-gray-900">{stats.providers}+</strong> profesionálů
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-yellow-400 text-xl">★</span>
-                  <span className="text-sm text-gray-600">
-                    <strong className="text-gray-900">{stats.avgRating}</strong>/5
-                  </span>
-                </div>
+              <div className="flex items-center justify-center lg:justify-start gap-6 h-10">
+                {dataLoaded ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="flex -space-x-2">
+                        {(topProviders.length > 0 ? topProviders.slice(0, 4) : [{id:"1",full_name:"F",avatar_url:null},{id:"2",full_name:"A",avatar_url:null},{id:"3",full_name:"C",avatar_url:null},{id:"4",full_name:"H",avatar_url:null}]).map((provider) => (
+                          provider.avatar_url ? (
+                            <img key={provider.id} src={provider.avatar_url} alt={provider.full_name} className="w-10 h-10 rounded-full border-2 border-white object-cover" />
+                          ) : (
+                            <div key={provider.id} className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white flex items-center justify-center text-sm font-bold text-cyan-700">
+                              {provider.full_name.charAt(0)}
+                            </div>
+                          )
+                        ))}
+                      </div>
+                      <span className="text-sm text-gray-600">
+                        <strong className="text-gray-900">{stats.providers}+</strong> profesionálů
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-yellow-400 text-xl">★</span>
+                      <span className="text-sm text-gray-600">
+                        <strong className="text-gray-900">{stats.avgRating}</strong>/5
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="flex -space-x-2">
+                        {Array(4).fill(0).map((_, i) => (
+                          <div key={i} className="w-10 h-10 rounded-full bg-gray-200 border-2 border-white animate-pulse" />
+                        ))}
+                      </div>
+                      <div className="w-24 h-4 bg-gray-200 rounded animate-pulse" />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-12 h-4 bg-gray-200 rounded animate-pulse" />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -480,7 +502,15 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-5">
-            {categories.map((cat, i) => (
+            {categories.length === 0 && !dataLoaded ? (
+              Array(8).fill(0).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl p-5 lg:p-6 border border-gray-100">
+                  <div className="w-10 h-10 bg-gray-200 rounded-xl mb-3 animate-pulse" />
+                  <div className="w-24 h-5 bg-gray-200 rounded mb-2 animate-pulse" />
+                  <div className="w-20 h-4 bg-gray-100 rounded animate-pulse" />
+                </div>
+              ))
+            ) : categories.map((cat, i) => (
               <Link
                 key={i}
                 href={`/kategorie/${cat.slug}`}
