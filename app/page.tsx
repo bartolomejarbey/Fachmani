@@ -7,7 +7,11 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import { useSettings } from "@/lib/useSettings";
 
-const avatarEmojis = ["👨‍🔧", "👩‍🔧", "👨‍🎨", "👷", "👩‍💻", "👨‍🏫"];
+type ProviderAvatar = {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+};
 
 type Category = {
   id: string;
@@ -39,12 +43,13 @@ export default function Home() {
   });
   const [categories, setCategories] = useState<Category[]>([]);
   const [recentRequests, setRecentRequests] = useState<Request[]>([]);
+  const [topProviders, setTopProviders] = useState<ProviderAvatar[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    loadStats();
-    loadRecentRequests();
-    loadCategories();
+    Promise.all([loadStats(), loadRecentRequests(), loadCategories(), loadTopProviders()])
+      .finally(() => setDataLoaded(true));
   }, []);
 
   const loadStats = async () => {
@@ -104,6 +109,21 @@ export default function Home() {
         slug: c.slug || c.name.toLowerCase().replace(/\s+/g, "-"),
         count: counts[c.id] || 0,
       })));
+    }
+  };
+
+  const loadTopProviders = async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url")
+      .eq("role", "provider")
+      .eq("is_verified", true)
+      .not("avatar_url", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(6);
+
+    if (data && data.length > 0) {
+      setTopProviders(data);
     }
   };
 
@@ -229,10 +249,14 @@ export default function Home() {
               <div className="flex items-center justify-center lg:justify-start gap-6">
                 <div className="flex items-center gap-3">
                   <div className="flex -space-x-2">
-                    {avatarEmojis.slice(0, 4).map((emoji, i) => (
-                      <div key={i} className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white flex items-center justify-center text-lg">
-                        {emoji}
-                      </div>
+                    {(topProviders.length > 0 ? topProviders.slice(0, 4) : [{id:"1",full_name:"F",avatar_url:null},{id:"2",full_name:"A",avatar_url:null},{id:"3",full_name:"C",avatar_url:null},{id:"4",full_name:"H",avatar_url:null}]).map((provider) => (
+                      provider.avatar_url ? (
+                        <img key={provider.id} src={provider.avatar_url} alt={provider.full_name} className="w-10 h-10 rounded-full border-2 border-white object-cover" />
+                      ) : (
+                        <div key={provider.id} className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white flex items-center justify-center text-sm font-bold text-cyan-700">
+                          {provider.full_name.charAt(0)}
+                        </div>
+                      )
                     ))}
                   </div>
                   <span className="text-sm text-gray-600">
@@ -249,8 +273,25 @@ export default function Home() {
             </div>
 
             {/* RIGHT - Slider s poptávkami */}
-            <div>
-              {recentRequests.length > 0 ? (
+            <div className={`transition-opacity duration-500 ${dataLoaded ? 'opacity-100' : 'opacity-0'}`}>
+              {!dataLoaded ? (
+                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+                  <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-4">
+                    <div className="h-5 w-32 bg-white/30 rounded animate-pulse" />
+                  </div>
+                  <div className="p-6 space-y-4">
+                    {Array(3).fill(0).map((_, i) => (
+                      <div key={i} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl">
+                        <div className="w-12 h-12 bg-gray-200 rounded-xl animate-pulse" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse" />
+                          <div className="h-3 w-1/2 bg-gray-200 rounded animate-pulse" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : recentRequests.length > 0 ? (
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                   <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-4 sm:px-6 py-4">
                     <div className="flex items-center justify-between">
@@ -287,8 +328,8 @@ export default function Home() {
                               <div className="flex items-center gap-2 pt-2">
                                 <div className="flex -space-x-1.5">
                                   {Array(Math.min(req.offers_count || 0, 3)).fill(0).map((_, j) => (
-                                    <div key={j} className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 border-2 border-white text-sm flex items-center justify-center">
-                                      {avatarEmojis[j]}
+                                    <div key={j} className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 border-2 border-white text-xs flex items-center justify-center text-white font-bold">
+                                      {j + 1}
                                     </div>
                                   ))}
                                 </div>
@@ -355,8 +396,8 @@ export default function Home() {
       {/* ==================== STATS ==================== */}
       <section className="py-8 lg:py-10 bg-gray-50 border-y border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-8">
-            {[
+          <div className={`grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-8 transition-opacity duration-500 ${dataLoaded ? 'opacity-100' : 'opacity-0'}`}>
+            {dataLoaded ? [
               { value: `${stats.providers}+`, label: "Profesionálů" },
               { value: stats.requests.toString(), label: "Aktivních poptávek" },
               { value: `${stats.completed}+`, label: "Dokončených zakázek" },
@@ -365,6 +406,11 @@ export default function Home() {
               <div key={i} className="text-center">
                 <div className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">{stat.value}</div>
                 <div className="text-sm text-gray-500 mt-1">{stat.label}</div>
+              </div>
+            )) : Array(4).fill(0).map((_, i) => (
+              <div key={i} className="text-center">
+                <div className="h-10 w-20 mx-auto bg-gray-200 rounded animate-pulse" />
+                <div className="h-4 w-28 mx-auto mt-2 bg-gray-200 rounded animate-pulse" />
               </div>
             ))}
           </div>

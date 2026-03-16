@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ type Profile = {
   phone: string | null;
   is_verified: boolean;
   role: string;
+  avatar_url: string | null;
 };
 
 type ProviderProfile = {
@@ -48,6 +49,9 @@ export default function FachmanProfil() {
   const [bio, setBio] = useState("");
   const [locations, setLocations] = useState("");
   const [hourlyRate, setHourlyRate] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -75,6 +79,7 @@ export default function FachmanProfil() {
       setProfile(profileData);
       setFullName(profileData.full_name || "");
       setPhone(profileData.phone || "");
+      setAvatarUrl(profileData.avatar_url || null);
 
       if (profileData.role !== "provider") {
         router.push("/dashboard");
@@ -143,6 +148,40 @@ export default function FachmanProfil() {
         ? prev.filter((id) => id !== categoryId)
         : [...prev, categoryId]
     );
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+
+    setUploadingAvatar(true);
+    const fileName = `${profile.id}/avatar.${file.name.split(".").pop()}`;
+
+    // Remove old avatar if exists
+    await supabase.storage.from("avatars").remove([`${profile.id}/avatar.jpg`, `${profile.id}/avatar.png`, `${profile.id}/avatar.webp`]);
+
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(fileName, file, { upsert: true });
+
+    if (uploadError) {
+      alert("Nepodařilo se nahrát fotku.");
+      setUploadingAvatar(false);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(fileName);
+
+    await supabase
+      .from("profiles")
+      .update({ avatar_url: publicUrl })
+      .eq("id", profile.id);
+
+    setAvatarUrl(publicUrl);
+    setUploadingAvatar(false);
+    setMessage("Profilová fotka byla nahrána!");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -279,6 +318,54 @@ export default function FachmanProfil() {
         {/* Form */}
         <form onSubmit={handleSubmit} className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-8 space-y-6 ${mounted ? 'animate-fade-in-up animation-delay-100' : 'opacity-0'}`}>
           
+          {/* Avatar section */}
+          <div className="flex items-center gap-6">
+            <div className="relative group">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={fullName}
+                  className="w-24 h-24 rounded-2xl object-cover border-2 border-gray-200"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-white font-bold text-3xl">
+                  {fullName.charAt(0) || "?"}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute inset-0 bg-black/0 group-hover:bg-black/40 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+              >
+                <span className="text-white font-semibold text-sm">
+                  {uploadingAvatar ? "..." : "📷 Změnit"}
+                </span>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 text-lg">{fullName || "Váš profil"}</h3>
+              <p className="text-gray-500 text-sm">{profile?.email}</p>
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="mt-2 text-cyan-600 text-sm font-semibold hover:text-cyan-700 transition-colors"
+              >
+                {uploadingAvatar ? "Nahrávám..." : avatarUrl ? "Změnit fotku" : "Nahrát profilovou fotku"}
+              </button>
+            </div>
+          </div>
+
+          <hr className="border-gray-100" />
+
           {/* Personal info section */}
           <div>
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">

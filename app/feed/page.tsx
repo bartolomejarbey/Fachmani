@@ -16,12 +16,14 @@ type Post = {
   profiles: {
     full_name: string;
     role: string;
+    avatar_url: string | null;
   };
   likes_count: number;
   comments_count: number;
   user_liked: boolean;
   user_reactions: string[];
   comments: Comment[];
+  allCommentsLoaded: boolean;
 };
 
 type Comment = {
@@ -30,15 +32,27 @@ type Comment = {
   created_at: string;
   profiles: {
     full_name: string;
+    avatar_url: string | null;
   };
 };
 
-const REACTIONS = ["👍", "❤️", "😂", "😮", "👏", "🔥"];
+const REACTIONS = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F62E}", "\u{1F44F}", "\u{1F525}"];
+
+function Avatar({ src, name, size = "w-12 h-12", textSize = "text-lg" }: { src?: string | null; name?: string; size?: string; textSize?: string }) {
+  if (src) {
+    return <img src={src} alt={name || ""} className={`${size} rounded-full object-cover flex-shrink-0`} />;
+  }
+  return (
+    <div className={`${size} rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-white font-bold ${textSize} flex-shrink-0`}>
+      {name?.charAt(0) || "?"}
+    </div>
+  );
+}
 
 export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<{ id: string; profile?: { full_name?: string; role?: string } } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; profile?: { full_name?: string; role?: string; avatar_url?: string | null } } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
   const [newPostContent, setNewPostContent] = useState("");
@@ -48,6 +62,8 @@ export default function FeedPage() {
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [newComments, setNewComments] = useState<Record<string, string>>({});
   const [showReactions, setShowReactions] = useState<string | null>(null);
+  const [editingPost, setEditingPost] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -60,10 +76,10 @@ export default function FeedPage() {
     if (user) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("*")
+        .select("full_name, role, avatar_url")
         .eq("id", user.id)
         .single();
-      setCurrentUser({ ...user, profile });
+      setCurrentUser({ ...user, profile: profile || undefined });
     }
   };
 
@@ -74,9 +90,9 @@ export default function FeedPage() {
       .from("posts")
       .select(`
         *,
-        profiles:user_id (full_name, role),
+        profiles:user_id (full_name, role, avatar_url),
         post_likes (user_id),
-        post_comments (id, content, created_at, user_id, profiles:user_id (full_name)),
+        post_comments (id, content, created_at, profiles:user_id (full_name, avatar_url)),
         post_reactions (user_id, emoji)
       `)
       .order("created_at", { ascending: false });
@@ -84,7 +100,7 @@ export default function FeedPage() {
     if (postsData) {
       type PostRow = Record<string, unknown> & {
         post_likes?: { user_id: string }[];
-        post_comments?: { id: string; content: string; created_at: string; user_id: string; profiles: { full_name: string } }[];
+        post_comments?: { id: string; content: string; created_at: string; profiles: { full_name: string; avatar_url: string | null } }[];
         post_reactions?: { user_id: string; emoji: string }[];
       };
 
@@ -103,7 +119,8 @@ export default function FeedPage() {
             : [],
           comments: comments
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-            .slice(0, 5),
+            .slice(0, 3),
+          allCommentsLoaded: comments.length <= 3,
           post_likes: undefined,
           post_comments: undefined,
           post_reactions: undefined,
@@ -113,6 +130,24 @@ export default function FeedPage() {
       setPosts(postsWithDetails as unknown as Post[]);
     }
     setLoading(false);
+  };
+
+  const loadAllComments = async (postId: string) => {
+    const { data } = await supabase
+      .from("post_comments")
+      .select("id, content, created_at, profiles:user_id (full_name, avatar_url)")
+      .eq("post_id", postId)
+      .order("created_at", { ascending: true });
+
+    if (data) {
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, comments: data as unknown as Comment[], allCommentsLoaded: true }
+            : p
+        )
+      );
+    }
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,14 +162,14 @@ export default function FeedPage() {
 
   const handlePost = async () => {
     if (!currentUser || (!newPostContent.trim() && !newPostImage)) return;
-    
+
     setPosting(true);
     let imageUrl = null;
 
     if (newPostImage) {
       const fileExt = newPostImage.name.split(".").pop();
       const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
-      
+
       const { error: uploadError } = await supabase.storage
         .from("posts")
         .upload(fileName, newPostImage);
@@ -163,6 +198,35 @@ export default function FeedPage() {
     setNewPostImage(null);
     setImagePreview(null);
     setPosting(false);
+    loadPosts();
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm("Opravdu chcete smazat příspěvek?")) return;
+
+    const { error } = await supabase.from("posts").delete().eq("id", postId);
+    if (error) {
+      alert("Nepodařilo se smazat příspěvek.");
+      return;
+    }
+    loadPosts();
+  };
+
+  const handleEditPost = async (postId: string) => {
+    if (!editContent.trim()) return;
+
+    const { error } = await supabase
+      .from("posts")
+      .update({ content: editContent.trim() })
+      .eq("id", postId);
+
+    if (error) {
+      alert("Nepodařilo se upravit příspěvek.");
+      return;
+    }
+
+    setEditingPost(null);
+    setEditContent("");
     loadPosts();
   };
 
@@ -246,7 +310,7 @@ export default function FeedPage() {
 
       <div className="pt-24 pb-12">
         <div className="max-w-2xl mx-auto px-4">
-          
+
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Feed</h1>
@@ -257,9 +321,7 @@ export default function FeedPage() {
           {currentUser ? (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
               <div className="flex gap-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-                  {currentUser.profile?.full_name?.charAt(0) || "?"}
-                </div>
+                <Avatar src={currentUser.profile?.avatar_url} name={currentUser.profile?.full_name} />
                 <div className="flex-1">
                   <textarea
                     value={newPostContent}
@@ -268,7 +330,7 @@ export default function FeedPage() {
                     className="w-full border-0 resize-none focus:ring-0 text-gray-700 placeholder-gray-400 text-lg"
                     rows={3}
                   />
-                  
+
                   {imagePreview && (
                     <div className="relative mt-3">
                       <img src={imagePreview} alt="Preview" className="rounded-xl max-h-64 object-cover" />
@@ -334,28 +396,74 @@ export default function FeedPage() {
                 <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                   {/* Post Header */}
                   <div className="p-6 pb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-white font-bold text-lg">
-                        {post.profiles?.full_name?.charAt(0) || "?"}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-gray-900">{post.profiles?.full_name}</span>
-                          {post.profiles?.role === "provider" && (
-                            <span className="bg-cyan-100 text-cyan-700 text-xs px-2 py-0.5 rounded-full">Fachman</span>
-                          )}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar src={post.profiles?.avatar_url} name={post.profiles?.full_name} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900">{post.profiles?.full_name}</span>
+                            {post.profiles?.role === "provider" && (
+                              <span className="bg-cyan-100 text-cyan-700 text-xs px-2 py-0.5 rounded-full">Fachman</span>
+                            )}
+                          </div>
+                          <span className="text-sm text-gray-500">{timeAgo(post.created_at)}</span>
                         </div>
-                        <span className="text-sm text-gray-500">{timeAgo(post.created_at)}</span>
                       </div>
+
+                      {/* Own post actions */}
+                      {currentUser?.id === post.user_id && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingPost(post.id);
+                              setEditContent(post.content);
+                            }}
+                            className="p-2 text-gray-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors text-sm"
+                            title="Upravit"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeletePost(post.id)}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm"
+                            title="Smazat"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Content */}
-                  {post.content && (
+                  {/* Content - editable or static */}
+                  {editingPost === post.id ? (
+                    <div className="px-6 pb-4">
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                        rows={4}
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => handleEditPost(post.id)}
+                          className="px-4 py-2 bg-cyan-500 text-white rounded-xl font-semibold hover:bg-cyan-600 transition-colors text-sm"
+                        >
+                          Uložit
+                        </button>
+                        <button
+                          onClick={() => { setEditingPost(null); setEditContent(""); }}
+                          className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl font-semibold transition-colors text-sm"
+                        >
+                          Zrušit
+                        </button>
+                      </div>
+                    </div>
+                  ) : post.content ? (
                     <div className="px-6 pb-4">
                       <p className="text-gray-700 whitespace-pre-wrap">{post.content}</p>
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Image */}
                   {post.image_url && (
@@ -380,7 +488,7 @@ export default function FeedPage() {
                     >
                       {post.user_liked ? "❤️" : "🤍"} Líbí se
                     </button>
-                    
+
                     <div className="relative flex-1">
                       <button
                         onClick={() => setShowReactions(showReactions === post.id ? null : post.id)}
@@ -420,9 +528,7 @@ export default function FeedPage() {
                         <div className="space-y-3 mb-4">
                           {post.comments.map((comment) => (
                             <div key={comment.id} className="flex gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                                {comment.profiles?.full_name?.charAt(0) || "?"}
-                              </div>
+                              <Avatar src={comment.profiles?.avatar_url} name={comment.profiles?.full_name} size="w-8 h-8" textSize="text-sm" />
                               <div className="flex-1 bg-white rounded-xl px-4 py-2">
                                 <span className="font-semibold text-sm text-gray-900">{comment.profiles?.full_name}</span>
                                 <p className="text-sm text-gray-700">{comment.content}</p>
@@ -432,11 +538,19 @@ export default function FeedPage() {
                         </div>
                       )}
 
+                      {/* Show more comments */}
+                      {!post.allCommentsLoaded && post.comments_count > 3 && (
+                        <button
+                          onClick={() => loadAllComments(post.id)}
+                          className="text-cyan-600 text-sm font-semibold hover:text-cyan-700 mb-4 block"
+                        >
+                          Zobrazit všech {post.comments_count} komentářů
+                        </button>
+                      )}
+
                       {currentUser && (
                         <div className="flex gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                            {currentUser.profile?.full_name?.charAt(0) || "?"}
-                          </div>
+                          <Avatar src={currentUser.profile?.avatar_url} name={currentUser.profile?.full_name} size="w-8 h-8" textSize="text-sm" />
                           <div className="flex-1 flex gap-2">
                             <input
                               type="text"

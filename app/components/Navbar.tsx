@@ -11,6 +11,7 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
@@ -19,21 +20,22 @@ export default function Navbar() {
   useEffect(() => {
     async function checkUser() {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (user) {
         setIsLoggedIn(true);
-        
+
         const { data: profile } = await supabase
           .from("profiles")
           .select("role, full_name")
           .eq("id", user.id)
           .single();
-          
+
         if (profile) {
           setUserRole(profile.role);
           setUserName(profile.full_name);
         }
       }
+      setAuthLoading(false);
     }
 
     checkUser();
@@ -114,7 +116,12 @@ export default function Navbar() {
               <div className="w-px h-8 bg-gray-200 mx-4"></div>
 
               {/* Right Side */}
-              {isLoggedIn ? (
+              {authLoading ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gray-200 rounded-xl animate-pulse" />
+                  <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />
+                </div>
+              ) : isLoggedIn ? (
                 <div className="flex items-center gap-2">
                   <NotificationBell />
                   
@@ -255,7 +262,17 @@ export default function Navbar() {
 
               <div className="h-px bg-gray-100 my-4"></div>
 
-              {isLoggedIn ? (
+              {authLoading ? (
+                <div className="px-4 py-3 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gray-200 rounded-2xl animate-pulse" />
+                    <div className="space-y-2">
+                      <div className="w-24 h-4 bg-gray-200 rounded animate-pulse" />
+                      <div className="w-16 h-3 bg-gray-200 rounded animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+              ) : isLoggedIn ? (
                 <div className="space-y-1">
                   {/* User Info */}
                   <div className="flex items-center gap-3 px-4 py-3">
