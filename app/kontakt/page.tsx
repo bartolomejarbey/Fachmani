@@ -159,6 +159,7 @@ export default function Kontakt() {
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         required
+                        maxLength={100}
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                         placeholder="Jan Novák"
                       />
@@ -207,6 +208,7 @@ export default function Kontakt() {
                         onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                         required
                         rows={5}
+                        maxLength={3000}
                         placeholder="Popište váš dotaz nebo problém..."
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all resize-none"
                       />

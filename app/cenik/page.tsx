@@ -9,9 +9,9 @@ import { useSettings } from "@/lib/useSettings";
 
 export default function Cenik() {
   const { settings, loaded: settingsLoaded } = useSettings();
-  const pricing = settings.pricing;
-  const subscriptions = settings.subscriptions;
-  const platform = settings.platform;
+  const pricing = settings?.pricing ?? { top_profile_7d: 99, boost_feed_1d: 49, premium_badge_30d: 199, extra_offer: 29 };
+  const subscriptions = settings?.subscriptions ?? { premium_monthly: 499, premium_quarterly: 399, business_monthly: 1299, business_quarterly: 1039 };
+  const platform = settings?.platform ?? { free_offers_per_month: 3, request_expiry_days: 30, max_images_per_request: 5 };
   const loading = !settingsLoaded;
 
   const [userType, setUserType] = useState<"customer" | "provider">("customer");

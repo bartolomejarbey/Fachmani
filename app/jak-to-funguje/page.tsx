@@ -9,8 +9,8 @@ import { useSettings } from "@/lib/useSettings";
 
 export default function JakToFunguje() {
   const { settings } = useSettings();
-  const freeLimit = settings.platform.free_offers_per_month;
-  const premiumPrice = settings.subscriptions.premium_monthly;
+  const freeLimit = settings?.platform?.free_offers_per_month ?? 3;
+  const premiumPrice = settings?.subscriptions?.premium_monthly ?? 499;
   const [userType, setUserType] = useState<"customer" | "provider">("customer");
 
   return (

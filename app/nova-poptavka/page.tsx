@@ -64,8 +64,23 @@ export default function NovaPoptavka() {
     setLoading(true);
     setError("");
 
+    if (budgetMin && parseInt(budgetMin) < 0) {
+      setError("Rozpočet nemůže být záporný.");
+      setLoading(false);
+      return;
+    }
+    if (budgetMax && parseInt(budgetMax) < 0) {
+      setError("Rozpočet nemůže být záporný.");
+      setLoading(false);
+      return;
+    }
     if (budgetMin && budgetMax && parseInt(budgetMin) > parseInt(budgetMax)) {
       setError("Rozpočet od nemůže být větší než rozpočet do.");
+      setLoading(false);
+      return;
+    }
+    if (preferredDate && new Date(preferredDate) < new Date(new Date().toDateString())) {
+      setError("Preferovaný termín nemůže být v minulosti.");
       setLoading(false);
       return;
     }
@@ -146,6 +161,7 @@ export default function NovaPoptavka() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
+              maxLength={200}
               placeholder="např. Výměna vodovodní baterie"
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
             />
@@ -179,6 +195,7 @@ export default function NovaPoptavka() {
               onChange={(e) => setDescription(e.target.value)}
               required
               rows={4}
+              maxLength={2000}
               placeholder="Popište co potřebujete, jaký je stav, případně další detaily..."
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
             />
@@ -247,6 +264,7 @@ export default function NovaPoptavka() {
               type="date"
               value={preferredDate}
               onChange={(e) => setPreferredDate(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
             />
           </div>

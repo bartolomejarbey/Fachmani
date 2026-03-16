@@ -151,20 +151,23 @@ export default function ChatPage() {
       content: newMessage.trim(),
     });
 
-    if (!error) {
-      // Notifikace pro příjemce
-      await supabase.from("notifications").insert({
-        user_id: otherUserId,
-        type: "new_message",
-        title: "Nová zpráva",
-        message: `Máte novou zprávu: "${newMessage.trim().substring(0, 50)}${newMessage.trim().length > 50 ? "..." : ""}"`,
-        link: `/zpravy/${requestId}/${currentUser}`,
-      });
-
-      setNewMessage("");
-      await loadMessages(currentUser);
+    if (error) {
+      alert("Zprávu se nepodařilo odeslat.");
+      setSending(false);
+      return;
     }
 
+    // Notifikace pro příjemce
+    await supabase.from("notifications").insert({
+      user_id: otherUserId,
+      type: "new_message",
+      title: "Nová zpráva",
+      message: `Máte novou zprávu: "${newMessage.trim().substring(0, 50)}${newMessage.trim().length > 50 ? "..." : ""}"`,
+      link: `/zpravy/${requestId}/${currentUser}`,
+    });
+
+    setNewMessage("");
+    await loadMessages(currentUser);
     setSending(false);
   };
 
@@ -244,6 +247,7 @@ export default function ChatPage() {
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Napište zprávu..."
+            maxLength={2000}
             className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <button
