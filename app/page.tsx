@@ -65,7 +65,8 @@ export default function Home() {
     const { count: activeRequests } = await supabase
       .from("requests")
       .select("*", { count: "exact", head: true })
-      .eq("status", "active");
+      .eq("status", "active")
+      .or(`expires_at.gt.${new Date().toISOString()},expires_at.is.null`);
 
     const { count: completedRequests } = await supabase
       .from("requests")
@@ -139,6 +140,7 @@ export default function Home() {
         categories:category_id (icon)
       `)
       .eq("status", "active")
+      .or(`expires_at.gt.${new Date().toISOString()},expires_at.is.null`)
       .order("created_at", { ascending: false })
       .limit(6);
 

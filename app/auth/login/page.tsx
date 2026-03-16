@@ -36,6 +36,9 @@ export default function Login() {
       return;
     }
 
+    // Safety timeout in case redirect hangs
+    const timeout = setTimeout(() => setLoading(false), 5000);
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
@@ -47,6 +50,10 @@ export default function Login() {
     } else {
       router.push("/dashboard");
     }
+
+    // Reset loading after push in case navigation is slow
+    setLoading(false);
+    clearTimeout(timeout);
   };
 
   return (

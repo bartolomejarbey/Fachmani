@@ -29,8 +29,12 @@ type FachmanDetail = {
   is_verified: boolean;
   subscription_type: string;
   bio: string | null;
+  description: string | null;
+  location: string | null;
+  ico: string | null;
   hourly_rate: number | null;
   locations: string[] | null;
+  avatar_url: string | null;
   categories: Category[];
   rating: number;
   review_count: number;
@@ -84,6 +88,10 @@ export default function FachmanDetailPage() {
           is_verified: seedData.is_verified,
           subscription_type: "premium",
           bio: seedData.bio,
+          description: seedData.description || null,
+          location: seedData.location || null,
+          ico: null,
+          avatar_url: seedData.avatar_url || null,
           hourly_rate: seedData.hourly_rate,
           locations: seedData.locations,
           categories: categoriesData || [],
@@ -165,6 +173,10 @@ export default function FachmanDetailPage() {
           is_verified: profileData.is_verified,
           subscription_type: profileData.subscription_type || "free",
           bio: providerProfileData?.bio || null,
+          description: profileData.description || null,
+          location: profileData.location || null,
+          ico: profileData.ico || null,
+          avatar_url: profileData.avatar_url || null,
           hourly_rate: providerProfileData?.hourly_rate || null,
           locations: providerProfileData?.locations || null,
           categories: (providerCategoriesData || []).flatMap((pc) => {
@@ -249,19 +261,33 @@ export default function FachmanDetailPage() {
             }`}
           >
             <div className="relative">
-              <div
-                className={`w-32 h-32 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-3xl flex items-center justify-center ${
-                  isTopProfile
-                    ? "ring-4 ring-yellow-400"
-                    : isPremium
-                    ? "ring-4 ring-cyan-300"
-                    : ""
-                }`}
-              >
-                <span className="text-5xl text-white font-bold">
-                  {fachman.full_name?.charAt(0).toUpperCase()}
-                </span>
-              </div>
+              {fachman.avatar_url ? (
+                <img
+                  src={fachman.avatar_url}
+                  alt={fachman.full_name}
+                  className={`w-32 h-32 rounded-3xl object-cover ${
+                    isTopProfile
+                      ? "ring-4 ring-yellow-400"
+                      : isPremium
+                      ? "ring-4 ring-cyan-300"
+                      : ""
+                  }`}
+                />
+              ) : (
+                <div
+                  className={`w-32 h-32 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-3xl flex items-center justify-center ${
+                    isTopProfile
+                      ? "ring-4 ring-yellow-400"
+                      : isPremium
+                      ? "ring-4 ring-cyan-300"
+                      : ""
+                  }`}
+                >
+                  <span className="text-5xl text-white font-bold">
+                    {fachman.full_name?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
               {isTopProfile && (
                 <div className="absolute -top-2 -right-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs px-3 py-1 rounded-full font-semibold shadow-lg">
                   🚀 Top
@@ -343,18 +369,48 @@ export default function FachmanDetailPage() {
         </div>
       </section>
 
+      {/* Info cards */}
+      <section className="py-6 border-b bg-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">📍 Lokalita</p>
+              <p className="font-semibold text-gray-900 text-sm">
+                {fachman.location || (fachman.locations && fachman.locations.length > 0 ? fachman.locations.join(", ") : "Lokalita neuvedena")}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">📞 Telefon</p>
+              <p className="font-semibold text-gray-900 text-sm">
+                {fachman.phone || "Neuvedeno"}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">💰 Hodinová sazba</p>
+              <p className="font-semibold text-gray-900 text-sm">
+                {fachman.hourly_rate ? `${fachman.hourly_rate} Kč/hod` : "Dle dohody"}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">🏢 IČO</p>
+              <p className="font-semibold text-gray-900 text-sm">
+                {fachman.ico || "Neuvedeno"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="py-12">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
-              {fachman.bio && (
-                <div className="bg-white rounded-2xl p-6 shadow-sm">
-                  <h2 className="text-lg font-bold text-gray-900 mb-4">O mně</h2>
-                  <p className="text-gray-600 whitespace-pre-line">
-                    {fachman.bio}
-                  </p>
-                </div>
-              )}
+              <div className="bg-white rounded-2xl p-6 shadow-sm">
+                <h2 className="text-lg font-bold text-gray-900 mb-4">O mně</h2>
+                <p className="text-gray-600 whitespace-pre-line">
+                  {fachman.bio || fachman.description || "Tento fachman ještě nepřidal popis."}
+                </p>
+              </div>
 
               <div className="bg-white rounded-2xl p-6 shadow-sm">
                 <h2 className="text-lg font-bold text-gray-900 mb-4">

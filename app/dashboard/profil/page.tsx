@@ -22,6 +22,9 @@ type Profile = {
   is_verified: boolean;
   role: string;
   avatar_url: string | null;
+  description: string | null;
+  location: string | null;
+  ico: string | null;
 };
 
 type ProviderProfile = {
@@ -49,6 +52,9 @@ export default function FachmanProfil() {
   const [bio, setBio] = useState("");
   const [locations, setLocations] = useState("");
   const [hourlyRate, setHourlyRate] = useState("");
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  const [ico, setIco] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +85,9 @@ export default function FachmanProfil() {
       setProfile(profileData);
       setFullName(profileData.full_name || "");
       setPhone(profileData.phone || "");
+      setDescription(profileData.description || "");
+      setLocation(profileData.location || "");
+      setIco(profileData.ico || "");
       setAvatarUrl(profileData.avatar_url || null);
 
       if (profileData.role !== "provider") {
@@ -196,6 +205,9 @@ export default function FachmanProfil() {
         .update({
           full_name: fullName,
           phone: phone || null,
+          description: description || null,
+          location: location || null,
+          ico: ico || null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", profile?.id);
@@ -374,7 +386,7 @@ export default function FachmanProfil() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Jméno a příjmení *
+                  Jméno / Název firmy *
                 </label>
                 <input
                   type="text"
@@ -396,6 +408,46 @@ export default function FachmanProfil() {
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                 />
               </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Lokalita
+                </label>
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="Praha"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  IČO
+                </label>
+                <input
+                  type="text"
+                  value={ico}
+                  onChange={(e) => setIco(e.target.value)}
+                  placeholder="12345678"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Popis / O mně
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="Krátký veřejný popis zobrazený na vašem profilu..."
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+              />
             </div>
           </div>
 

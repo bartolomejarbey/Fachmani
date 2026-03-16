@@ -468,7 +468,7 @@ export default function FeedPage() {
                   {/* Image */}
                   {post.image_url && (
                     <div className="px-6 pb-4">
-                      <img src={post.image_url} alt="" className="rounded-xl w-full object-cover max-h-96" />
+                      <img src={post.image_url} alt="" className="w-full rounded-xl object-contain max-h-[600px]" />
                     </div>
                   )}
 
