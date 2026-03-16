@@ -2,8 +2,6 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import Navbar from "@/app/components/Navbar";
-import Footer from "@/app/components/Footer";
 
 type Message = {
   id: string;
@@ -49,7 +47,6 @@ function getAIResponse(userMessage: string, messageCount: number): string {
     response = "Rozumím! Abych vám mohl lépe poradit, řekněte mi:\n\n1. **O jakou službu se jedná?** (řemeslník, IT, marketing...)\n2. **Kde se nacházíte?** (město/oblast)\n3. **Jaký je váš rozpočet?**\n\nNa základě toho vám doporučím správný postup.";
   }
 
-  // After 3 user messages, add CTA
   if (messageCount >= 3) {
     response += "\n\n---\n\n✅ **Chcete to vyřešit?** Zadejte poptávku a profesionálové vám pošlou nabídky do 24 hodin!";
   }
@@ -58,7 +55,6 @@ function getAIResponse(userMessage: string, messageCount: number): string {
 }
 
 function formatContent(content: string) {
-  // Simple markdown-like formatting
   return content.split("\n").map((line, i) => {
     let formatted = line
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -79,11 +75,14 @@ export default function PoradcePage() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [userMessageCount, setUserMessageCount] = useState(0);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = chatContainerRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages, typing]);
 
   const sendMessage = async (text: string) => {
@@ -101,7 +100,6 @@ export default function PoradcePage() {
     setInput("");
     setTyping(true);
 
-    // Simulate typing delay
     await new Promise((r) => setTimeout(r, 800 + Math.random() * 700));
 
     const aiResponse = getAIResponse(text, newCount);
@@ -128,19 +126,20 @@ export default function PoradcePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Navbar />
-
-      {/* Header */}
-      <div className="pt-20 bg-white border-b">
-        <div className="max-w-3xl mx-auto px-4 py-4">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+      {/* Fixed header */}
+      <div className="bg-white border-b flex-shrink-0">
+        <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
+            <Link href="/" className="text-gray-400 hover:text-gray-600 transition-colors mr-1">
+              ←
+            </Link>
             <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-xl flex items-center justify-center text-xl">
               🤖
             </div>
             <div>
-              <h1 className="font-bold text-gray-900">AI Poradce</h1>
-              <p className="text-sm text-gray-500">Pomohu vám najít správného fachmana</p>
+              <h1 className="font-bold text-gray-900 text-sm">AI Poradce</h1>
+              <p className="text-xs text-gray-500">Pomohu vám najít správného fachmana</p>
             </div>
             <div className="ml-auto flex items-center gap-1">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
@@ -150,8 +149,8 @@ export default function PoradcePage() {
         </div>
       </div>
 
-      {/* Chat area */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Scrollable chat area */}
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -218,14 +217,12 @@ export default function PoradcePage() {
               <p className="text-gray-500 text-sm mt-3">Nebo pokračujte v chatu — rád zodpovím další dotazy.</p>
             </div>
           )}
-
-          <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* Input bar */}
-      <div className="bg-white border-t">
-        <div className="max-w-3xl mx-auto px-4 py-4">
+      {/* Fixed input bar */}
+      <div className="bg-white border-t flex-shrink-0">
+        <div className="max-w-3xl mx-auto px-4 py-3">
           <form onSubmit={handleSubmit} className="flex gap-3">
             <textarea
               ref={inputRef}
@@ -250,8 +247,6 @@ export default function PoradcePage() {
           </p>
         </div>
       </div>
-
-      <Footer />
     </div>
   );
 }
