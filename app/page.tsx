@@ -62,11 +62,15 @@ export default function Home() {
       .from("seed_providers")
       .select("*", { count: "exact", head: true });
 
+    // Expire old requests (may fail if RPC not created yet)
+    await supabase.rpc('expire_old_requests');
+
+    const now = new Date().toISOString();
     const { count: activeRequests } = await supabase
       .from("requests")
       .select("*", { count: "exact", head: true })
       .eq("status", "active")
-      .or(`expires_at.gt.${new Date().toISOString()},expires_at.is.null`);
+      .or(`expires_at.gt.${now},expires_at.is.null`);
 
     const { count: completedRequests } = await supabase
       .from("requests")

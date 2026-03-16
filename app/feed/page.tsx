@@ -7,6 +7,11 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import Pagination from "@/app/components/Pagination";
 
+type ReactionSummary = {
+  emoji: string;
+  count: number;
+};
+
 type Post = {
   id: string;
   user_id: string;
@@ -22,6 +27,7 @@ type Post = {
   comments_count: number;
   user_liked: boolean;
   user_reactions: string[];
+  reactions_summary: ReactionSummary[];
   comments: Comment[];
   allCommentsLoaded: boolean;
 };
@@ -36,7 +42,7 @@ type Comment = {
   };
 };
 
-const REACTIONS = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F62E}", "\u{1F44F}", "\u{1F525}"];
+const REACTIONS = ["👍", "❤️", "😂", "😮", "👏", "🔥"];
 
 function Avatar({ src, name, size = "w-12 h-12", textSize = "text-lg" }: { src?: string | null; name?: string; size?: string; textSize?: string }) {
   if (src) {
@@ -117,6 +123,13 @@ export default function FeedPage() {
           user_reactions: user
             ? reactions.filter((r) => r.user_id === user.id).map((r) => r.emoji)
             : [],
+          reactions_summary: Object.entries(
+            reactions.reduce<Record<string, number>>((acc, r) => {
+              acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+              return acc;
+            }, {})
+          ).map(([emoji, count]) => ({ emoji, count }))
+            .sort((a, b) => b.count - a.count),
           comments: comments
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
             .slice(0, 3),
@@ -472,9 +485,20 @@ export default function FeedPage() {
                     </div>
                   )}
 
-                  {/* Stats */}
+                  {/* Stats + Reaction summary */}
                   <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-                    <span>{post.likes_count} líbí se</span>
+                    <div className="flex items-center gap-3">
+                      {post.reactions_summary.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          {post.reactions_summary.slice(0, 3).map((r) => (
+                            <span key={r.emoji} className="text-base">{r.emoji}</span>
+                          ))}
+                          <span className="ml-1">{post.reactions_summary.reduce((s, r) => s + r.count, 0)}</span>
+                        </div>
+                      )}
+                      {post.reactions_summary.length > 0 && post.likes_count > 0 && <span>·</span>}
+                      {post.likes_count > 0 && <span>{post.likes_count} líbí se</span>}
+                    </div>
                     <span>{post.comments_count} komentářů</span>
                   </div>
 

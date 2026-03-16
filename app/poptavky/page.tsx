@@ -56,10 +56,12 @@ export default function PoptavkyPage() {
 
     if (categoriesData) setCategories(categoriesData);
 
+    const now = new Date().toISOString();
     const { data: requestsData } = await supabase
       .from("requests")
       .select("id, title, description, location, budget_min, budget_max, created_at, expires_at, categories:category_id(id, name, icon)")
       .eq("status", "active")
+      .or(`expires_at.gt.${now},expires_at.is.null`)
       .order("created_at", { ascending: false });
 
     if (requestsData) {
