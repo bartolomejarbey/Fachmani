@@ -59,6 +59,7 @@ export default function Navbar() {
     { href: "/nabidky", label: "Nabídky", icon: "💼" },
     { href: "/fachmani", label: "Fachmani", icon: "👷" },
     { href: "/feed", label: "Feed", icon: "📸", isNew: true },
+    { href: "/poradce", label: "Poradce", icon: "🤖" },
     { href: "/cenik", label: "Ceník", icon: "💎" },
   ];
 
