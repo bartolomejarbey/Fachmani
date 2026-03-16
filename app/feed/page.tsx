@@ -115,16 +115,29 @@ export default function FeedPage() {
         const comments = post.post_comments || [];
         const reactions = post.post_reactions || [];
 
+        // Merge likes as 👍 reactions for backwards compat
+        const allReactions = [
+          ...reactions,
+          ...likes.filter(l => !reactions.some(r => r.user_id === l.user_id)).map(l => ({ user_id: l.user_id, emoji: "👍" })),
+        ];
+        // Dedupe: one reaction per user (keep last)
+        const uniqueReactions = Object.values(
+          allReactions.reduce<Record<string, { user_id: string; emoji: string }>>((acc, r) => {
+            acc[r.user_id] = r;
+            return acc;
+          }, {})
+        );
+
         return {
           ...post,
-          likes_count: likes.length,
+          likes_count: uniqueReactions.length,
           comments_count: comments.length,
-          user_liked: user ? likes.some((l) => l.user_id === user.id) : false,
+          user_liked: user ? uniqueReactions.some((r) => r.user_id === user.id) : false,
           user_reactions: user
-            ? reactions.filter((r) => r.user_id === user.id).map((r) => r.emoji)
+            ? uniqueReactions.filter((r) => r.user_id === user.id).map((r) => r.emoji)
             : [],
           reactions_summary: Object.entries(
-            reactions.reduce<Record<string, number>>((acc, r) => {
+            uniqueReactions.reduce<Record<string, number>>((acc, r) => {
               acc[r.emoji] = (acc[r.emoji] || 0) + 1;
               return acc;
             }, {})
@@ -243,44 +256,25 @@ export default function FeedPage() {
     loadPosts();
   };
 
-  const handleLike = async (postId: string, isLiked: boolean) => {
-    if (!currentUser) return;
-
-    if (isLiked) {
-      await supabase
-        .from("post_likes")
-        .delete()
-        .eq("post_id", postId)
-        .eq("user_id", currentUser.id);
-    } else {
-      await supabase.from("post_likes").insert({
-        post_id: postId,
-        user_id: currentUser.id,
-      });
-    }
-    loadPosts();
-  };
-
   const handleReaction = async (postId: string, emoji: string) => {
     if (!currentUser) return;
 
     const post = posts.find(p => p.id === postId);
-    const hasReaction = post?.user_reactions.includes(emoji);
+    const currentReaction = post?.user_reactions[0]; // user can only have one reaction
 
-    if (hasReaction) {
-      await supabase
-        .from("post_reactions")
-        .delete()
-        .eq("post_id", postId)
-        .eq("user_id", currentUser.id)
-        .eq("emoji", emoji);
-    } else {
+    // Remove existing reaction (from both tables for backwards compat)
+    await supabase.from("post_reactions").delete().eq("post_id", postId).eq("user_id", currentUser.id);
+    await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUser.id);
+
+    // If clicking same reaction = remove (toggle off). Otherwise set new one.
+    if (currentReaction !== emoji) {
       await supabase.from("post_reactions").insert({
         post_id: postId,
         user_id: currentUser.id,
         emoji,
       });
     }
+
     setShowReactions(null);
     loadPosts();
   };
@@ -502,39 +496,32 @@ export default function FeedPage() {
                     <span>{post.comments_count} komentářů</span>
                   </div>
 
-                  {/* Actions */}
+                  {/* Actions — FB-style: one reaction per user */}
                   <div className="px-6 py-3 border-t border-gray-100 flex items-center gap-2">
-                    <button
-                      onClick={() => currentUser && handleLike(post.id, post.user_liked)}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition-colors ${
-                        post.user_liked ? "text-cyan-600 bg-cyan-50" : "text-gray-600 hover:bg-gray-100"
-                      }`}
-                    >
-                      {post.user_liked ? "❤️" : "🤍"} Líbí se
-                    </button>
-
-                    <div className="relative flex-1">
+                    {/* Like / Reaction button with hover picker */}
+                    <div className="relative flex-1 group/react">
                       <button
-                        onClick={() => setShowReactions(showReactions === post.id ? null : post.id)}
-                        className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-colors"
+                        onClick={() => currentUser && handleReaction(post.id, "👍")}
+                        className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl transition-colors ${
+                          post.user_liked ? "text-cyan-600 bg-cyan-50" : "text-gray-600 hover:bg-gray-100"
+                        }`}
                       >
-                        😀 Reakce
+                        {post.user_reactions[0] || (post.user_liked ? "👍" : "🤍")} {post.user_reactions[0] ? "Reagováno" : "Líbí se"}
                       </button>
-                      {showReactions === post.id && (
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white rounded-full shadow-lg border border-gray-100 px-2 py-1 flex gap-1">
-                          {REACTIONS.map((emoji) => (
-                            <button
-                              key={emoji}
-                              onClick={() => handleReaction(post.id, emoji)}
-                              className={`w-10 h-10 rounded-full hover:bg-gray-100 text-xl transition-transform hover:scale-125 ${
-                                post.user_reactions.includes(emoji) ? "bg-cyan-100" : ""
-                              }`}
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      {/* Hover picker */}
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white rounded-full shadow-lg border border-gray-100 px-2 py-1 flex gap-1 opacity-0 invisible group-hover/react:opacity-100 group-hover/react:visible transition-all z-10">
+                        {REACTIONS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => handleReaction(post.id, emoji)}
+                            className={`w-10 h-10 rounded-full hover:bg-gray-100 text-xl transition-transform hover:scale-125 ${
+                              post.user_reactions.includes(emoji) ? "bg-cyan-100 scale-110" : ""
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <button
