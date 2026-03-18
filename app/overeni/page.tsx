@@ -64,6 +64,12 @@ export default function Overeni() {
       </nav>
 
       <div className="max-w-2xl mx-auto px-4 py-12">
+        {!verified && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-amber-900">
+            Funkce verifikace je momentálně ve vývoji. Tato stránka slouží jako mockup budoucího procesu.
+          </div>
+        )}
+
         {/* Již ověřen */}
         {verified && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center">
@@ -86,20 +92,20 @@ export default function Overeni() {
           <div className="bg-white rounded-xl shadow-sm p-8">
             <div className="text-center mb-8">
               <div className="text-6xl mb-4">🔐</div>
-              <h1 className="text-3xl font-bold mb-2">Ověření identity</h1>
+              <h1 className="text-3xl font-bold mb-2">Verifikace profilu</h1>
               <p className="text-gray-600">
-                Pro odesílání nabídek potřebujeme ověřit vaši identitu.
+                Připravujeme budoucí verifikaci profilů pro poskytovatele služeb.
               </p>
             </div>
 
             <div className="space-y-4 mb-8">
               <div className="flex items-start gap-4 p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl">🛡️</div>
+                <div className="text-2xl">🧪</div>
                 <div>
-                  <h3 className="font-semibold">Jak ověření probíhá?</h3>
+                  <h3 className="font-semibold">Stav funkce</h3>
                   <p className="text-sm text-gray-600">
-                    Ověření provádí náš admin tým. Po kontrole vašeho profilu
-                    a dokumentů vás označíme jako ověřeného fachmana.
+                    Verifikační proces je aktuálně ve vývoji a zatím není aktivní
+                    pro reálné použití.
                   </p>
                 </div>
               </div>
@@ -107,10 +113,10 @@ export default function Overeni() {
               <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg">
                 <div className="text-2xl">✓</div>
                 <div>
-                  <h3 className="font-semibold">Proč ověřujeme?</h3>
+                  <h3 className="font-semibold">Co bude cílem</h3>
                   <p className="text-sm text-gray-600">
-                    Ověření zvyšuje důvěryhodnost vašeho profilu.
-                    Zákazníci dávají přednost ověřeným fachmanům.
+                    Do budoucna má verifikace pomoci zvýšit důvěryhodnost profilů
+                    a zpřehlednit nabídku poskytovatelů.
                   </p>
                 </div>
               </div>
@@ -118,10 +124,10 @@ export default function Overeni() {
               <div className="flex items-start gap-4 p-4 bg-yellow-50 rounded-lg">
                 <div className="text-2xl">📋</div>
                 <div>
-                  <h3 className="font-semibold">Co potřebujete?</h3>
+                  <h3 className="font-semibold">Co zatím dělat</h3>
                   <p className="text-sm text-gray-600">
-                    Vyplněný profil (jméno, lokality, popis služeb) a platný kontaktní údaj.
-                    Ověření zpravidla proběhne do 24 hodin.
+                    Pro tuto chvíli stačí doplnit profil a sledovat další vývoj.
+                    Jakmile bude verifikace spuštěna, zobrazíme přesný postup.
                   </p>
                 </div>
               </div>
@@ -129,16 +135,16 @@ export default function Overeni() {
 
             <div className="space-y-3">
               <Link
-                href="/kontakt"
+                href="/dashboard/fachman"
                 className="block w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 text-center"
               >
-                Požádat o ověření
+                Zpět na dashboard
               </Link>
               <Link
                 href="/dashboard/profil"
                 className="block w-full bg-gray-100 text-gray-700 py-4 rounded-lg font-semibold text-lg hover:bg-gray-200 text-center"
               >
-                Nejprve doplnit profil
+                Doplnit profil
               </Link>
             </div>
           </div>

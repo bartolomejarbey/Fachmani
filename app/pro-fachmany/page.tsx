@@ -100,7 +100,7 @@ export default function ProFachmany() {
               <div className="text-4xl mb-4">🔒</div>
               <h3 className="text-xl font-semibold mb-3">Důvěryhodnost</h3>
               <p className="text-gray-600">
-                Ověření přes BankID vás odlišuje od konkurence. Zákazníci vám budou důvěřovat.
+                Přehledný profil, reference a budoucí verifikační prvky vám pomohou odlišit se od konkurence.
               </p>
             </div>
 
@@ -159,9 +159,9 @@ export default function ProFachmany() {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-green-600">2</span>
               </div>
-              <h3 className="font-semibold mb-2">Ověřte identitu</h3>
+              <h3 className="font-semibold mb-2">Verifikace profilu</h3>
               <p className="text-gray-600 text-sm">
-                Rychlé ověření přes BankID zvýší vaši důvěryhodnost.
+                Připravujeme verifikaci profilu. Funkce je momentálně ve vývoji.
               </p>
             </div>
 

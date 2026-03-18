@@ -54,12 +54,12 @@ export default function FAQ() {
     {
       id: "p1",
       question: "Jak se mohu registrovat jako fachman?",
-      answer: "Klikněte na 'Registrace', vyberte možnost 'Jsem fachman' a vyplňte registrační formulář. Pro odesílání nabídek budete muset ověřit svou identitu."
+      answer: "Klikněte na 'Registrace', vyberte možnost 'Jsem fachman' a vyplňte registrační formulář. Funkce verifikace profilu je momentálně ve vývoji."
     },
     {
       id: "p2",
-      question: "Proč musím ověřit identitu?",
-      answer: "Ověření identity přes BankID zvyšuje důvěryhodnost vašeho profilu a chrání zákazníky před podvodníky. Ověření fachmani mají výrazně vyšší úspěšnost získání zakázek."
+      question: "Jak funguje verifikace profilu?",
+      answer: "Verifikace profilu je zatím pouze připravovaná funkce. Jakmile ji spustíme, zobrazíme přesný postup i podmínky přímo v aplikaci."
     },
     {
       id: "p3",

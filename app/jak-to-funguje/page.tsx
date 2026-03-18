@@ -160,7 +160,7 @@ export default function JakToFunguje() {
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
                   { icon: "💰", title: "100% zdarma", desc: "Pro zákazníky neúčtujeme žádné poplatky" },
-                  { icon: "✅", title: "Ověření fachmani", desc: "Každý prochází ověřením přes BankID" },
+                  { icon: "✅", title: "Profily a recenze", desc: "Vyberete podle profilu, hodnocení a zkušeností" },
                   { icon: "⚡", title: "Rychlé nabídky", desc: `Průměrně ${freeLimit} nabídky do 24 hodin` },
                   { icon: "⭐", title: "Reálné recenze", desc: "Hodnocení od skutečných zákazníků" },
                 ].map((item, i) => (
@@ -188,7 +188,7 @@ export default function JakToFunguje() {
                   { q: "Je to opravdu zdarma?", a: "Ano, pro zákazníky je platforma 100% zdarma. Zadávání poptávek, komunikace s fachmany i hodnocení - vše bez poplatků." },
                   { q: "Jak dlouho trvá než dostanu nabídky?", a: `Většina zákazníků dostane první nabídky do několika hodin. Průměrně máte ${freeLimit} nabídky během 24 hodin.` },
                   { q: "Musím si vybrat některou nabídku?", a: "Ne, nemáte žádnou povinnost. Můžete si vybrat nabídku, která vám vyhovuje, nebo žádnou - je to na vás." },
-                  { q: "Jak poznám kvalitního fachmana?", a: "Každý fachman má profil s hodnocením, recenzemi a ukázkami práce. Ověření fachmani mají badge BankID." },
+                  { q: "Jak poznám kvalitního fachmana?", a: "Každý fachman má profil s hodnocením, recenzemi a ukázkami práce. Při výběru doporučujeme sledovat hlavně zkušenosti, reference a komunikaci." },
                 ].map((item, i) => (
                   <details key={i} className="group bg-white rounded-2xl border border-gray-200 overflow-hidden">
                     <summary className="flex items-center justify-between p-5 cursor-pointer list-none font-semibold text-gray-900 hover:bg-gray-50">
@@ -358,7 +358,7 @@ export default function JakToFunguje() {
                 {[
                   { q: "Kolik stojí registrace?", a: `Registrace je zcela zdarma. V základním tarifu můžete poslat ${freeLimit} nabídky měsíčně bez poplatků.` },
                   { q: "Kolik nabídek mohu poslat?", a: `V tarifu Start máte ${freeLimit} nabídky měsíčně zdarma. Pro neomezené nabídky doporučujeme Premium (${premiumPrice} Kč/měsíc).` },
-                  { q: "Jak funguje ověření BankID?", a: "Ověření přes BankID zvyšuje vaši důvěryhodnost u zákazníků. Zobrazí se vám badge ověřeného fachmana." },
+                  { q: "Jak funguje verifikace profilu?", a: "Verifikace profilu je momentálně ve vývoji. Jakmile bude spuštěna, zveřejníme přesný postup i podmínky." },
                   { q: "Jak získám více zakázek?", a: "Vyplňte kompletní profil, přidejte fotky prací, sbírejte pozitivní recenze a odpovídejte rychle na poptávky." },
                 ].map((item, i) => (
                   <details key={i} className="group bg-white rounded-2xl border border-gray-200 overflow-hidden">

@@ -30,7 +30,6 @@ Kontakt pro záležitosti ochrany osobních údajů: gdpr@fachmani.cz`
 
 - Identifikační údaje: jméno, příjmení, email, telefonní číslo
 - Přihlašovací údaje: email, heslo (šifrované)
-- Údaje z ověření: údaje z BankID pro ověřené fachmany
 - Údaje o aktivitě: poptávky, nabídky, zprávy, hodnocení
 - Technické údaje: IP adresa, typ prohlížeče, cookies
 - Fakturační údaje: u Premium členství adresa, IČO (pokud je uvedeno)`
@@ -43,7 +42,6 @@ Kontakt pro záležitosti ochrany osobních údajů: gdpr@fachmani.cz`
 
 - Poskytování služeb platformy (propojení zákazníků a fachmanů)
 - Správa uživatelského účtu
-- Ověření identity fachmanů
 - Komunikace s uživateli (notifikace, podpora)
 - Zlepšování služeb a analýza používání
 - Plnění právních povinností
@@ -78,7 +76,6 @@ Kontakt pro záležitosti ochrany osobních údajů: gdpr@fachmani.cz`
 
 - Druhými uživateli platformy (v rozsahu nutném pro poskytnutí služby)
 - Poskytovateli technických služeb (hosting, emailing)
-- Poskytovatelem ověření identity (BankID)
 - Státními orgány (pokud to vyžaduje zákon)
 
 Všichni naši partneři jsou vázáni povinností mlčenlivosti a zpracovávají údaje pouze podle našich pokynů.`

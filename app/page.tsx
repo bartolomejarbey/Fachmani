@@ -245,7 +245,7 @@ export default function Home() {
               {/* Tags */}
               <div className="flex flex-wrap gap-3 justify-center lg:justify-start mb-8">
                 <span className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium">
-                  ✓ Ověření přes BankID
+                  ✓ Ověření na naší platformě
                 </span>
                 <span className="inline-flex items-center gap-2 bg-cyan-50 text-cyan-700 px-4 py-2 rounded-full text-sm font-medium">
                   ⚡ Nabídky do 24h
@@ -405,7 +405,7 @@ export default function Home() {
                   <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-lg">✓</div>
                   <div>
                     <p className="text-xs text-gray-400">Ověření</p>
-                    <p className="font-semibold text-gray-900 text-sm">BankID</p>
+                    <p className="font-semibold text-gray-900 text-sm">Ověřeno</p>
                   </div>
                 </div>
                 <div className="bg-white rounded-xl shadow-md p-4 border border-gray-100 flex items-center gap-3">
@@ -545,7 +545,7 @@ export default function Home() {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 max-w-5xl mx-auto">
             {[
-              { icon: "🛡️", title: "Ověření profesionálové", desc: "Každý prochází ověřením přes BankID" },
+              { icon: "🛡️", title: "Ověření profesionálové", desc: "Každý prochází ověřením na naší platformě" },
               { icon: "⭐", title: "Reálné recenze", desc: "Hodnocení od skutečných zákazníků" },
               { icon: "⚡", title: "Rychlé nabídky", desc: `Průměrně ${settings.platform.free_offers_per_month} nabídky do 24 hodin` },
               { icon: "💬", title: "Bezpečný chat", desc: "Komunikace přímo v aplikaci" },
