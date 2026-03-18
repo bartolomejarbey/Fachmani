@@ -16,8 +16,14 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [confirmed, setConfirmed] = useState(false);
+
   useEffect(() => {
     setMounted(true);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("confirmed") === "true") {
+      setConfirmed(true);
+    }
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,7 +37,14 @@ export default function Login() {
     });
 
     if (signInError) {
-      setError("Nesprávný email nebo heslo");
+      const msg = signInError.message;
+      if (msg.includes("Email not confirmed")) {
+        setError("Váš email ještě nebyl ověřen. Zkontrolujte svou emailovou schránku a klikněte na potvrzovací odkaz.");
+      } else if (msg.includes("Invalid login credentials")) {
+        setError("Nesprávný email nebo heslo.");
+      } else {
+        setError("Při přihlášení došlo k chybě. Zkuste to prosím znovu.");
+      }
       setLoading(false);
       return;
     }
@@ -77,6 +90,14 @@ export default function Login() {
             </div>
 
             <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+              {confirmed && (
+                <div className="bg-emerald-50 text-emerald-700 p-4 rounded-xl mb-6 flex items-center gap-2">
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Email byl úspěšně ověřen! Nyní se můžete přihlásit.
+                </div>
+              )}
               {error && (
                 <div className="bg-red-50 text-red-700 p-4 rounded-xl mb-6 flex items-center gap-2">
                   <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

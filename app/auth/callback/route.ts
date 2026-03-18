@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
+  const type = searchParams.get('type')
   const nextParam = searchParams.get('next') ?? '/dashboard'
   // Validate that next is a safe relative path (prevent open redirect)
   const next = (nextParam.startsWith('/') && !nextParam.startsWith('//')) ? nextParam : '/dashboard'
@@ -29,6 +30,10 @@ export async function GET(request: Request) {
     )
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      // Email confirmation → redirect to login with success message
+      if (type === 'signup' || type === 'email') {
+        return NextResponse.redirect(new URL('/auth/login?confirmed=true', request.url))
+      }
       return NextResponse.redirect(new URL(next, request.url))
     }
   }

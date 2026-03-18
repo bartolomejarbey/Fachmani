@@ -39,6 +39,7 @@ export default function Register() {
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             full_name: fullName,
             role: role,
@@ -121,10 +122,13 @@ export default function Register() {
             </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Registrace úspěšná!</h2>
             <p className="text-gray-600 mb-8">
-              Váš účet byl vytvořen. Nyní se můžete přihlásit.
+              Na váš email jsme odeslali potvrzovací odkaz. Zkontrolujte svou emailovou schránku (i složku spam) a klikněte na odkaz pro ověření účtu.
             </p>
-            <Link 
-              href="/auth/login" 
+            <p className="text-sm text-gray-500 mb-8">
+              Po ověření emailu se budete moci přihlásit.
+            </p>
+            <Link
+              href="/auth/login"
               className="inline-flex items-center gap-2 gradient-bg text-white px-8 py-4 rounded-2xl font-semibold hover:shadow-xl transition-all"
             >
               Přejít na přihlášení
