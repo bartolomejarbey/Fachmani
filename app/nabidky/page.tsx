@@ -18,7 +18,7 @@ type ServiceOffer = {
   price_type: string;
   created_at: string;
   provider_id: string;
-  profiles: { full_name: string; is_verified: boolean } | null;
+  profiles: { full_name: string; is_verified: boolean; avatar_url: string | null } | null;
   categories: { id: string; name: string; icon: string } | null;
 };
 
@@ -38,7 +38,7 @@ export default function NabidkyPage() {
   const loadData = async () => {
     const { data: cats } = await supabase.from("categories").select("id, name, icon").order("name");
     if (cats) setCategories(cats);
-    const { data } = await supabase.from("service_offers").select("*, profiles:provider_id(full_name, is_verified), categories:category_id(id, name, icon)").eq("is_active", true).order("created_at", { ascending: false });
+    const { data } = await supabase.from("service_offers").select("*, profiles:provider_id(full_name, is_verified, avatar_url), categories:category_id(id, name, icon)").eq("is_active", true).order("created_at", { ascending: false });
     if (data) { setOffers(data as ServiceOffer[]); setFilteredOffers(data as ServiceOffer[]); }
     setLoading(false);
   };
@@ -100,7 +100,7 @@ export default function NabidkyPage() {
                   <p className="text-gray-600 text-sm line-clamp-2 mb-4">{o.description}</p>
                   <div className="flex flex-wrap gap-2 mb-4"><span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-sm font-medium">💰 {formatPrice(o)}</span>{o.location && <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-sm">📍 {o.location}</span>}</div>
                   <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <div className="flex items-center gap-2"><div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-full flex items-center justify-center text-white text-sm font-bold">{o.profiles?.full_name?.charAt(0) || "?"}</div><p className="text-sm font-medium text-gray-900">{o.profiles?.full_name}{o.profiles?.is_verified && <span className="text-emerald-500 ml-1">✓</span>}</p></div>
+                    <div className="flex items-center gap-2">{o.profiles?.avatar_url ? <img src={o.profiles.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" /> : <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-full flex items-center justify-center text-white text-sm font-bold">{o.profiles?.full_name?.charAt(0) || "?"}</div>}<p className="text-sm font-medium text-gray-900">{o.profiles?.full_name}{o.profiles?.is_verified && <span className="text-emerald-500 ml-1">✓</span>}</p></div>
                     <Link href={`/fachman/${o.provider_id}`} className="text-emerald-600 text-sm font-semibold hover:text-emerald-700">Profil →</Link>
                   </div>
                 </div>

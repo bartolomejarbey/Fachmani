@@ -62,49 +62,8 @@ export default function Register() {
         return;
       }
 
-      if (data.user) {
-        // 2. Počkáme chvíli než se vytvoří profil triggerem
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // 3. Aktualizujeme profil s rolí
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({ 
-            role: role, 
-            full_name: fullName 
-          })
-          .eq("id", data.user.id);
-
-        // Pokud update selhal (profil ještě neexistuje), zkusíme upsert
-        if (updateError) {
-          await supabase
-            .from("profiles")
-            .upsert({ 
-              id: data.user.id,
-              email: email,
-              role: role, 
-              full_name: fullName,
-              is_verified: false,
-              subscription_type: 'free',
-              monthly_offers_count: 0
-            });
-        }
-
-        // 4. Pro fachmana vytvoříme i provider_profiles záznam
-        if (role === "provider") {
-          await supabase
-            .from("provider_profiles")
-            .upsert({
-              user_id: data.user.id,
-              bio: null,
-              locations: null,
-              hourly_rate: null
-            });
-        }
-      }
-
       setSuccess(true);
-    } catch (err) {
+    } catch {
       setError("Něco se pokazilo. Zkuste to prosím znovu.");
     }
 

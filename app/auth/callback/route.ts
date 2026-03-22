@@ -30,8 +30,26 @@ export async function GET(request: Request) {
     )
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      // Email confirmation → redirect to login with success message
+      // After email confirmation, create profile from user metadata
       if (type === 'signup' || type === 'email') {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const fullName = user.user_metadata?.full_name || ''
+          const role = user.user_metadata?.role || 'customer'
+
+          await supabase.from('profiles').upsert({
+            id: user.id,
+            email: user.email,
+            full_name: fullName,
+            role: role,
+          }, { onConflict: 'id' })
+
+          if (role === 'provider') {
+            await supabase.from('provider_profiles').upsert({
+              user_id: user.id,
+            }, { onConflict: 'user_id' })
+          }
+        }
         return NextResponse.redirect(new URL('/auth/login?confirmed=true', request.url))
       }
       return NextResponse.redirect(new URL(next, request.url))

@@ -343,7 +343,7 @@ export default function SeedFachmanForm() {
                   onChange={(e) => setIsVerified(e.target.checked)}
                   className="w-5 h-5 rounded bg-slate-700 border-white/20 text-cyan-500 focus:ring-cyan-500"
                 />
-                <span className="text-white">✅ Ověřený (BankID badge)</span>
+                <span className="text-white">✅ Ověřený (ověřovací badge)</span>
               </label>
 
               <label className="flex items-center gap-3 cursor-pointer">

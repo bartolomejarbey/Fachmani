@@ -296,7 +296,7 @@ export default function FachmanProfil() {
               <div className="flex-1">
                 <h3 className="font-bold text-amber-800 text-lg">Ověřte svůj účet</h3>
                 <p className="text-amber-700 mt-1">
-                  Pro odesílání nabídek musíte ověřit svou identitu přes BankID.
+                  Pro odesílání nabídek musíte ověřit svou identitu na naší platformě.
                 </p>
                 <Link
                   href="/overeni"
