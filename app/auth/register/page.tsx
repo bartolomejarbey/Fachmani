@@ -47,8 +47,6 @@ export default function Register() {
         },
       });
 
-      console.log("signUp result:", JSON.stringify({ data: data?.user?.id, error: signUpError }));
-
       if (signUpError) {
         const msg = signUpError.message;
         if (msg.includes("User already registered")) {
@@ -58,15 +56,15 @@ export default function Register() {
         } else if (msg.includes("Unable to validate email address")) {
           setError("Neplatná emailová adresa");
         } else {
-          setError(`Chyba registrace: ${signUpError.message} (${signUpError.status || 'no status'})`);
+          setError("Při registraci došlo k chybě. Zkuste to prosím znovu.");
         }
         setLoading(false);
         return;
       }
 
       setSuccess(true);
-    } catch (err) {
-      setError(`Debug catch: ${err instanceof Error ? err.message : JSON.stringify(err)}`);
+    } catch {
+      setError("Něco se pokazilo. Zkuste to prosím znovu.");
     }
 
     setLoading(false);
