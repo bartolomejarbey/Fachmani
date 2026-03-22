@@ -18,6 +18,10 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Fachmani - Najdi ověřeného fachmana",
   description: "Platforma pro propojení zákazníků s ověřenými poskytovateli služeb",
+  icons: {
+    icon: '/favicon.png',
+    apple: '/apple-icon.png',
+  },
 };
 
 export default function RootLayout({
