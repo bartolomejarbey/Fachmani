@@ -56,7 +56,7 @@ export default function Register() {
         } else if (msg.includes("Unable to validate email address")) {
           setError("Neplatná emailová adresa");
         } else {
-          setError("Při registraci došlo k chybě. Zkuste to prosím znovu.");
+          setError(`Chyba registrace: ${signUpError.message} (${signUpError.status || 'no status'})`);
         }
         setLoading(false);
         return;
