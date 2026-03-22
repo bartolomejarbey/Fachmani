@@ -47,6 +47,8 @@ export default function Register() {
         },
       });
 
+      console.log("signUp result:", JSON.stringify({ data: data?.user?.id, error: signUpError }));
+
       if (signUpError) {
         const msg = signUpError.message;
         if (msg.includes("User already registered")) {
@@ -63,8 +65,8 @@ export default function Register() {
       }
 
       setSuccess(true);
-    } catch {
-      setError("Něco se pokazilo. Zkuste to prosím znovu.");
+    } catch (err) {
+      setError(`Debug catch: ${err instanceof Error ? err.message : JSON.stringify(err)}`);
     }
 
     setLoading(false);
