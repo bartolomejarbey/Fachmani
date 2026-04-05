@@ -308,17 +308,17 @@ export default function PoptavkaDetail() {
                 </div>
               </div>
 
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 w-full lg:w-auto lg:min-w-[160px] lg:max-w-[200px]">
                 {request.status === "active" ? (
-                  <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-2xl p-6 text-center">
-                    <span className="text-sm text-emerald-600 font-semibold">Zbývá</span>
-                    <p className={`text-4xl font-bold ${daysLeft(request.expires_at) <= 3 ? 'text-red-500' : 'text-emerald-600'}`}>
+                  <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-2xl p-4 sm:p-6 text-center overflow-hidden">
+                    <span className="text-xs sm:text-sm text-emerald-600 font-semibold">Zbývá</span>
+                    <p className={`text-2xl sm:text-4xl font-bold ${daysLeft(request.expires_at) <= 3 ? 'text-red-500' : 'text-emerald-600'}`}>
                       {daysLeft(request.expires_at)} dní
                     </p>
                     <div className="w-full h-2 bg-emerald-200 rounded-full mt-3">
-                      <div 
-                        className="h-2 bg-emerald-500 rounded-full transition-all" 
-                        style={{ width: `${(daysLeft(request.expires_at) / 14) * 100}%` }}
+                      <div
+                        className="h-2 bg-emerald-500 rounded-full transition-all"
+                        style={{ width: `${Math.min((daysLeft(request.expires_at) / 14) * 100, 100)}%` }}
                       />
                     </div>
                   </div>

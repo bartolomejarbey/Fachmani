@@ -405,10 +405,14 @@ export default function FeedPage() {
                   <div className="p-6 pb-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <Avatar src={post.profiles?.avatar_url} name={post.profiles?.full_name} />
+                        <Link href={`/fachman/${post.user_id}`} className="cursor-pointer hover:opacity-80 transition-opacity">
+                          <Avatar src={post.profiles?.avatar_url} name={post.profiles?.full_name} />
+                        </Link>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-900">{post.profiles?.full_name}</span>
+                            <Link href={`/fachman/${post.user_id}`} className="font-semibold text-gray-900 hover:opacity-80 transition-opacity">
+                              {post.profiles?.full_name}
+                            </Link>
                             {post.profiles?.role === "provider" && (
                               <span className="bg-cyan-100 text-cyan-700 text-xs px-2 py-0.5 rounded-full">Fachman</span>
                             )}
@@ -493,7 +497,12 @@ export default function FeedPage() {
                       {post.reactions_summary.length > 0 && post.likes_count > 0 && <span>·</span>}
                       {post.likes_count > 0 && <span>{post.likes_count} líbí se</span>}
                     </div>
-                    <span>{post.comments_count} komentářů</span>
+                    <span
+                      onClick={() => setOpenComments(openComments === post.id ? null : post.id)}
+                      className="cursor-pointer hover:underline"
+                    >
+                      {post.comments_count} komentářů
+                    </span>
                   </div>
 
                   {/* Actions — FB-style: one reaction per user */}
