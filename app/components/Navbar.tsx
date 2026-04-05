@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import NotificationBell from "./NotificationBell";
+import WalletBalance from "./wallet/WalletBalance";
 
 export default function Navbar() {
   const router = useRouter();
@@ -124,6 +125,7 @@ export default function Navbar() {
                 </div>
               ) : isLoggedIn ? (
                 <div className="flex items-center gap-2">
+                  {userRole === "provider" && <WalletBalance />}
                   <NotificationBell />
                   
                   <Link
@@ -169,6 +171,10 @@ export default function Navbar() {
                           <Link href="/dashboard/fachman/nabidky" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
                             <span className="text-lg">💼</span>
                             <span className="text-sm font-medium">Moje nabídky</span>
+                          </Link>
+                          <Link href="/dashboard/fachman/penezenka" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
+                            <span className="text-lg">💰</span>
+                            <span className="text-sm font-medium">Peněženka</span>
                           </Link>
                         </>
                       )}
@@ -307,6 +313,14 @@ export default function Navbar() {
                       >
                         <span className="text-xl">💼</span>
                         <span className="font-semibold">Moje nabídky</span>
+                      </Link>
+                      <Link
+                        href="/dashboard/fachman/penezenka"
+                        onClick={() => setIsOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3.5 text-gray-700 hover:bg-gray-50 rounded-2xl transition-all"
+                      >
+                        <span className="text-xl">💰</span>
+                        <span className="font-semibold">Peněženka</span>
                       </Link>
                     </>
                   )}

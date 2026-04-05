@@ -78,6 +78,8 @@ export default function PoptavkaDetail() {
   const [offerDate, setOfferDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [showInsufficientCredit, setShowInsufficientCredit] = useState(false);
+  const [creditShortfall, setCreditShortfall] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -187,6 +189,36 @@ export default function PoptavkaDetail() {
       setError("Dosáhli jste měsíčního limitu nabídek. Upgradujte na Premium pro neomezené nabídky.");
       setSubmitting(false);
       return;
+    }
+
+    // Charge credits from wallet
+    try {
+      const spendResponse = await fetch("/api/wallet/spend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "offer_publish",
+          relatedEntityId: params.id,
+        }),
+      });
+
+      if (spendResponse.status === 402) {
+        const spendData = await spendResponse.json();
+        setCreditShortfall(spendData.shortfall);
+        setShowInsufficientCredit(true);
+        setSubmitting(false);
+        return;
+      }
+
+      if (!spendResponse.ok && spendResponse.status !== 404) {
+        // 404 = no wallet yet (new user), allow free offers
+        const spendData = await spendResponse.json();
+        setError(spendData.error || "Chyba při zpracování platby");
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      // If wallet service unavailable, continue (graceful degradation)
     }
 
     const { error: insertError } = await supabase.from("offers").insert({
@@ -811,6 +843,35 @@ export default function PoptavkaDetail() {
       </div>
 
       <Footer />
+
+      {/* Insufficient Credit Modal */}
+      {showInsufficientCredit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm mx-4 shadow-2xl">
+            <div className="text-center">
+              <div className="text-4xl mb-3">💰</div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Nedostatek kreditu</h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Pro odeslani nabidky potrebujes jeste <strong>{creditShortfall} Kc</strong>. Dobij si penezenku.
+              </p>
+              <div className="space-y-2">
+                <Link
+                  href="/dashboard/fachman/penezenka"
+                  className="block w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                >
+                  Dobit penezenku
+                </Link>
+                <button
+                  onClick={() => setShowInsufficientCredit(false)}
+                  className="block w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                >
+                  Zavrit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
