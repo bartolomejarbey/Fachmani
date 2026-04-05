@@ -46,6 +46,15 @@ type UserProfile = {
   full_name: string;
 };
 
+type RecommendedProvider = {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  bio: string | null;
+  location: string | null;
+  is_verified: boolean;
+};
+
 export default function PoptavkaDetail() {
   const params = useParams();
   const router = useRouter();
@@ -58,6 +67,9 @@ export default function PoptavkaDetail() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [existingReview, setExistingReview] = useState<boolean>(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [recommendedProviders, setRecommendedProviders] = useState<RecommendedProvider[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [recommendationLoaded, setRecommendationLoaded] = useState(false);
 
   // Formulář pro nabídku
   const [showOfferForm, setShowOfferForm] = useState(false);
@@ -107,6 +119,7 @@ export default function PoptavkaDetail() {
 
       if (requestData) {
         setRequest(requestData as Request);
+        loadRecommendations(requestData as Request);
       }
 
       if (user) {
@@ -126,6 +139,28 @@ export default function PoptavkaDetail() {
 
     loadData();
   }, [params.id]);
+
+  const loadRecommendations = async (req: Request) => {
+    if (recommendationLoaded || req.status !== "active") return;
+    setLoadingRecommendations(true);
+    try {
+      const conversationContext = `Uživatel hledá: ${req.title}\nPopis: ${req.description}\nKategorie: ${req.categories?.name || "nezadáno"}\nLokalita: ${req.location}`;
+      const response = await fetch("/api/ai/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationContext }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setRecommendedProviders(data.recommendations || []);
+      }
+    } catch {
+      // Silently fail - recommendations are optional
+    } finally {
+      setLoadingRecommendations(false);
+      setRecommendationLoaded(true);
+    }
+  };
 
   const freeLimit = settings.platform.free_offers_per_month;
 
@@ -346,6 +381,74 @@ export default function PoptavkaDetail() {
                 {request.description}
               </p>
             </div>
+
+            {/* AI Recommendations */}
+            {request.status === "active" && (loadingRecommendations || recommendedProviders.length > 0) && (
+              <div className={`bg-white rounded-2xl shadow-sm p-6 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xl">🤖</span>
+                  <h2 className="text-lg font-bold text-gray-900">Doporučení AI</h2>
+                  <span className="bg-cyan-100 text-cyan-700 text-xs px-2 py-0.5 rounded-full font-semibold">Beta</span>
+                </div>
+
+                {loadingRecommendations ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+                        <div className="w-12 h-12 bg-gray-200 rounded-xl animate-pulse" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 w-1/3 bg-gray-200 rounded animate-pulse" />
+                          <div className="h-3 w-2/3 bg-gray-200 rounded animate-pulse" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {recommendedProviders.map((provider, i) => (
+                      <Link
+                        key={provider.id}
+                        href={`/fachman/${provider.id}`}
+                        className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl hover:bg-cyan-50 hover:border-cyan-200 border border-transparent transition-all group"
+                      >
+                        <div className="relative flex-shrink-0">
+                          {provider.avatar_url ? (
+                            <img
+                              src={provider.avatar_url}
+                              alt={provider.full_name}
+                              className="w-12 h-12 rounded-xl object-cover"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-xl flex items-center justify-center text-white text-lg font-bold">
+                              {provider.full_name.charAt(0)}
+                            </div>
+                          )}
+                          <span className="absolute -top-1 -right-1 w-5 h-5 bg-cyan-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                            {i + 1}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900 group-hover:text-cyan-700 transition-colors">
+                              {provider.full_name}
+                            </span>
+                            {provider.is_verified && (
+                              <span className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0.5 rounded-full">✓</span>
+                            )}
+                          </div>
+                          {provider.location && (
+                            <p className="text-xs text-gray-500 mt-1">📍 {provider.location}</p>
+                          )}
+                          {provider.bio && (
+                            <p className="text-xs text-gray-400 truncate mt-1">{provider.bio}</p>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* CTA for non-logged users */}
             {!isLoggedIn && request.status === "active" && (

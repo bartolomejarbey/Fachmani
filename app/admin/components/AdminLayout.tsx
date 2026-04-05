@@ -45,6 +45,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Transakce", href: "/admin/transakce", icon: "💳", roles: ["master_admin", "admin"] },
     { name: "Faktury", href: "/admin/faktury", icon: "📄", roles: ["master_admin", "admin"] },
     { name: "Tým", href: "/admin/tym", icon: "🏢", roles: ["master_admin"] },
+    { name: "AI Spotřeba", href: "/admin/ai-usage", icon: "🤖", roles: ["master_admin", "admin"] },
     { name: "Activity Log", href: "/admin/activity", icon: "📜", roles: ["master_admin"] },
     { name: "Nastavení", href: "/admin/nastaveni", icon: "⚙️", roles: ["master_admin"] },
   ];
