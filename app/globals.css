@@ -145,6 +145,7 @@ body {
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
+  will-change: transform;
 }
 
 .animate-scale-in {

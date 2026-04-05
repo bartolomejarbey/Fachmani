@@ -34,16 +34,16 @@ export default function Footer() {
     <footer className="relative bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 text-white overflow-hidden">
       {/* Dekorativní pozadí */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/3 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-cyan-500/5 rounded-full opacity-30" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-blue-500/5 rounded-full opacity-30" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/3 rounded-full opacity-30" />
       </div>
 
       <div className="relative z-10">
         {/* CTA sekce */}
         <div className="border-b border-white/5">
           <div className="max-w-7xl mx-auto px-6 py-16">
-            <div className="relative bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-white/10 rounded-3xl p-10 md:p-14 text-center backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-white/10 rounded-3xl p-10 md:p-14 text-center">
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-blue-500/5 rounded-3xl" />
               <div className="relative">
                 <h3 className="text-3xl md:text-4xl font-bold mb-4">

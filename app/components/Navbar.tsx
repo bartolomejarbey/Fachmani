@@ -69,8 +69,8 @@ export default function Navbar() {
     <>
       <nav className={`fixed w-full z-50 transition-all duration-300 ${
         scrolled 
-          ? "bg-white/90 backdrop-blur-xl shadow-lg shadow-black/5 py-2" 
-          : "bg-white/70 backdrop-blur-md py-3"
+          ? "bg-white/95 shadow-lg shadow-black/5 py-2"
+          : "bg-white/80 py-3"
       }`}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-16">
@@ -231,7 +231,7 @@ export default function Navbar() {
       {/* Mobile Menu Overlay */}
       {isOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setIsOpen(false)}></div>
+          <div className="absolute inset-0 bg-black/30" onClick={() => setIsOpen(false)}></div>
           
           <div className="absolute top-20 left-4 right-4 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden animate-fade-in">
             <div className="p-4">

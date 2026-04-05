@@ -161,7 +161,7 @@ export default function FachmanProfile() {
       {/* Hero header */}
       <section className="pt-24 pb-12 bg-white border-b relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-white to-emerald-50"></div>
-        <div className="absolute top-10 right-10 w-64 h-64 bg-cyan-200/20 rounded-full blur-3xl"></div>
+        <div className="absolute top-10 right-10 w-64 h-64 bg-cyan-200/20 rounded-full opacity-30"></div>
         
         <div className="max-w-5xl mx-auto px-4 relative z-10">
           <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
