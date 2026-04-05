@@ -73,55 +73,91 @@ Kategorie může být: instalatér, elektrikář, malíř, zedník, truhlář, I
       .from("profiles")
       .select("id, full_name, avatar_url, bio, location, is_verified")
       .eq("role", "provider")
-      .eq("is_verified", true)
-      .limit(10);
+      .limit(5);
 
-    // Filter by location if extracted
+    // Search by keywords in bio/description
+    if (analysis.category_keywords && analysis.category_keywords.length > 0) {
+      const keywordFilter = analysis.category_keywords
+        .map((kw: string) => `bio.ilike.%${kw}%`)
+        .join(",");
+      query = query.or(keywordFilter);
+    }
+
+    // Filter by location if relevant
     if (analysis.location && analysis.location !== "null") {
       query = query.ilike("location", `%${analysis.location}%`);
     }
 
     const { data: providers, error } = await query;
 
-    if (error) {
-      console.error("DB query error:", error);
-      return NextResponse.json({ error: "Database error" }, { status: 500 });
-    }
+    // Fallback: if nothing found with both filters, try keywords only
+    if ((!providers || providers.length === 0) && analysis.category_keywords?.length > 0) {
+      const keywordFilter = analysis.category_keywords
+        .map((kw: string) => `bio.ilike.%${kw}%`)
+        .join(",");
 
-    // If location filter returned nothing, retry without it
-    let results = providers || [];
-    if (results.length === 0 && analysis.location) {
-      const { data: fallback } = await supabase
+      const { data: fallbackProviders } = await supabase
         .from("profiles")
         .select("id, full_name, avatar_url, bio, location, is_verified")
         .eq("role", "provider")
-        .eq("is_verified", true)
+        .or(keywordFilter)
         .limit(5);
-      results = fallback || [];
-    }
 
-    // Track usage
-    const { data: { user } } = await supabase.auth.getUser();
-    const usage = analysisData.usage;
-    if (user && usage) {
-      const costUsd =
-        usage.prompt_tokens * 0.00000015 + usage.completion_tokens * 0.0000006;
-      await supabase.from("ai_usage").insert({
-        user_id: user.id,
-        type: "recommend",
-        prompt_tokens: usage.prompt_tokens,
-        completion_tokens: usage.completion_tokens,
-        total_tokens: usage.total_tokens,
-        cost_usd: costUsd,
+      // Fallback 2: if still nothing, try any verified providers
+      if (!fallbackProviders || fallbackProviders.length === 0) {
+        const { data: anyProviders } = await supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url, bio, location, is_verified")
+          .eq("role", "provider")
+          .eq("is_verified", true)
+          .limit(5);
+
+        // Track usage
+        await trackUsage(supabase, analysisData.usage);
+
+        return NextResponse.json({
+          analysis,
+          recommendations: anyProviders || [],
+        });
+      }
+
+      // Track usage
+      await trackUsage(supabase, analysisData.usage);
+
+      return NextResponse.json({
+        analysis,
+        recommendations: fallbackProviders,
       });
     }
 
+    if (error) {
+      console.error("DB query error:", error);
+    }
+
+    // Track usage
+    await trackUsage(supabase, analysisData.usage);
+
     return NextResponse.json({
       analysis,
-      recommendations: results.slice(0, 5),
+      recommendations: providers || [],
     });
   } catch (error) {
     console.error("Recommend error:", error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
+}
+
+async function trackUsage(supabase: ReturnType<typeof createServerClient>, usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined) {
+  if (!usage) return;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const costUsd = usage.prompt_tokens * 0.00000015 + usage.completion_tokens * 0.0000006;
+  await supabase.from("ai_usage").insert({
+    user_id: user.id,
+    type: "recommend",
+    prompt_tokens: usage.prompt_tokens,
+    completion_tokens: usage.completion_tokens,
+    total_tokens: usage.total_tokens,
+    cost_usd: costUsd,
+  });
 }

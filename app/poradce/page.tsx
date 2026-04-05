@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 
 type Message = {
   id: string;
@@ -30,21 +31,9 @@ const QUICK_SUGGESTIONS = [
   "🏠 Plánuji rekonstrukci",
 ];
 
-const WELCOME_MESSAGE = "Ahoj! 👋 Jsem AI poradce na Fachmani.org. Pomohu ti zorientovat se v tom, jakého profesionála potřebuješ, na co si dát pozor a jaká je přibližná cena. Co potřebuješ vyřešit?";
+const WELCOME_MESSAGE = "Ahoj! 👋 Jsem tvůj asistent pro hledání fachmanů. Řekni mi co potřebuješ a já ti najdu toho správného z naší databáze. Co hledáš?";
 
-function formatContent(content: string) {
-  return content.split("\n").map((line, i) => {
-    let formatted = line
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/---/g, '<hr class="my-3 border-gray-200" />');
-
-    if (formatted.startsWith("- ")) {
-      formatted = `<span class="flex gap-2"><span>•</span><span>${formatted.slice(2)}</span></span>`;
-    }
-
-    return <span key={i} dangerouslySetInnerHTML={{ __html: formatted + (i < content.split("\n").length - 1 ? "<br/>" : "") }} />;
-  });
-}
+const SEARCH_TRIGGER = "hledám pro tebe v naší databázi";
 
 export default function PoradcePage() {
   const [messages, setMessages] = useState<Message[]>([
@@ -56,6 +45,7 @@ export default function PoradcePage() {
   const [userMessageCount, setUserMessageCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<RecommendedProvider[]>([]);
+  const [noMatches, setNoMatches] = useState(false);
   const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -65,7 +55,7 @@ export default function PoradcePage() {
     if (el) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages, typing, recommendations]);
+  }, [messages, typing, recommendations, noMatches]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || typing) return;
@@ -125,9 +115,9 @@ export default function PoradcePage() {
       ]);
       setMessages((prev) => [...prev, aiMsg]);
 
-      // After 3rd user message, fetch recommendations
-      if (newCount === 3 && recommendations.length === 0) {
-        const conversationContext = newApiMessages
+      // Detect search trigger phrase
+      if (data.message.toLowerCase().includes(SEARCH_TRIGGER)) {
+        const conversationContext = [...newApiMessages, { role: "assistant" as const, content: data.message }]
           .map((m) => `${m.role}: ${m.content}`)
           .join("\n");
 
@@ -140,7 +130,9 @@ export default function PoradcePage() {
 
           if (recResponse.ok) {
             const recData = await recResponse.json();
-            setRecommendations(recData.recommendations || []);
+            const recs = recData.recommendations || [];
+            setRecommendations(recs);
+            setNoMatches(recs.length === 0);
           }
         } catch {
           // Recommendations are optional, don't block chat
@@ -178,8 +170,8 @@ export default function PoradcePage() {
               🤖
             </div>
             <div>
-              <h1 className="font-bold text-gray-900 text-sm">AI Poradce</h1>
-              <p className="text-xs text-gray-500">Pomohu ti najít správného fachmana</p>
+              <h1 className="font-bold text-gray-900 text-sm">Najdi fachmana</h1>
+              <p className="text-xs text-gray-500">AI asistent pro hledání profesionálů</p>
             </div>
             <div className="ml-auto flex items-center gap-1">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
@@ -206,9 +198,28 @@ export default function PoradcePage() {
                     : "bg-white border border-gray-200 text-gray-700"
                 }`}
               >
-                <div className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {msg.role === "ai" ? formatContent(msg.content) : msg.content}
-                </div>
+                {msg.role === "ai" ? (
+                  <div className="prose prose-sm max-w-none prose-slate">
+                    <ReactMarkdown
+                      components={{
+                        h1: ({ children }) => <h3 className="text-base font-bold mt-3 mb-2">{children}</h3>,
+                        h2: ({ children }) => <h3 className="text-base font-bold mt-3 mb-2">{children}</h3>,
+                        h3: ({ children }) => <h4 className="text-sm font-bold mt-2 mb-1">{children}</h4>,
+                        ul: ({ children }) => <ul className="list-disc list-inside space-y-1 my-2">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 my-2">{children}</ol>,
+                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+                        hr: () => <hr className="my-3 border-gray-200" />,
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {msg.content}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -255,10 +266,10 @@ export default function PoradcePage() {
           {recommendations.length > 0 && (
             <div className="p-6 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl border border-cyan-200">
               <h3 className="text-lg font-bold text-gray-800 mb-2">
-                🎯 Doporučení na míru
+                🎯 Nalezení fachmani
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                Na základě naší konverzace jsem pro tebe vybral tyto fachmany:
+                Na základě tvých požadavků jsem našel tyto fachmany v naší databázi:
               </p>
               <div className="space-y-3">
                 {recommendations.map((provider) => (
@@ -307,8 +318,40 @@ export default function PoradcePage() {
             </div>
           )}
 
+          {/* No matches fallback */}
+          {noMatches && recommendations.length === 0 && (
+            <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border border-amber-200">
+              <div className="flex items-start gap-4">
+                <div className="text-4xl flex-shrink-0">🔍</div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-gray-800 mb-2">
+                    Zatím na to nemáme fachmana
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Naše platforma je čerstvě spuštěná a databáze fachmanů se každým dnem rozrůstá.
+                    Na tento typ služby momentálně nikoho nemáme, ale v řádu týdnů až měsíce očekáváme
+                    první ověřené fachmany pro tuto oblast.
+                  </p>
+                  <p className="text-sm text-gray-600 mb-3">
+                    <strong>Mezitím můžeš:</strong>
+                  </p>
+                  <ul className="text-sm text-gray-600 space-y-1 mb-4 list-disc list-inside">
+                    <li>Zadat veřejnou poptávku — dáme ti vědět jakmile se fachman přihlásí</li>
+                    <li>Zaregistrovat se k odběru novinek</li>
+                  </ul>
+                  <Link
+                    href="/nova-poptavka"
+                    className="inline-block px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl font-semibold hover:shadow-lg transition-shadow"
+                  >
+                    Zadat veřejnou poptávku →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* CTA banner after 3 messages */}
-          {userMessageCount >= 3 && (
+          {userMessageCount >= 3 && !noMatches && (
             <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 border-2 border-emerald-200 rounded-2xl p-6 text-center">
               <p className="font-bold text-gray-900 mb-2">Zadej poptávku a nech fachmany, ať ti pošlou nabídky</p>
               <Link
@@ -317,7 +360,7 @@ export default function PoradcePage() {
               >
                 Zadat poptávku zdarma →
               </Link>
-              <p className="text-gray-500 text-sm mt-3">Nebo pokračuj v chatu — rád zodpovím další dotazy.</p>
+              <p className="text-gray-500 text-sm mt-3">Nebo pokračuj v chatu — rád ti najdu dalšího fachmana.</p>
             </div>
           )}
         </div>
@@ -332,7 +375,7 @@ export default function PoradcePage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Napiš svůj dotaz..."
+              placeholder="Napiš co hledáš..."
               rows={1}
               maxLength={1000}
               className="flex-1 px-4 py-3 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
@@ -346,7 +389,7 @@ export default function PoradcePage() {
             </button>
           </form>
           <p className="text-xs text-gray-400 mt-2 text-center">
-            AI poradce poskytuje orientační informace. Pro přesnou nabídku zadej poptávku.
+            Propojím tě s ověřenými fachmany z naší databáze.
           </p>
         </div>
       </div>
