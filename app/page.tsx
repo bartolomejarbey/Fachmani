@@ -339,7 +339,7 @@ export default function Home() {
                       >
                         {recentRequests.map((req) => (
                           <div key={req.id} className="w-full flex-shrink-0">
-                            <div className="space-y-4">
+                            <Link href={`/poptavka/${req.id}`} className="block space-y-4 hover:opacity-80 transition-opacity cursor-pointer">
                               <div className="flex items-center justify-between">
                                 <span className="text-3xl">{req.category_icon}</span>
                                 <span className="text-sm text-gray-400">{timeAgo(req.created_at)}</span>
@@ -365,7 +365,7 @@ export default function Home() {
                                   {req.offers_count || 0} {(req.offers_count || 0) === 1 ? 'nabídka' : (req.offers_count || 0) < 5 ? 'nabídky' : 'nabídek'}
                                 </span>
                               </div>
-                            </div>
+                            </Link>
                           </div>
                         ))}
                       </div>
@@ -611,6 +611,68 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* ==================== NEJNOVĚJŠÍ POPTÁVKY ==================== */}
+      {recentRequests.length > 0 && (
+        <section className="py-16 lg:py-24 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between mb-10 lg:mb-12">
+              <div>
+                <span className="inline-block bg-orange-100 text-orange-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
+                  NEJNOVĚJŠÍ
+                </span>
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
+                  Nejnovější poptávky
+                </h2>
+              </div>
+              <Link href="/poptavky" className="text-cyan-600 font-semibold hover:text-cyan-700">
+                Zobrazit vše →
+              </Link>
+            </div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recentRequests.map((req) => {
+                const isNew = (Date.now() - new Date(req.created_at).getTime()) < 24 * 60 * 60 * 1000;
+                return (
+                  <Link
+                    key={req.id}
+                    href={`/poptavka/${req.id}`}
+                    className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-cyan-200 hover:shadow-lg transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-2xl">{req.category_icon}</span>
+                      <div className="flex items-center gap-2">
+                        {isNew && (
+                          <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                            NOVÉ
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400">{timeAgo(req.created_at)}</span>
+                      </div>
+                    </div>
+                    <h3 className="font-bold text-gray-900 group-hover:text-cyan-700 transition-colors mb-2 line-clamp-2">
+                      {req.title}
+                    </h3>
+                    <div className="flex flex-wrap gap-2 text-sm">
+                      <span className="text-gray-600 bg-gray-100 px-2 py-1 rounded-lg">
+                        📍 {req.location}
+                      </span>
+                      {req.budget_max && (
+                        <span className="text-gray-600 bg-gray-100 px-2 py-1 rounded-lg">
+                          💰 {formatBudget(req.budget_max)}
+                        </span>
+                      )}
+                      <span className="text-gray-500 bg-gray-50 px-2 py-1 rounded-lg">
+                        {req.offers_count || 0} {(req.offers_count || 0) === 1 ? 'nabídka' : (req.offers_count || 0) < 5 ? 'nabídky' : 'nabídek'}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ==================== FINAL CTA ==================== */}
       <section className="py-16 lg:py-24">
