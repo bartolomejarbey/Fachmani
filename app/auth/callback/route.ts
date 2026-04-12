@@ -31,40 +31,43 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // Create profile after email confirmation
-      if (type === 'signup' || type === 'email') {
-        try {
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user) {
-            const fullName = user.user_metadata?.full_name || ''
-            const role = user.user_metadata?.role || 'customer'
+      // Always ensure profile exists — prevents foreign key errors on demands
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const fullName = user.user_metadata?.full_name || ''
+          const role = user.user_metadata?.role || 'customer'
 
-            const { error: profileError } = await supabase.from('profiles').upsert({
-              id: user.id,
-              email: user.email,
-              full_name: fullName,
-              role: role,
-            }, { onConflict: 'id' })
+          const { error: profileError } = await supabase.from('profiles').upsert({
+            id: user.id,
+            email: user.email,
+            full_name: fullName,
+            role: role,
+            is_verified: false,
+            subscription_type: 'free',
+            monthly_offers_count: 0,
+          }, { onConflict: 'id', ignoreDuplicates: false })
 
-            if (profileError) {
-              console.error('Profile upsert error:', profileError)
-            }
+          if (profileError) {
+            console.error('Profile upsert error:', profileError)
+          }
 
-            if (role === 'provider') {
-              const { error: providerError } = await supabase.from('provider_profiles').upsert({
-                user_id: user.id,
-              }, { onConflict: 'user_id' })
+          if (role === 'provider') {
+            const { error: providerError } = await supabase.from('provider_profiles').upsert({
+              user_id: user.id,
+            }, { onConflict: 'user_id' })
 
-              if (providerError) {
-                console.error('Provider profile upsert error:', providerError)
-              }
+            if (providerError) {
+              console.error('Provider profile upsert error:', providerError)
             }
           }
-        } catch (e) {
-          console.error('Profile creation error:', e)
-          // Continue to login even if profile creation fails
         }
+      } catch (e) {
+        console.error('Profile creation error:', e)
+        // Continue to redirect even if profile creation fails
+      }
 
+      if (type === 'signup' || type === 'email') {
         return NextResponse.redirect(new URL('/auth/login?confirmed=true', request.url))
       }
 
