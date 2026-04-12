@@ -202,9 +202,14 @@ export default function Footer() {
         {/* Spodní lišta */}
         <div className="border-t border-white/10">
           <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-gray-600 text-sm">
-              © 2026 Fachmani. Všechna práva vyhrazena.
-            </p>
+            <div className="text-center md:text-left">
+              <p className="text-gray-600 text-sm">
+                © 2026 Fachmani. Všechna práva vyhrazena.
+              </p>
+              <p className="text-gray-600 text-xs mt-1">
+                Provozovatel platebních služeb: ComGate Payments, a.s.
+              </p>
+            </div>
             <div className="flex gap-6 text-sm">
               <Link href="/vop" className="text-gray-600 hover:text-cyan-400 transition-colors duration-200">Podmínky</Link>
               <Link href="/gdpr" className="text-gray-600 hover:text-cyan-400 transition-colors duration-200">Soukromí</Link>

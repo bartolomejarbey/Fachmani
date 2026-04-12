@@ -34,9 +34,9 @@ type PremiumSub = {
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
 const TX_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
-  topup: { label: "Dobiti", icon: "💰" },
-  offer_publish: { label: "Nabidka", icon: "📨" },
-  profile_boost_7d: { label: "Topovani", icon: "🚀" },
+  topup: { label: "Dobití", icon: "💰" },
+  offer_publish: { label: "Nabídka", icon: "📨" },
+  profile_boost_7d: { label: "Topování", icon: "🚀" },
   feed_boost_1d: { label: "Boost", icon: "📣" },
 };
 
@@ -87,7 +87,7 @@ export default function PenezenkaPage() {
 
       const data = await response.json();
       if (!response.ok) {
-        alert(data.error || "Chyba pri vytvareni platby");
+        alert(data.error || "Chyba při vytváření platby");
         return;
       }
 
@@ -95,7 +95,7 @@ export default function PenezenkaPage() {
         router.push(data.redirectUrl);
       }
     } catch {
-      alert("Chyba pripojeni");
+      alert("Chyba připojení");
     } finally {
       setProcessing(false);
     }
@@ -119,7 +119,7 @@ export default function PenezenkaPage() {
         router.push(data.redirectUrl);
       }
     } catch {
-      alert("Chyba pripojeni");
+      alert("Chyba připojení");
     } finally {
       setPremiumProcessing(false);
     }
@@ -149,8 +149,8 @@ export default function PenezenkaPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Penezenka</h1>
-            <p className="text-gray-600">Spravuj sve kredity a predplatne</p>
+            <h1 className="text-3xl font-bold text-gray-900">Peněženka</h1>
+            <p className="text-gray-600">Spravuj své kredity a předplatné</p>
           </div>
           <Link
             href="/dashboard/fachman"
@@ -162,18 +162,18 @@ export default function PenezenkaPage() {
 
         {/* Balance Card */}
         <div className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-3xl p-8 text-white mb-8 shadow-xl">
-          <p className="text-cyan-100 text-sm font-medium mb-1">Aktualni zustatek</p>
+          <p className="text-cyan-100 text-sm font-medium mb-1">Aktuální zůstatek</p>
           <p className="text-5xl font-bold mb-4">
-            {wallet?.balance_kc?.toLocaleString() || 0} Kc
+            {wallet?.balance_kc?.toLocaleString() || 0} Kč
           </p>
           <div className="flex gap-6 text-sm text-cyan-100">
             <div>
               <span className="block text-cyan-200 text-xs">Celkem nabito</span>
-              {wallet?.total_topped_up_kc?.toLocaleString() || 0} Kc
+              {wallet?.total_topped_up_kc?.toLocaleString() || 0} Kč
             </div>
             <div>
               <span className="block text-cyan-200 text-xs">Celkem utraceno</span>
-              {wallet?.total_spent_kc?.toLocaleString() || 0} Kc
+              {wallet?.total_spent_kc?.toLocaleString() || 0} Kč
             </div>
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function PenezenkaPage() {
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Topup Section */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Nabit kredity</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Nabít kredity</h2>
 
             <div className="grid grid-cols-2 gap-3 mb-4">
               {QUICK_AMOUNTS.map(amount => (
@@ -194,7 +194,7 @@ export default function PenezenkaPage() {
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
-                  {amount.toLocaleString()} Kc
+                  {amount.toLocaleString()} Kč
                 </button>
               ))}
             </div>
@@ -208,7 +208,7 @@ export default function PenezenkaPage() {
                     : "bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100"
                 }`}
               >
-                Jina castka
+                Jiná částka
               </button>
               {isCustom && (
                 <div className="mt-3 flex items-center gap-2">
@@ -221,7 +221,7 @@ export default function PenezenkaPage() {
                     max={50000}
                     className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   />
-                  <span className="text-gray-500 font-medium">Kc</span>
+                  <span className="text-gray-500 font-medium">Kč</span>
                 </div>
               )}
             </div>
@@ -231,59 +231,59 @@ export default function PenezenkaPage() {
               disabled={processing}
               className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-50"
             >
-              {processing ? "Zpracovavam..." : `Nabit ${isCustom ? (customAmount || "0") : selectedAmount.toLocaleString()} Kc`}
+              {processing ? "Zpracovávám..." : `Nabít ${isCustom ? (customAmount || "0") : selectedAmount.toLocaleString()} Kč`}
             </button>
 
             <p className="text-xs text-gray-400 mt-2 text-center">
-              Platba pres ComGate (kartou, bankovnim prevodem)
+              Platba přes ComGate (kartou, bankovním převodem)
             </p>
           </div>
 
           {/* Premium Section */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Premium predplatne</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Premium předplatné</h2>
 
             {premium ? (
               <div className="space-y-4">
                 <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-2xl">⭐</span>
-                    <span className="font-bold text-amber-800">Premium aktivni</span>
+                    <span className="font-bold text-amber-800">Premium aktivní</span>
                   </div>
                   <p className="text-sm text-amber-700">
-                    Aktivni od {new Date(premium.started_at).toLocaleDateString("cs-CZ")}
+                    Aktivní od {new Date(premium.started_at).toLocaleDateString("cs-CZ")}
                   </p>
                   {premium.next_billing_at && (
                     <p className="text-sm text-amber-700">
-                      Dalsi platba: {new Date(premium.next_billing_at).toLocaleDateString("cs-CZ")}
+                      Další platba: {new Date(premium.next_billing_at).toLocaleDateString("cs-CZ")}
                     </p>
                   )}
                 </div>
 
                 <div className="text-sm text-gray-600 space-y-2">
-                  <p className="font-medium">Vyhody Premium:</p>
+                  <p className="font-medium">Výhody Premium:</p>
                   <ul className="space-y-1">
-                    <li>- Neomezene nabidky na poptavky</li>
-                    <li>- Prioritni zobrazeni v katalogu</li>
+                    <li>- Neomezené nabídky na poptávky</li>
+                    <li>- Prioritní zobrazení v katalogu</li>
                     <li>- Premium badge na profilu</li>
-                    <li>- Pristup k exkluzivnim poptavkam</li>
+                    <li>- Přístup k exkluzivním poptávkám</li>
                   </ul>
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200 rounded-xl p-4">
-                  <p className="text-3xl font-bold text-gray-900 mb-1">499 Kc<span className="text-lg font-normal text-gray-500">/mesic</span></p>
-                  <p className="text-sm text-gray-600">Mesicni predplatne s automatickou obnovou</p>
+                  <p className="text-3xl font-bold text-gray-900 mb-1">499 Kč<span className="text-lg font-normal text-gray-500">/měsíc</span></p>
+                  <p className="text-sm text-gray-600">Měsíční předplatné s automatickou obnovou</p>
                 </div>
 
                 <div className="text-sm text-gray-600 space-y-2">
-                  <p className="font-medium">Co ziskas:</p>
+                  <p className="font-medium">Co získáš:</p>
                   <ul className="space-y-1">
-                    <li>- Neomezene nabidky na poptavky</li>
-                    <li>- Prioritni zobrazeni v katalogu</li>
+                    <li>- Neomezené nabídky na poptávky</li>
+                    <li>- Prioritní zobrazení v katalogu</li>
                     <li>- Premium badge na profilu</li>
-                    <li>- Pristup k exkluzivnim poptavkam</li>
+                    <li>- Přístup k exkluzivním poptávkám</li>
                   </ul>
                 </div>
 
@@ -292,11 +292,11 @@ export default function PenezenkaPage() {
                   disabled={premiumProcessing}
                   className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-50"
                 >
-                  {premiumProcessing ? "Zpracovavam..." : "Aktivovat Premium 499 Kc/mesic"}
+                  {premiumProcessing ? "Zpracovávám..." : "Aktivovat Premium 499 Kč/měsíc"}
                 </button>
 
                 <p className="text-xs text-gray-400 text-center">
-                  Predplatne se automaticky obnovuje. Zrusit lze kdykoliv.
+                  Předplatné se automaticky obnovuje. Zrušit lze kdykoliv.
                 </p>
               </div>
             )}
@@ -305,21 +305,21 @@ export default function PenezenkaPage() {
 
         {/* Pricing Info */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Cenik akci</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Ceník akcí</h2>
           <div className="grid sm:grid-cols-3 gap-4">
             <div className="bg-gray-50 rounded-xl p-4 text-center">
               <span className="text-2xl">📨</span>
-              <p className="font-bold text-gray-900 mt-1">29 Kc</p>
-              <p className="text-sm text-gray-600">Odeslani nabidky</p>
+              <p className="font-bold text-gray-900 mt-1">29 Kč</p>
+              <p className="text-sm text-gray-600">Odeslání nabídky</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4 text-center">
               <span className="text-2xl">🚀</span>
-              <p className="font-bold text-gray-900 mt-1">99 Kc</p>
-              <p className="text-sm text-gray-600">Topovani profilu (7 dni)</p>
+              <p className="font-bold text-gray-900 mt-1">99 Kč</p>
+              <p className="text-sm text-gray-600">Topování profilu (7 dní)</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4 text-center">
               <span className="text-2xl">📣</span>
-              <p className="font-bold text-gray-900 mt-1">49 Kc</p>
+              <p className="font-bold text-gray-900 mt-1">49 Kč</p>
               <p className="text-sm text-gray-600">Boost na feedu (1 den)</p>
             </div>
           </div>
@@ -328,16 +328,16 @@ export default function PenezenkaPage() {
         {/* Transaction History */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Historie transakci</h2>
+            <h2 className="text-xl font-bold text-gray-900">Historie transakcí</h2>
             <select
               value={txFilter}
               onChange={(e) => setTxFilter(e.target.value)}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
             >
-              <option value="all">Vse</option>
-              <option value="topup">Dobiti</option>
-              <option value="offer_publish">Nabidky</option>
-              <option value="profile_boost_7d">Topovani</option>
+              <option value="all">Vše</option>
+              <option value="topup">Dobití</option>
+              <option value="offer_publish">Nabídky</option>
+              <option value="profile_boost_7d">Topování</option>
               <option value="feed_boost_1d">Boost</option>
             </select>
           </div>
@@ -345,7 +345,7 @@ export default function PenezenkaPage() {
           {filteredTransactions.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-4xl mb-2">📭</div>
-              <p className="text-gray-500">Zadne transakce</p>
+              <p className="text-gray-500">Žádné transakce</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -363,10 +363,10 @@ export default function PenezenkaPage() {
                     </div>
                     <div className="text-right">
                       <p className={`font-bold ${isPositive ? "text-emerald-600" : "text-red-600"}`}>
-                        {isPositive ? "+" : ""}{tx.amount_kc} Kc
+                        {isPositive ? "+" : ""}{tx.amount_kc} Kč
                       </p>
                       <p className="text-xs text-gray-400">
-                        Zustatek: {tx.balance_after_kc} Kc
+                        Zůstatek: {tx.balance_after_kc} Kč
                       </p>
                     </div>
                   </div>

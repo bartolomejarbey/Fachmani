@@ -35,7 +35,7 @@ export default function WalletBalance() {
         className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all text-sm font-semibold text-gray-700"
       >
         <span>💰</span>
-        <span>{balance.toLocaleString()} Kc</span>
+        <span>{balance.toLocaleString()} Kč</span>
       </Link>
       {!hasPremium && (
         <Link

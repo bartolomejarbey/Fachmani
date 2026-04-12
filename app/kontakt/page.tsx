@@ -84,6 +84,7 @@ export default function Kontakt() {
               <div className="space-y-6">
                 {[
                   { icon: "📧", title: "Email", main: "info@fachmani.cz", sub: "Odpovídáme do 24 hodin" },
+                  { icon: "📞", title: "Telefon", main: "+420 228 228 143", sub: "Po–Pá 9:00–17:00" },
                   { icon: "📍", title: "Adresa", main: "Fachmani Network s.r.o.", sub: "Příčná 1892/4, 110 00 Praha - Nové Město" },
                   { icon: "🏢", title: "IČO", main: "24872849", sub: "Provozovatel platformy Fachmani" },
                 ].map((item, i) => (
