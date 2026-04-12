@@ -67,14 +67,25 @@ export async function GET(request: Request) {
         }
 
         if (role === 'provider') {
-          const { error: providerError } = await supabase.from('provider_profiles').upsert({
-            user_id: user.id,
-          }, { onConflict: 'user_id' })
+          // Check if provider_profile exists first — no unique constraint on user_id
+          const { data: existing } = await supabase
+            .from('provider_profiles')
+            .select('user_id')
+            .eq('user_id', user.id)
+            .maybeSingle()
 
-          if (providerError) {
-            console.error('[auth/callback] Provider profile upsert FAILED:', providerError)
+          if (!existing) {
+            const { error: providerError } = await supabase
+              .from('provider_profiles')
+              .insert({ user_id: user.id })
+
+            if (providerError) {
+              console.error('[auth/callback] Provider profile insert FAILED:', providerError)
+            } else {
+              console.log('[auth/callback] Provider profile insert OK')
+            }
           } else {
-            console.log('[auth/callback] Provider profile upsert OK')
+            console.log('[auth/callback] Provider profile already exists')
           }
         }
       } else {

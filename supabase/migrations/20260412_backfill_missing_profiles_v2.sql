@@ -9,14 +9,12 @@ SELECT
   'free',
   0
 FROM auth.users u
-LEFT JOIN public.profiles p ON p.id = u.id
-WHERE p.id IS NULL AND u.email_confirmed_at IS NOT NULL
-ON CONFLICT (id) DO NOTHING;
+WHERE u.email_confirmed_at IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id);
 
 -- Create provider_profiles for providers who don't have one yet
 INSERT INTO public.provider_profiles (user_id)
 SELECT p.id
 FROM public.profiles p
-LEFT JOIN public.provider_profiles pp ON pp.user_id = p.id
-WHERE p.role = 'provider' AND pp.user_id IS NULL
-ON CONFLICT (user_id) DO NOTHING;
+WHERE p.role = 'provider'
+  AND NOT EXISTS (SELECT 1 FROM public.provider_profiles pp WHERE pp.user_id = p.id);
