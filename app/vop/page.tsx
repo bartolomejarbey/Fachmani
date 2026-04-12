@@ -12,7 +12,7 @@ export default function VOP() {
     {
       id: "uvod",
       title: "1. Úvodní ustanovení",
-      content: `Tyto všeobecné obchodní podmínky (dále jen „VOP") upravují práva a povinnosti mezi společností Harotas s.r.o., IČO: 21402027, se sídlem Běleč 30, 391 43 Běleč (dále jen „Provozovatel") a uživateli platformy Fachmani (dále jen „Uživatel").
+      content: `Tyto všeobecné obchodní podmínky (dále jen „VOP") upravují práva a povinnosti mezi společností Fachmani Network s.r.o., IČO: 24872849, se sídlem Příčná 1892/4, 110 00 Praha - Nové Město (dále jen „Provozovatel") a uživateli platformy Fachmani (dále jen „Uživatel").
 
 Platformou se rozumí webová aplikace dostupná na adrese www.fachmani.cz, která slouží k propojení zákazníků s poskytovateli služeb (fachmany).`
     },
@@ -68,14 +68,14 @@ Uživatel odpovídá za obsah, který na platformě zveřejní. Je zakázáno zv
     {
       id: "reklamace",
       title: "7. Reklamace a řešení sporů",
-      content: `V případě nespokojenosti se službami platformy může Uživatel podat reklamaci na email bartolomej@arbey.cz. Reklamace bude vyřízena do 30 dnů.
+      content: `V případě nespokojenosti se službami platformy může Uživatel podat reklamaci na email info@fachmani.cz. Reklamace bude vyřízena do 30 dnů.
 
 Spory mezi zákazníky a fachmany řeší strany přímo mezi sebou. Provozovatel může na žádost poskytnout součinnost.`
     },
     {
       id: "ukonceni",
       title: "8. Ukončení smluvního vztahu",
-      content: `Uživatel může kdykoli zrušit svůj účet v nastavení profilu nebo zasláním žádosti na bartolomej@arbey.cz.
+      content: `Uživatel může kdykoli zrušit svůj účet v nastavení profilu nebo zasláním žádosti na info@fachmani.cz.
 
 Provozovatel může účet zrušit v případě porušení VOP. V takovém případě nemá Uživatel nárok na vrácení uhrazených poplatků.`
     },

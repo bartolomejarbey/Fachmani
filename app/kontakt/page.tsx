@@ -83,10 +83,9 @@ export default function Kontakt() {
 
               <div className="space-y-6">
                 {[
-                  { icon: "📧", title: "Email", main: "bartolomej@arbey.cz", sub: "Odpovídáme do 24 hodin" },
-                  { icon: "📞", title: "Telefon", main: "+420 725 932 729", sub: "Pondělí - Pátek: 9:00 - 17:00" },
-                  { icon: "📍", title: "Adresa", main: "Harotas s.r.o.", sub: "Běleč 30, 391 43 Běleč" },
-                  { icon: "🏢", title: "IČO", main: "21402027", sub: "Provozovatel platformy Fachmani" },
+                  { icon: "📧", title: "Email", main: "info@fachmani.cz", sub: "Odpovídáme do 24 hodin" },
+                  { icon: "📍", title: "Adresa", main: "Fachmani Network s.r.o.", sub: "Příčná 1892/4, 110 00 Praha - Nové Město" },
+                  { icon: "🏢", title: "IČO", main: "24872849", sub: "Provozovatel platformy Fachmani" },
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
                     <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-2xl flex-shrink-0">
