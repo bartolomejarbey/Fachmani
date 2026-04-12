@@ -8,12 +8,6 @@ import { useRouter, usePathname } from "next/navigation";
 import NotificationBell from "./NotificationBell";
 import WalletBalance from "./wallet/WalletBalance";
 
-type NavCategory = {
-  id: string;
-  name: string;
-  icon: string;
-};
-
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -23,9 +17,6 @@ export default function Navbar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
-  const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
-  const [showCategories, setShowCategories] = useState(false);
-  const [showMobileCategories, setShowMobileCategories] = useState(false);
 
   useEffect(() => {
     async function checkUser() {
@@ -50,31 +41,6 @@ export default function Navbar() {
 
     checkUser();
 
-    // Load categories for dropdown
-    supabase
-      .from("categories")
-      .select("id, name, icon")
-      .order("name")
-      .then(({ data }) => {
-        if (data && data.length > 0) {
-          setNavCategories(data);
-        } else {
-          // Fallback when DB is empty
-          setNavCategories([
-            { id: "instalater", name: "Instalatér", icon: "🔧" },
-            { id: "elektrikar", name: "Elektrikář", icon: "⚡" },
-            { id: "malir", name: "Malíř", icon: "🎨" },
-            { id: "truhlar", name: "Truhlář", icon: "🪚" },
-            { id: "it-web", name: "IT/Web", icon: "💻" },
-            { id: "uklid", name: "Úklid", icon: "🧹" },
-            { id: "rekonstrukce", name: "Rekonstrukce", icon: "🏗️" },
-            { id: "zahrada", name: "Zahrada", icon: "🌿" },
-            { id: "automechanik", name: "Automechanik", icon: "🚗" },
-            { id: "stehovani", name: "Stěhování", icon: "📦" },
-          ]);
-        }
-      });
-
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
@@ -93,7 +59,7 @@ export default function Navbar() {
     { href: "/poptavky", label: "Poptávky", icon: "📋" },
     { href: "/nabidky", label: "Nabídky", icon: "💼" },
     { href: "/fachmani", label: "Fachmani", icon: "👷" },
-    { href: "#kategorie", label: "Kategorie", icon: "📂", isDropdown: true },
+    { href: "/kategorie", label: "Kategorie", icon: "📂" },
     { href: "/feed", label: "Feed", icon: "📸", isNew: true },
     { href: "/poradce", label: "Poradce", icon: "🤖" },
     { href: "/cenik", label: "Ceník", icon: "💎" },
@@ -127,62 +93,26 @@ export default function Navbar() {
             <div className="hidden lg:flex items-center">
               {/* Main Links */}
               <div className="flex items-center bg-gray-100/80 rounded-2xl p-1.5">
-                {navLinks.map((link) =>
-                  link.isDropdown ? (
-                    <div
-                      key={link.href}
-                      className="relative"
-                      onMouseEnter={() => setShowCategories(true)}
-                      onMouseLeave={() => setShowCategories(false)}
-                    >
-                      <button
-                        className={`relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-gray-600 hover:text-gray-900 flex items-center gap-1`}
-                      >
-                        {link.label}
-                        <svg className={`w-3.5 h-3.5 transition-transform ${showCategories ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      {showCategories && (
-                        <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50">
-                          {navCategories.map((cat) => (
-                            <Link
-                              key={cat.id}
-                              href={`/fachmani?kategorie=${cat.id}`}
-                              onClick={() => setShowCategories(false)}
-                              className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-cyan-50 hover:text-cyan-700 transition-colors"
-                            >
-                              <span className="text-lg">{cat.icon}</span>
-                              <span className="text-sm font-medium">{cat.name}</span>
-                            </Link>
-                          ))}
-                          {navCategories.length === 0 && (
-                            <div className="px-4 py-3 text-sm text-gray-400">Načítám...</div>
-                          )}
-                        </div>
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      isActive(link.href)
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      {link.label}
+                      {link.isNew && (
+                        <span className="bg-gradient-to-r from-pink-500 to-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                          NEW
+                        </span>
                       )}
-                    </div>
-                  ) : (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className={`relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                        isActive(link.href)
-                          ? "bg-white text-gray-900 shadow-sm"
-                          : "text-gray-600 hover:text-gray-900"
-                      }`}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        {link.label}
-                        {link.isNew && (
-                          <span className="bg-gradient-to-r from-pink-500 to-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-                            NEW
-                          </span>
-                        )}
-                      </span>
-                    </Link>
-                  )
-                )}
+                    </span>
+                  </Link>
+                ))}
               </div>
 
               {/* Divider */}
@@ -314,60 +244,28 @@ export default function Navbar() {
             <div className="p-4">
               {/* Navigation Links */}
               <div className="space-y-1">
-                {navLinks.map((link) =>
-                  link.isDropdown ? (
-                    <div key={link.href}>
-                      <button
-                        onClick={() => setShowMobileCategories(!showMobileCategories)}
-                        className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-gray-700 hover:bg-gray-50 transition-all"
-                      >
-                        <span className="flex items-center gap-3">
-                          <span className="text-xl">{link.icon}</span>
-                          <span className="font-semibold">{link.label}</span>
-                        </span>
-                        <svg className={`w-4 h-4 text-gray-400 transition-transform ${showMobileCategories ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      {showMobileCategories && (
-                        <div className="ml-4 pl-4 border-l-2 border-gray-100 space-y-1 mt-1 mb-2">
-                          {navCategories.map((cat) => (
-                            <Link
-                              key={cat.id}
-                              href={`/fachmani?kategorie=${cat.id}`}
-                              onClick={() => { setIsOpen(false); setShowMobileCategories(false); }}
-                              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-600 hover:bg-cyan-50 hover:text-cyan-700 transition-colors"
-                            >
-                              <span className="text-lg">{cat.icon}</span>
-                              <span className="text-sm font-medium">{cat.name}</span>
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      onClick={() => setIsOpen(false)}
-                      className={`flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all ${
-                        isActive(link.href)
-                          ? "bg-cyan-50 text-cyan-600"
-                          : "text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      <span className="flex items-center gap-3">
-                        <span className="text-xl">{link.icon}</span>
-                        <span className="font-semibold">{link.label}</span>
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setIsOpen(false)}
+                    className={`flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all ${
+                      isActive(link.href)
+                        ? "bg-cyan-50 text-cyan-600"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="text-xl">{link.icon}</span>
+                      <span className="font-semibold">{link.label}</span>
+                    </span>
+                    {link.isNew && (
+                      <span className="bg-gradient-to-r from-pink-500 to-orange-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                        NEW
                       </span>
-                      {link.isNew && (
-                        <span className="bg-gradient-to-r from-pink-500 to-orange-500 text-white text-xs px-2 py-1 rounded-full font-bold">
-                          NEW
-                        </span>
-                      )}
-                    </Link>
-                  )
-                )}
+                    )}
+                  </Link>
+                ))}
               </div>
 
               <div className="h-px bg-gray-100 my-4"></div>
