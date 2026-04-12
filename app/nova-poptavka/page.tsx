@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import ImageCropper from "@/app/components/ImageCropper";
 
 type Category = {
   id: string;
@@ -29,6 +30,10 @@ export default function NovaPoptavka() {
   const [budgetMin, setBudgetMin] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
   const [preferredDate, setPreferredDate] = useState("");
+  const [imageFiles, setImageFiles] = useState<{ file: File; preview: string }[]>([]);
+  const [cropSource, setCropSource] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -58,6 +63,45 @@ export default function NovaPoptavka() {
 
     loadData();
   }, []);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (imageFiles.length + files.length > 5) {
+      setError("Maximálně 5 fotek.");
+      return;
+    }
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) {
+        setError(`Soubor "${file.name}" je větší než 5 MB.`);
+        return;
+      }
+    }
+    // Open cropper for first file
+    if (files.length > 0) {
+      setPendingFile(files[0]);
+      const reader = new FileReader();
+      reader.onload = (ev) => setCropSource(ev.target?.result as string);
+      reader.readAsDataURL(files[0]);
+    }
+    // Reset input so same file can be re-selected
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  const handleCropComplete = (blob: Blob) => {
+    const file = new File([blob], `photo_${Date.now()}.jpg`, { type: "image/jpeg" });
+    const preview = URL.createObjectURL(blob);
+    setImageFiles((prev) => [...prev, { file, preview }]);
+    setCropSource(null);
+    setPendingFile(null);
+  };
+
+  const removeImage = (index: number) => {
+    setImageFiles((prev) => {
+      const removed = prev[index];
+      URL.revokeObjectURL(removed.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +136,22 @@ export default function NovaPoptavka() {
       return;
     }
 
+    // Upload images
+    const imageUrls: string[] = [];
+    for (const img of imageFiles) {
+      const ext = img.file.name.split(".").pop() || "jpg";
+      const fileName = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("demand-images")
+        .upload(fileName, img.file);
+      if (!uploadErr) {
+        const { data: { publicUrl } } = supabase.storage
+          .from("demand-images")
+          .getPublicUrl(fileName);
+        imageUrls.push(publicUrl);
+      }
+    }
+
     // Vypočítáme datum expirace podle nastavení
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiryDays);
@@ -110,6 +170,7 @@ export default function NovaPoptavka() {
         preferred_date: preferredDate || null,
         status: "active",
         expires_at: expiresAt.toISOString(),
+        images: imageUrls.length > 0 ? imageUrls : [],
       })
       .select()
       .single();
@@ -200,6 +261,55 @@ export default function NovaPoptavka() {
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
             />
           </div>
+
+          {/* Photo upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Fotky (max 5, max 5 MB každá)
+            </label>
+            <div className="flex flex-wrap gap-3 mb-3">
+              {imageFiles.map((img, i) => (
+                <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group">
+                  <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute top-1 right-1 w-6 h-6 bg-black/50 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {imageFiles.length < 5 && (
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 hover:border-cyan-400 flex flex-col items-center justify-center text-gray-400 hover:text-cyan-500 transition-colors"
+                >
+                  <span className="text-2xl">📷</span>
+                  <span className="text-xs mt-1">Přidat</span>
+                </button>
+              )}
+            </div>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+          </div>
+
+          {/* Image Cropper Modal */}
+          {cropSource && (
+            <ImageCropper
+              imageSrc={cropSource}
+              aspectRatio={16 / 9}
+              maxWidth={1200}
+              onCropComplete={handleCropComplete}
+              onCancel={() => { setCropSource(null); setPendingFile(null); }}
+            />
+          )}
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>

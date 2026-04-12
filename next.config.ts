@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
+  // Turbopack — prevent resolving from parent package.json
+  turbopack: {
+    root: path.resolve(__dirname),
+    resolveAlias: {
+      tailwindcss: path.resolve(__dirname, "node_modules/tailwindcss"),
+    },
+  },
+
   // Komprese
   compress: true,
   

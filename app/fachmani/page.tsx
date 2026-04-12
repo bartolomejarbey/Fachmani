@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
@@ -32,6 +33,7 @@ type Fachman = {
 };
 
 export default function SeznamFachmanu() {
+  const searchParams = useSearchParams();
   const [fachmani, setFachmani] = useState<Fachman[]>([]);
   const [filteredFachmani, setFilteredFachmani] = useState<Fachman[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -43,6 +45,14 @@ export default function SeznamFachmanu() {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
+
+  // Read category from URL param
+  useEffect(() => {
+    const kategorie = searchParams.get("kategorie");
+    if (kategorie) {
+      setSelectedCategory(kategorie);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     setMounted(true);

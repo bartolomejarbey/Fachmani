@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
+import ImageCropper from "@/app/components/ImageCropper";
 
 type Category = {
   id: string;
@@ -57,6 +58,7 @@ export default function FachmanProfil() {
   const [ico, setIco] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarCropSrc, setAvatarCropSrc] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -159,19 +161,28 @@ export default function FachmanProfil() {
     );
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !profile) return;
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatarCropSrc(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
+  };
 
+  const handleAvatarCropComplete = async (blob: Blob) => {
+    if (!profile) return;
+    setAvatarCropSrc(null);
     setUploadingAvatar(true);
-    const fileName = `${profile.id}/avatar.${file.name.split(".").pop()}`;
+
+    const fileName = `${profile.id}/avatar.jpg`;
 
     // Remove old avatar if exists
     await supabase.storage.from("avatars").remove([`${profile.id}/avatar.jpg`, `${profile.id}/avatar.png`, `${profile.id}/avatar.webp`]);
 
     const { error: uploadError } = await supabase.storage
       .from("avatars")
-      .upload(fileName, file, { upsert: true });
+      .upload(fileName, blob, { upsert: true, contentType: "image/jpeg" });
 
     if (uploadError) {
       alert("Nepodařilo se nahrát fotku.");
@@ -185,10 +196,10 @@ export default function FachmanProfil() {
 
     await supabase
       .from("profiles")
-      .update({ avatar_url: publicUrl })
+      .update({ avatar_url: `${publicUrl}?t=${Date.now()}` })
       .eq("id", profile.id);
 
-    setAvatarUrl(publicUrl);
+    setAvatarUrl(`${publicUrl}?t=${Date.now()}`);
     setUploadingAvatar(false);
     setMessage("Profilová fotka byla nahrána!");
   };
@@ -358,7 +369,7 @@ export default function FachmanProfil() {
                 ref={avatarInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handleAvatarUpload}
+                onChange={handleAvatarSelect}
                 className="hidden"
               />
             </div>
@@ -573,6 +584,17 @@ export default function FachmanProfil() {
       </div>
 
       <Footer />
+
+      {/* Avatar Cropper Modal */}
+      {avatarCropSrc && (
+        <ImageCropper
+          imageSrc={avatarCropSrc}
+          aspectRatio={1}
+          maxWidth={800}
+          onCropComplete={handleAvatarCropComplete}
+          onCancel={() => setAvatarCropSrc(null)}
+        />
+      )}
     </div>
   );
 }

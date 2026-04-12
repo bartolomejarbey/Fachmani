@@ -23,6 +23,7 @@ type Request = {
   created_at: string;
   expires_at: string;
   user_id: string;
+  images: string[] | null;
   categories: { name: string; icon: string } | null;
   profiles: { full_name: string } | null;
 };
@@ -70,6 +71,8 @@ export default function PoptavkaDetail() {
   const [recommendedProviders, setRecommendedProviders] = useState<RecommendedProvider[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [recommendationLoaded, setRecommendationLoaded] = useState(false);
+
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // Formulář pro nabídku
   const [showOfferForm, setShowOfferForm] = useState(false);
@@ -413,6 +416,24 @@ export default function PoptavkaDetail() {
                 {request.description}
               </p>
             </div>
+
+            {/* Image gallery */}
+            {request.images && request.images.length > 0 && (
+              <div className={`bg-white rounded-2xl shadow-sm p-6 ${mounted ? 'animate-fade-in-up animation-delay-100' : 'opacity-0'}`}>
+                <h2 className="text-lg font-bold text-gray-900 mb-4">Fotky</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {request.images.map((url, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setLightboxImage(url)}
+                      className="aspect-video rounded-xl overflow-hidden border border-gray-200 hover:border-cyan-300 hover:shadow-md transition-all"
+                    >
+                      <img src={url} alt={`Fotka ${i + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* AI Recommendations */}
             {request.status === "active" && (loadingRecommendations || recommendationLoaded) && (
@@ -877,6 +898,27 @@ export default function PoptavkaDetail() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            className="absolute top-4 right-4 w-10 h-10 bg-white/20 text-white rounded-full flex items-center justify-center hover:bg-white/40 transition-colors text-xl"
+            onClick={() => setLightboxImage(null)}
+          >
+            ✕
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Detail fotky"
+            className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
