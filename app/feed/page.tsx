@@ -10,6 +10,7 @@ import Pagination from "@/app/components/Pagination";
 type ReactionSummary = {
   emoji: string;
   count: number;
+  names: string[];
 };
 
 type Post = {
@@ -97,17 +98,17 @@ export default function FeedPage() {
       .select(`
         *,
         profiles:user_id (full_name, role, avatar_url),
-        post_likes (user_id),
+        post_likes (user_id, profiles:user_id (full_name)),
         post_comments (id, content, created_at, profiles:user_id (full_name, avatar_url)),
-        post_reactions (user_id, emoji)
+        post_reactions (user_id, emoji, profiles:user_id (full_name))
       `)
       .order("created_at", { ascending: false });
 
     if (postsData) {
       type PostRow = Record<string, unknown> & {
-        post_likes?: { user_id: string }[];
+        post_likes?: { user_id: string; profiles?: { full_name: string } | null }[];
         post_comments?: { id: string; content: string; created_at: string; profiles: { full_name: string; avatar_url: string | null } }[];
-        post_reactions?: { user_id: string; emoji: string }[];
+        post_reactions?: { user_id: string; emoji: string; profiles?: { full_name: string } | null }[];
       };
 
       const postsWithDetails = postsData.map((post: PostRow) => {
@@ -117,16 +118,23 @@ export default function FeedPage() {
 
         // Merge likes as 👍 reactions for backwards compat
         const allReactions = [
-          ...reactions,
-          ...likes.filter(l => !reactions.some(r => r.user_id === l.user_id)).map(l => ({ user_id: l.user_id, emoji: "👍" })),
+          ...reactions.map(r => ({ user_id: r.user_id, emoji: r.emoji, name: r.profiles?.full_name || "" })),
+          ...likes.filter(l => !reactions.some(r => r.user_id === l.user_id)).map(l => ({ user_id: l.user_id, emoji: "👍", name: l.profiles?.full_name || "" })),
         ];
         // Dedupe: one reaction per user (keep last)
         const uniqueReactions = Object.values(
-          allReactions.reduce<Record<string, { user_id: string; emoji: string }>>((acc, r) => {
+          allReactions.reduce<Record<string, { user_id: string; emoji: string; name: string }>>((acc, r) => {
             acc[r.user_id] = r;
             return acc;
           }, {})
         );
+
+        // Build per-emoji name lists for tooltips
+        const reactionNames = uniqueReactions.reduce<Record<string, string[]>>((acc, r) => {
+          if (!acc[r.emoji]) acc[r.emoji] = [];
+          if (r.name) acc[r.emoji].push(r.name);
+          return acc;
+        }, {});
 
         return {
           ...post,
@@ -141,7 +149,7 @@ export default function FeedPage() {
               acc[r.emoji] = (acc[r.emoji] || 0) + 1;
               return acc;
             }, {})
-          ).map(([emoji, count]) => ({ emoji, count }))
+          ).map(([emoji, count]) => ({ emoji, count, names: reactionNames[emoji] || [] }))
             .sort((a, b) => b.count - a.count),
           comments: comments
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -487,14 +495,22 @@ export default function FeedPage() {
                   <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
                     <div className="flex items-center gap-3">
                       {post.reactions_summary.length > 0 && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2">
                           {post.reactions_summary.slice(0, 3).map((r) => (
-                            <span key={r.emoji} className="text-base">{r.emoji}</span>
+                            <span
+                              key={r.emoji}
+                              className="relative group/tip cursor-default"
+                            >
+                              <span className="text-base">{r.emoji} {r.count > 1 ? r.count : ""}</span>
+                              {r.names.length > 0 && (
+                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all z-20 pointer-events-none">
+                                  {r.names.slice(0, 5).join(", ")}{r.names.length > 5 ? ` a ${r.names.length - 5} dalších` : ""}
+                                </span>
+                              )}
+                            </span>
                           ))}
-                          <span className="ml-1">{post.reactions_summary.reduce((s, r) => s + r.count, 0)}</span>
                         </div>
                       )}
-                      {post.reactions_summary.length > 0 && post.likes_count > 0 && <span>·</span>}
                       {post.likes_count > 0 && <span>{post.likes_count} líbí se</span>}
                     </div>
                     <span
@@ -507,18 +523,29 @@ export default function FeedPage() {
 
                   {/* Actions — FB-style: one reaction per user */}
                   <div className="px-6 py-3 border-t border-gray-100 flex items-center gap-2">
-                    {/* Like / Reaction button with hover picker */}
+                    {/* Like / Reaction button with hover + click picker */}
                     <div className="relative flex-1 group/react">
                       <button
-                        onClick={() => currentUser && handleReaction(post.id, "👍")}
+                        onClick={() => {
+                          if (!currentUser) return;
+                          // On mobile: toggle picker. On desktop: quick like.
+                          if (showReactions === post.id) {
+                            setShowReactions(null);
+                          } else {
+                            setShowReactions(post.id);
+                          }
+                        }}
+                        onDoubleClick={() => currentUser && handleReaction(post.id, "👍")}
                         className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl transition-colors ${
                           post.user_liked ? "text-cyan-600 bg-cyan-50" : "text-gray-600 hover:bg-gray-100"
                         }`}
                       >
                         {post.user_reactions[0] || (post.user_liked ? "👍" : "🤍")} {post.user_reactions[0] ? "Reagováno" : "Líbí se"}
                       </button>
-                      {/* Hover picker */}
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white rounded-full shadow-lg border border-gray-100 px-2 py-1 flex gap-1 opacity-0 invisible group-hover/react:opacity-100 group-hover/react:visible transition-all z-10">
+                      {/* Hover + click picker */}
+                      <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white rounded-full shadow-lg border border-gray-100 px-2 py-1 flex gap-1 transition-all z-10 ${
+                        showReactions === post.id ? "opacity-100 visible" : "opacity-0 invisible md:group-hover/react:opacity-100 md:group-hover/react:visible"
+                      }`}>
                         {REACTIONS.map((emoji) => (
                           <button
                             key={emoji}

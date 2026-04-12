@@ -239,6 +239,8 @@ export default function NovaPoptavka() {
                 value={budgetMin}
                 onChange={(e) => setBudgetMin(e.target.value)}
                 placeholder="např. 1000"
+                step="100"
+                min="100"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
               />
             </div>
@@ -251,6 +253,8 @@ export default function NovaPoptavka() {
                 value={budgetMax}
                 onChange={(e) => setBudgetMax(e.target.value)}
                 placeholder="např. 5000"
+                step="100"
+                min="100"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
               />
             </div>

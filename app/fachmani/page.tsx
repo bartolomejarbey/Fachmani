@@ -17,6 +17,7 @@ type Category = {
 type Fachman = {
   id: string;
   full_name: string;
+  avatar_url: string | null;
   is_verified: boolean;
   subscription_type: string;
   bio: string | null;
@@ -64,7 +65,7 @@ export default function SeznamFachmanu() {
     // === 1. Načteme REÁLNÉ fachmany ===
     const { data: profilesData } = await supabase
       .from("profiles")
-      .select("id, full_name, is_verified, subscription_type, created_at")
+      .select("id, full_name, avatar_url, is_verified, subscription_type, created_at")
       .eq("role", "provider")
       .order("subscription_type", { ascending: false });
 
@@ -74,7 +75,7 @@ export default function SeznamFachmanu() {
       // Provider profiles
       const { data: providerProfilesData } = await supabase
         .from("provider_profiles")
-        .select("user_id, bio, hourly_rate, locations")
+        .select("id, user_id, bio, hourly_rate, locations")
         .in("user_id", providerIds);
 
       // Provider categories
@@ -98,7 +99,7 @@ export default function SeznamFachmanu() {
       // Spojíme data
       profilesData.forEach(profile => {
         const providerProfile = providerProfilesData?.find(pp => pp.user_id === profile.id);
-        const cats = providerCategoriesData?.filter((pc: { provider_id: string }) => pc.provider_id === profile.id) || [];
+        const cats = providerCategoriesData?.filter((pc: { provider_id: string }) => pc.provider_id === providerProfile?.id) || [];
         const revs = reviewsData?.filter(r => r.provider_id === profile.id) || [];
         const promo = promosData?.find(p => p.provider_id === profile.id);
 
@@ -109,6 +110,7 @@ export default function SeznamFachmanu() {
         allFachmani.push({
           id: profile.id,
           full_name: profile.full_name,
+          avatar_url: profile.avatar_url || null,
           is_verified: profile.is_verified,
           subscription_type: profile.subscription_type || "free",
           bio: providerProfile?.bio || null,
@@ -143,6 +145,7 @@ export default function SeznamFachmanu() {
         allFachmani.push({
           id: `seed_${seed.id}`,
           full_name: seed.full_name,
+          avatar_url: seed.avatar_url || null,
           is_verified: seed.is_verified,
           subscription_type: "premium", // Fiktivní jsou vždy premium
           bio: seed.bio,
@@ -351,11 +354,19 @@ export default function SeznamFachmanu() {
                     </div>
 
                     <div className="flex items-start gap-4 mb-4 mt-2">
-                      <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                        <span className="text-2xl text-white font-bold">
-                          {fachman.full_name?.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
+                      {fachman.avatar_url ? (
+                        <img
+                          src={fachman.avatar_url}
+                          alt={fachman.full_name}
+                          className="w-16 h-16 rounded-2xl object-cover flex-shrink-0 group-hover:scale-110 transition-transform"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                          <span className="text-2xl text-white font-bold">
+                            {fachman.full_name?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
