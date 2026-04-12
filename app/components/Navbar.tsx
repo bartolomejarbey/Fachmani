@@ -56,7 +56,23 @@ export default function Navbar() {
       .select("id, name, icon")
       .order("name")
       .then(({ data }) => {
-        if (data) setNavCategories(data);
+        if (data && data.length > 0) {
+          setNavCategories(data);
+        } else {
+          // Fallback when DB is empty
+          setNavCategories([
+            { id: "instalater", name: "Instalatér", icon: "🔧" },
+            { id: "elektrikar", name: "Elektrikář", icon: "⚡" },
+            { id: "malir", name: "Malíř", icon: "🎨" },
+            { id: "truhlar", name: "Truhlář", icon: "🪚" },
+            { id: "it-web", name: "IT/Web", icon: "💻" },
+            { id: "uklid", name: "Úklid", icon: "🧹" },
+            { id: "rekonstrukce", name: "Rekonstrukce", icon: "🏗️" },
+            { id: "zahrada", name: "Zahrada", icon: "🌿" },
+            { id: "automechanik", name: "Automechanik", icon: "🚗" },
+            { id: "stehovani", name: "Stěhování", icon: "📦" },
+          ]);
+        }
       });
 
     const handleScroll = () => setScrolled(window.scrollY > 10);

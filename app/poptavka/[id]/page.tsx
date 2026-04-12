@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 import ReviewForm from "@/app/components/ReviewForm";
+import ImageCropper from "@/app/components/ImageCropper";
 import { useSettings } from "@/lib/useSettings";
 
 type Request = {
@@ -36,6 +37,7 @@ type Offer = {
   status: string;
   created_at: string;
   provider_id: string;
+  images: string[] | null;
   profiles: { full_name: string; is_verified: boolean } | null;
 };
 
@@ -83,6 +85,10 @@ export default function PoptavkaDetail() {
   const [error, setError] = useState("");
   const [showInsufficientCredit, setShowInsufficientCredit] = useState(false);
   const [creditShortfall, setCreditShortfall] = useState(0);
+  const [offerImages, setOfferImages] = useState<{ blob: Blob; preview: string }[]>([]);
+  const [cropperSrc, setCropperSrc] = useState<string | null>(null);
+  const offerFileInputRef = useRef<HTMLInputElement>(null);
+  const [offerLightboxImage, setOfferLightboxImage] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -124,7 +130,10 @@ export default function PoptavkaDetail() {
 
       if (requestData) {
         setRequest(requestData as Request);
-        loadRecommendations(requestData as Request);
+        // Only load AI recommendations for demand owner
+        if (user && requestData.user_id === user.id) {
+          loadRecommendations(requestData as Request);
+        }
       }
 
       if (user) {
@@ -224,12 +233,28 @@ export default function PoptavkaDetail() {
       // If wallet service unavailable, continue (graceful degradation)
     }
 
+    // Upload offer portfolio images
+    const uploadedImageUrls: string[] = [];
+    for (const img of offerImages) {
+      const fileName = `offers/${currentUser}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from("demand-images")
+        .upload(fileName, img.blob, { contentType: "image/jpeg" });
+      if (!uploadError) {
+        const { data: { publicUrl } } = supabase.storage
+          .from("demand-images")
+          .getPublicUrl(fileName);
+        uploadedImageUrls.push(publicUrl);
+      }
+    }
+
     const { error: insertError } = await supabase.from("offers").insert({
       request_id: params.id,
       provider_id: currentUser,
       price: parseInt(offerPrice),
       description: offerDescription,
       available_date: offerDate || null,
+      images: uploadedImageUrls,
     });
 
     if (insertError) {
@@ -267,6 +292,7 @@ export default function PoptavkaDetail() {
     setOfferPrice("");
     setOfferDescription("");
     setOfferDate("");
+    setOfferImages([]);
     setSubmitting(false);
   };
 
@@ -435,8 +461,8 @@ export default function PoptavkaDetail() {
               </div>
             )}
 
-            {/* AI Recommendations */}
-            {request.status === "active" && (loadingRecommendations || recommendationLoaded) && (
+            {/* AI Recommendations - only visible to demand owner */}
+            {isOwner && request.status === "active" && (loadingRecommendations || recommendationLoaded) && (
               <div className={`bg-white rounded-2xl shadow-sm p-6 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-xl">🤖</span>
@@ -615,6 +641,59 @@ export default function PoptavkaDetail() {
                     />
                   </div>
 
+                  {/* Portfolio images */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Portfolio fotky (max 5)
+                    </label>
+                    <input
+                      type="file"
+                      ref={offerFileInputRef}
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) {
+                          alert("Maximální velikost souboru je 5 MB.");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = (ev) => setCropperSrc(ev.target?.result as string);
+                        reader.readAsDataURL(file);
+                        e.target.value = "";
+                      }}
+                    />
+                    {offerImages.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        {offerImages.map((img, i) => (
+                          <div key={i} className="relative aspect-video rounded-lg overflow-hidden border border-gray-200">
+                            <img src={img.preview} alt={`Portfolio ${i + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                URL.revokeObjectURL(img.preview);
+                                setOfferImages((prev) => prev.filter((_, idx) => idx !== i));
+                              }}
+                              className="absolute top-1 right-1 w-6 h-6 bg-black/50 text-white rounded-full flex items-center justify-center text-xs hover:bg-black/70"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {offerImages.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={() => offerFileInputRef.current?.click()}
+                        className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-cyan-400 hover:text-cyan-600 transition-colors w-full justify-center"
+                      >
+                        📷 Přidat fotku ({offerImages.length}/5)
+                      </button>
+                    )}
+                  </div>
+
                   <div className="flex gap-4 pt-2">
                     <button
                       type="submit"
@@ -687,6 +766,19 @@ export default function PoptavkaDetail() {
                                 )}
                               </div>
                               <p className="text-gray-600 mt-2">{offer.description}</p>
+                              {offer.images && offer.images.length > 0 && (
+                                <div className="flex gap-2 mt-3 flex-wrap">
+                                  {offer.images.map((url, imgIdx) => (
+                                    <button
+                                      key={imgIdx}
+                                      onClick={() => setOfferLightboxImage(url)}
+                                      className="w-20 h-14 rounded-lg overflow-hidden border border-gray-200 hover:border-cyan-300 hover:shadow-md transition-all"
+                                    >
+                                      <img src={url} alt={`Portfolio ${imgIdx + 1}`} className="w-full h-full object-cover" />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                               {offer.available_date && (
                                 <p className="text-sm text-gray-500 mt-2 flex items-center gap-1">
                                   <span>{Icons.lightning}</span>
@@ -898,6 +990,41 @@ export default function PoptavkaDetail() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Image Cropper for offer portfolio */}
+      {cropperSrc && (
+        <ImageCropper
+          imageSrc={cropperSrc}
+          aspectRatio={16 / 9}
+          onCropComplete={(blob) => {
+            const preview = URL.createObjectURL(blob);
+            setOfferImages((prev) => [...prev, { blob, preview }]);
+            setCropperSrc(null);
+          }}
+          onCancel={() => setCropperSrc(null)}
+        />
+      )}
+
+      {/* Offer portfolio lightbox */}
+      {offerLightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setOfferLightboxImage(null)}
+        >
+          <button
+            className="absolute top-4 right-4 w-10 h-10 bg-white/20 text-white rounded-full flex items-center justify-center hover:bg-white/40 transition-colors text-xl"
+            onClick={() => setOfferLightboxImage(null)}
+          >
+            ✕
+          </button>
+          <img
+            src={offerLightboxImage}
+            alt="Portfolio detail"
+            className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 

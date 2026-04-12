@@ -72,6 +72,7 @@ export default function FeedPage() {
   const [editingPost, setEditingPost] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [reactionsPopup, setReactionsPopup] = useState<{ postId: string; emoji: string; names: string[] } | null>(null);
 
   useEffect(() => {
     loadUser();
@@ -499,11 +500,12 @@ export default function FeedPage() {
                           {post.reactions_summary.slice(0, 3).map((r) => (
                             <span
                               key={r.emoji}
-                              className="relative group/tip cursor-default"
+                              className="relative group/tip cursor-pointer"
+                              onClick={() => r.names.length > 0 && setReactionsPopup({ postId: post.id, emoji: r.emoji, names: r.names })}
                             >
                               <span className="text-base">{r.emoji} {r.count > 1 ? r.count : ""}</span>
                               {r.names.length > 0 && (
-                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all z-20 pointer-events-none">
+                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap opacity-0 invisible md:group-hover/tip:opacity-100 md:group-hover/tip:visible transition-all z-20 pointer-events-none">
                                   {r.names.slice(0, 5).join(", ")}{r.names.length > 5 ? ` a ${r.names.length - 5} dalších` : ""}
                                 </span>
                               )}
@@ -635,6 +637,41 @@ export default function FeedPage() {
           )}
         </div>
       </div>
+
+      {/* Reactions popup - works on mobile + desktop */}
+      {reactionsPopup && (
+        <div
+          className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4"
+          onClick={() => setReactionsPopup(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <span className="text-xl">{reactionsPopup.emoji}</span> Reakce ({reactionsPopup.names.length})
+              </h3>
+              <button
+                onClick={() => setReactionsPopup(null)}
+                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 max-h-64 overflow-y-auto">
+              {reactionsPopup.names.map((name, i) => (
+                <div key={i} className="flex items-center gap-3 py-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    {name.charAt(0)}
+                  </div>
+                  <span className="text-gray-900 text-sm font-medium">{name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

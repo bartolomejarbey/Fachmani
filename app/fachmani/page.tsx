@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -32,7 +32,7 @@ type Fachman = {
   promo_type: string | null;
 };
 
-export default function SeznamFachmanu() {
+function SeznamFachmanuContent() {
   const searchParams = useSearchParams();
   const [fachmani, setFachmani] = useState<Fachman[]>([]);
   const [filteredFachmani, setFilteredFachmani] = useState<Fachman[]>([]);
@@ -485,5 +485,13 @@ export default function SeznamFachmanu() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function SeznamFachmanu() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+      <SeznamFachmanuContent />
+    </Suspense>
   );
 }
