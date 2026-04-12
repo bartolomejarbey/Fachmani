@@ -415,7 +415,7 @@ export default function PoptavkaDetail() {
             </div>
 
             {/* AI Recommendations */}
-            {request.status === "active" && (loadingRecommendations || recommendedProviders.length > 0) && (
+            {request.status === "active" && (loadingRecommendations || recommendationLoaded) && (
               <div className={`bg-white rounded-2xl shadow-sm p-6 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-xl">🤖</span>
@@ -434,6 +434,13 @@ export default function PoptavkaDetail() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                ) : recommendedProviders.length === 0 ? (
+                  <div className="text-center py-6 text-gray-500">
+                    <p className="text-sm">Pro tuto poptávku zatím nemáme konkrétní doporučení.</p>
+                    <Link href="/fachmani" className="text-cyan-600 text-sm font-semibold hover:text-cyan-700 mt-2 inline-block">
+                      Prohlédnout všechny fachmany →
+                    </Link>
                   </div>
                 ) : (
                   <div className="space-y-3">
