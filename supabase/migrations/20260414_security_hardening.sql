@@ -130,6 +130,10 @@ CREATE POLICY "categories_select_all" ON categories
 CREATE POLICY "provider_categories_select_all" ON provider_categories
   FOR SELECT USING (true);
 CREATE POLICY "provider_categories_insert_own" ON provider_categories
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM provider_profiles WHERE id = provider_id AND user_id = auth.uid())
+  );
 CREATE POLICY "provider_categories_delete_own" ON provider_categories
-  FOR DELETE USING (auth.uid() = user_id);
+  FOR DELETE USING (
+    EXISTS (SELECT 1 FROM provider_profiles WHERE id = provider_id AND user_id = auth.uid())
+  );
