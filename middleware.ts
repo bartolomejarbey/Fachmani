@@ -20,9 +20,14 @@ export async function middleware(request: NextRequest) {
   )
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Unauthenticated users can't access dashboard or admin
-  if (!user && (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/admin'))) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+  // Unauthenticated users can't access dashboard or admin (except admin login page)
+  if (!user) {
+    if (request.nextUrl.pathname.startsWith('/dashboard')) {
+      return NextResponse.redirect(new URL('/auth/login', request.url))
+    }
+    if (request.nextUrl.pathname.startsWith('/admin') && request.nextUrl.pathname !== '/admin/login') {
+      return NextResponse.redirect(new URL('/admin/login', request.url))
+    }
   }
 
   if (user) {
