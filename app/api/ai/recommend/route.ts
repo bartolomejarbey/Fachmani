@@ -6,8 +6,12 @@ export async function POST(request: Request) {
   try {
     const { conversationContext } = await request.json();
 
-    if (!conversationContext) {
+    if (!conversationContext || typeof conversationContext !== 'string') {
       return NextResponse.json({ error: "Missing context" }, { status: 400 });
+    }
+
+    if (conversationContext.length > 5000) {
+      return NextResponse.json({ error: "Context too long" }, { status: 400 });
     }
 
     // Step 1: AI analyzes conversation and extracts category + location
@@ -75,12 +79,17 @@ Kategorie může být: instalatér, elektrikář, malíř, zedník, truhlář, I
       .eq("role", "provider")
       .limit(5);
 
-    // Search by keywords in bio/description
+    // Search by keywords in bio/description — sanitize AI-generated keywords
     if (analysis.category_keywords && analysis.category_keywords.length > 0) {
-      const keywordFilter = analysis.category_keywords
-        .map((kw: string) => `bio.ilike.%${kw}%`)
-        .join(",");
-      query = query.or(keywordFilter);
+      const safeKeywords = analysis.category_keywords
+        .filter((kw: string) => typeof kw === 'string' && /^[\p{L}\p{N}\s\-]{2,50}$/u.test(kw))
+        .slice(0, 5);
+      if (safeKeywords.length > 0) {
+        const keywordFilter = safeKeywords
+          .map((kw: string) => `bio.ilike.%${kw}%`)
+          .join(",");
+        query = query.or(keywordFilter);
+      }
     }
 
     // Filter by location if relevant
@@ -91,8 +100,11 @@ Kategorie může být: instalatér, elektrikář, malíř, zedník, truhlář, I
     const { data: providers, error } = await query;
 
     // Fallback: if nothing found with both filters, try keywords only
-    if ((!providers || providers.length === 0) && analysis.category_keywords?.length > 0) {
-      const keywordFilter = analysis.category_keywords
+    const safeKeywordsFallback = (analysis.category_keywords || [])
+      .filter((kw: string) => typeof kw === 'string' && /^[\p{L}\p{N}\s\-]{2,50}$/u.test(kw))
+      .slice(0, 5);
+    if ((!providers || providers.length === 0) && safeKeywordsFallback.length > 0) {
+      const keywordFilter = safeKeywordsFallback
         .map((kw: string) => `bio.ilike.%${kw}%`)
         .join(",");
 

@@ -49,14 +49,13 @@ export default function Register() {
 
       if (signUpError) {
         const msg = signUpError.message;
-        if (msg.includes("User already registered")) {
-          setError("Tento email je již zaregistrován");
-        } else if (msg.includes("Password should be at least 6 characters")) {
+        if (msg.includes("Password should be at least 6 characters")) {
           setError("Heslo musí mít alespoň 6 znaků");
         } else if (msg.includes("Unable to validate email address")) {
           setError("Neplatná emailová adresa");
         } else {
-          setError("Při registraci došlo k chybě. Zkuste to prosím znovu.");
+          // Generic message — don't reveal whether email is already registered
+          setError("Registrace se nezdařila. Zkontrolujte údaje nebo zkuste jiný email.");
         }
         setLoading(false);
         return;

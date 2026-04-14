@@ -20,6 +20,18 @@ export default function ReviewForm({ requestId, providerId, customerId, onReview
     e.preventDefault();
     setSubmitting(true);
 
+    // Verify the current user is actually the customer
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || user.id !== customerId) {
+      setSubmitting(false);
+      return;
+    }
+
+    if (comment && comment.length > 2000) {
+      setSubmitting(false);
+      return;
+    }
+
     const { error } = await supabase.from("reviews").insert({
       request_id: requestId,
       provider_id: providerId,
@@ -74,6 +86,7 @@ export default function ReviewForm({ requestId, providerId, customerId, onReview
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           rows={3}
+          maxLength={2000}
           placeholder="Jak jste byli spokojeni?"
           className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
         />

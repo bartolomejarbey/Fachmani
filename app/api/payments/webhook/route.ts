@@ -1,23 +1,25 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { verifyComgatePayment, isTestMode } from '@/lib/comgate'
+import { verifyComgatePayment } from '@/lib/comgate'
 
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
     const transId = formData.get('transId') as string
-    const status = formData.get('status') as string
     const refId = formData.get('refId') as string
 
-    if (!transId || !status) {
+    if (!transId || !refId) {
       return new NextResponse('Missing params', { status: 400 })
     }
 
-    // In test mode, trust the status from the request; in prod, verify with ComGate
-    const verified = isTestMode()
-      ? { status: status === 'PAID' ? 'PAID' : status }
-      : await verifyComgatePayment(transId)
+    // ALWAYS verify payment status with ComGate API — never trust request params
+    const verified = await verifyComgatePayment(transId)
+
+    if (!verified || verified.status === 'ERROR') {
+      console.error('[webhook] ComGate verification failed for transId:', transId)
+      return new NextResponse('Verification failed', { status: 400 })
+    }
 
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -33,7 +35,14 @@ export async function POST(request: Request) {
       .single()
 
     if (!payment) {
-      return new NextResponse('Payment not found', { status: 404 })
+      // Don't reveal whether payment exists — generic error
+      return new NextResponse('Invalid request', { status: 400 })
+    }
+
+    // Verify the transId matches what we stored during payment creation
+    if (payment.comgate_trans_id && payment.comgate_trans_id !== transId) {
+      console.error('[webhook] transId mismatch:', transId, 'expected:', payment.comgate_trans_id)
+      return new NextResponse('Invalid request', { status: 400 })
     }
 
     if (verified.status === 'PAID' && payment.status !== 'paid') {
@@ -45,6 +54,7 @@ export async function POST(request: Request) {
           comgate_trans_id: transId,
         })
         .eq('id', payment.id)
+        .eq('status', 'pending') // Only update if still pending (idempotency)
 
       if (payment.type === 'topup') {
         const { data: wallet } = await supabase
@@ -70,7 +80,7 @@ export async function POST(request: Request) {
             type: 'topup',
             amount_kc: payment.amount_kc,
             balance_after_kc: newBalance,
-            description: `Dobiti penezenky - ${payment.amount_kc} Kc`,
+            description: `Dobití peněženky - ${payment.amount_kc} Kč`,
             payment_id: payment.id,
           })
         }
@@ -86,7 +96,6 @@ export async function POST(request: Request) {
           next_billing_at: nextBilling.toISOString(),
         })
 
-        // Update profile subscription type
         await supabase
           .from('profiles')
           .update({ subscription_type: 'premium' })
@@ -97,11 +106,12 @@ export async function POST(request: Request) {
         .from('payments')
         .update({ status: 'cancelled' })
         .eq('id', payment.id)
+        .eq('status', 'pending') // Only cancel if still pending
     }
 
     return new NextResponse('OK', { status: 200 })
   } catch (error) {
-    console.error('Webhook error:', error)
+    console.error('[webhook] Error:', error)
     return new NextResponse('Error', { status: 500 })
   }
 }

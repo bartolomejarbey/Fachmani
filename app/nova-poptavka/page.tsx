@@ -70,7 +70,12 @@ export default function NovaPoptavka() {
       setError("Maximálně 5 fotek.");
       return;
     }
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
     for (const file of files) {
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        setError(`Soubor "${file.name}" není povolený. Použijte JPG, PNG nebo WebP.`);
+        return;
+      }
       if (file.size > 5 * 1024 * 1024) {
         setError(`Soubor "${file.name}" je větší než 5 MB.`);
         return;
@@ -108,13 +113,13 @@ export default function NovaPoptavka() {
     setLoading(true);
     setError("");
 
-    if (budgetMin && parseInt(budgetMin) < 0) {
-      setError("Rozpočet nemůže být záporný.");
+    if (budgetMin && (parseInt(budgetMin) < 0 || parseInt(budgetMin) > 5000000)) {
+      setError("Rozpočet musí být 0–5 000 000 Kč.");
       setLoading(false);
       return;
     }
-    if (budgetMax && parseInt(budgetMax) < 0) {
-      setError("Rozpočet nemůže být záporný.");
+    if (budgetMax && (parseInt(budgetMax) < 0 || parseInt(budgetMax) > 5000000)) {
+      setError("Rozpočet musí být 0–5 000 000 Kč.");
       setLoading(false);
       return;
     }

@@ -188,6 +188,15 @@ export default function FeedPage() {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        alert('Povolené formáty: JPG, PNG, WebP');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Maximální velikost souboru je 5 MB');
+        return;
+      }
       setNewPostImage(file);
       const reader = new FileReader();
       reader.onload = (e) => setImagePreview(e.target?.result as string);

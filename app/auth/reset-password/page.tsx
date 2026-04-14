@@ -16,13 +16,24 @@ export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setReady(true);
       }
     });
-    setTimeout(() => setReady(true), 1000);
-  }, []);
+
+    // Timeout: redirect back if no PASSWORD_RECOVERY event fires
+    const timeout = setTimeout(() => {
+      if (!ready) {
+        router.push("/auth/forgot-password");
+      }
+    }, 5000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, [router, ready]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

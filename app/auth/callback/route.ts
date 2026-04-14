@@ -7,7 +7,8 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const type = searchParams.get('type')
   const nextParam = searchParams.get('next') ?? '/dashboard'
-  const next = (nextParam.startsWith('/') && !nextParam.startsWith('//')) ? nextParam : '/dashboard'
+  // Strict validation: only allow paths that are relative, safe, and same-origin
+  const next = /^\/[a-zA-Z0-9\-_/]*$/.test(nextParam) ? nextParam : '/dashboard'
 
   if (code) {
     const cookieStore = await cookies()

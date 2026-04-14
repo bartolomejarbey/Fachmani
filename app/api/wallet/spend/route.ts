@@ -9,8 +9,8 @@ const PRICES: Record<string, number> = {
 }
 
 const DESCRIPTIONS: Record<string, string> = {
-  offer_publish: 'Publikace nabidky',
-  profile_boost_7d: 'Topovani profilu (7 dni)',
+  offer_publish: 'Publikace nabídky',
+  profile_boost_7d: 'Topování profilu (7 dní)',
   feed_boost_1d: 'Boost na feedu (1 den)',
 }
 
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const { type, relatedEntityId } = await request.json()
 
     if (!PRICES[type]) {
-      return NextResponse.json({ error: 'Neznamy typ akce' }, { status: 400 })
+      return NextResponse.json({ error: 'Neznámý typ akce' }, { status: 400 })
     }
 
     const amount = PRICES[type]
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     )
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Neautorizovano' }, { status: 401 })
+    if (!user) return NextResponse.json({ error: 'Neautorizováno' }, { status: 401 })
 
     const { data: wallet } = await supabase
       .from('wallets')
@@ -41,20 +41,21 @@ export async function POST(request: Request) {
       .single()
 
     if (!wallet) {
-      return NextResponse.json({ error: 'Penezenka neexistuje' }, { status: 404 })
+      return NextResponse.json({ error: 'Peněženka neexistuje' }, { status: 404 })
     }
 
     if (wallet.balance_kc < amount) {
       return NextResponse.json({
-        error: 'Nedostatek kreditu',
+        error: 'Nedostatek kreditů',
         required: amount,
         balance: wallet.balance_kc,
         shortfall: amount - wallet.balance_kc,
       }, { status: 402 })
     }
 
+    // Atomic update: only deduct if balance is still sufficient (prevents race condition)
     const newBalance = wallet.balance_kc - amount
-    await supabase
+    const { data: updated, error: updateError } = await supabase
       .from('wallets')
       .update({
         balance_kc: newBalance,
@@ -62,24 +63,34 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', wallet.id)
+      .gte('balance_kc', amount) // Only update if balance >= amount (atomic guard)
+      .select()
+      .single()
+
+    if (updateError || !updated) {
+      return NextResponse.json({
+        error: 'Nedostatek kreditů (souběžná transakce)',
+        required: amount,
+      }, { status: 402 })
+    }
 
     await supabase.from('wallet_transactions').insert({
       wallet_id: wallet.id,
       user_id: user.id,
       type,
       amount_kc: -amount,
-      balance_after_kc: newBalance,
+      balance_after_kc: updated.balance_kc,
       description: DESCRIPTIONS[type],
       related_entity_id: relatedEntityId || null,
     })
 
     return NextResponse.json({
       success: true,
-      newBalance,
+      newBalance: updated.balance_kc,
       spent: amount,
     })
   } catch (error) {
     console.error('Spend error:', error)
-    return NextResponse.json({ error: 'Interni chyba' }, { status: 500 })
+    return NextResponse.json({ error: 'Interní chyba' }, { status: 500 })
   }
 }

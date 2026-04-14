@@ -11,6 +11,12 @@ function TestGatewayContent() {
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
+  // Block access in production
+  if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_COMGATE_TEST_MODE !== "true") {
+    router.push("/");
+    return null;
+  }
+
   const simulate = async (status: "PAID" | "CANCELLED") => {
     setProcessing(true);
     try {

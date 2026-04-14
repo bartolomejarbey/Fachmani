@@ -164,6 +164,15 @@ export default function FachmanProfil() {
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      alert('Povolené formáty: JPG, PNG, WebP');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Maximální velikost souboru je 5 MB');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => setAvatarCropSrc(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -208,6 +217,13 @@ export default function FachmanProfil() {
     e.preventDefault();
     setSaving(true);
     setMessage("");
+
+    // Input validation
+    if (fullName.length > 200) { setMessage("Jméno je příliš dlouhé (max 200 znaků)."); setSaving(false); return; }
+    if (phone && !/^\+?[\d\s\-()]{7,20}$/.test(phone)) { setMessage("Neplatný formát telefonu."); setSaving(false); return; }
+    if (description && description.length > 5000) { setMessage("Popis je příliš dlouhý (max 5000 znaků)."); setSaving(false); return; }
+    if (ico && !/^\d{8}$/.test(ico)) { setMessage("IČO musí být 8 číslic."); setSaving(false); return; }
+    if (location && location.length > 200) { setMessage("Lokalita je příliš dlouhá."); setSaving(false); return; }
 
     try {
       // Aktualizujeme základní profil

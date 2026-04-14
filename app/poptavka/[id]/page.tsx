@@ -248,10 +248,23 @@ export default function PoptavkaDetail() {
       }
     }
 
+    // Validate offer inputs
+    const parsedPrice = parseInt(offerPrice);
+    if (!offerPrice || isNaN(parsedPrice) || parsedPrice <= 0 || parsedPrice > 5000000) {
+      setError("Cena musí být kladné číslo (max 5 000 000 Kč).");
+      setSubmitting(false);
+      return;
+    }
+    if (offerDescription && offerDescription.length > 5000) {
+      setError("Popis nabídky je příliš dlouhý (max 5000 znaků).");
+      setSubmitting(false);
+      return;
+    }
+
     const { error: insertError } = await supabase.from("offers").insert({
       request_id: params.id,
       provider_id: currentUser,
-      price: parseInt(offerPrice),
+      price: parsedPrice,
       description: offerDescription,
       available_date: offerDate || null,
       images: uploadedImageUrls,
@@ -274,7 +287,7 @@ export default function PoptavkaDetail() {
       user_id: request?.user_id,
       type: "new_offer",
       title: "Nová nabídka",
-      message: `Na vaši poptávku "${request?.title}" přišla nová nabídka za ${parseInt(offerPrice).toLocaleString()} Kč.`,
+      message: `Na vaši poptávku "${request?.title}" přišla nová nabídka za ${parsedPrice.toLocaleString()} Kč.`,
       link: `/poptavka/${params.id}`,
     });
 

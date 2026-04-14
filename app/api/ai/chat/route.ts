@@ -72,6 +72,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid input" }, { status: 400 });
     }
 
+    // Validate message content length to prevent abuse
+    const lastMessage = messages[messages.length - 1];
+    if (typeof lastMessage?.content === 'string' && lastMessage.content.length > 2000) {
+      return NextResponse.json({ error: "Zpráva je příliš dlouhá (max 2000 znaků)." }, { status: 400 });
+    }
+
     // Get user (optional - chat works for anonymous too)
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -81,7 +87,7 @@ export async function POST(request: Request) {
     );
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Rate limiting - max 20 messages per hour
+    // Rate limiting
     if (user) {
       const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
       const { count } = await supabase
@@ -94,6 +100,18 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error: "Dosáhl jsi limitu 20 zpráv za hodinu. Zkus to prosím později.",
+            rateLimited: true,
+          },
+          { status: 429 }
+        );
+      }
+    } else {
+      // For anonymous users, use a simple in-memory check via sessionId
+      // Plus limit message history to prevent token abuse
+      if (messages.length > 6) {
+        return NextResponse.json(
+          {
+            error: "Pro více zpráv se prosím přihlaste.",
             rateLimited: true,
           },
           { status: 429 }

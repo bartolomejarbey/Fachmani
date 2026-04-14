@@ -20,14 +20,26 @@ export async function middleware(request: NextRequest) {
   )
   const { data: { user } } = await supabase.auth.getUser()
 
+  // Unauthenticated users can't access dashboard or admin
   if (!user && (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/admin'))) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
-  if (user && request.nextUrl.pathname.startsWith('/admin') && request.nextUrl.pathname !== '/admin/login') {
-    const { data: profile } = await supabase.from('profiles').select('admin_role').eq('id', user.id).single()
-    if (!profile?.admin_role) {
-      return NextResponse.redirect(new URL('/', request.url))
+  if (user) {
+    // Admin route protection
+    if (request.nextUrl.pathname.startsWith('/admin') && request.nextUrl.pathname !== '/admin/login') {
+      const { data: profile } = await supabase.from('profiles').select('admin_role').eq('id', user.id).single()
+      if (!profile?.admin_role) {
+        return NextResponse.redirect(new URL('/', request.url))
+      }
+    }
+
+    // Provider dashboard — only for providers
+    if (request.nextUrl.pathname.startsWith('/dashboard/fachman')) {
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      if (profile?.role !== 'provider') {
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
     }
   }
 

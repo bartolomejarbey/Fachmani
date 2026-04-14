@@ -6,9 +6,10 @@ import { createComgatePayment, isTestMode } from '@/lib/comgate'
 export async function POST(request: Request) {
   try {
     const { amountKc } = await request.json()
+    const amount = Number(amountKc)
 
-    if (!amountKc || amountKc < 100 || amountKc > 50000) {
-      return NextResponse.json({ error: 'Neplatna castka (100-50000 Kc)' }, { status: 400 })
+    if (!Number.isInteger(amount) || amount < 100 || amount > 50000) {
+      return NextResponse.json({ error: 'Neplatná částka (100-50000 Kč)' }, { status: 400 })
     }
 
     const cookieStore = await cookies()
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
       .insert({
         user_id: user.id,
         type: 'topup',
-        amount_kc: amountKc,
+        amount_kc: amount,
         status: 'pending',
         is_test: isTestMode(),
       })
@@ -38,10 +39,10 @@ export async function POST(request: Request) {
     }
 
     const result = await createComgatePayment({
-      priceKc: amountKc,
+      priceKc: amount,
       refId: payment.id,
       email: user.email!,
-      label: `Dobiti penezenky - ${amountKc} Kc`,
+      label: `Dobiti penezenky - ${amount} Kc`,
     })
 
     if (result.code !== 0) {
