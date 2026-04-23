@@ -27,17 +27,35 @@ export default function Kategorie() {
     setMounted(true);
 
     async function loadCategories() {
-      const { data: cats } = await supabase
+      // Hlavní kategorie (parent_id IS NULL, is_active=true), order by sort_order
+      const { data: mains } = await supabase
         .from("categories")
         .select("*")
-        .order("name");
+        .is("parent_id", null)
+        .eq("is_active", true)
+        .order("sort_order");
 
-      if (!cats) {
+      if (!mains) {
         setLoading(false);
         return;
       }
 
-      // Count providers per category
+      // Aktivní subs (pro agregaci počtů do hlavní kategorie)
+      const { data: allActive } = await supabase
+        .from("categories")
+        .select("id, parent_id")
+        .eq("is_active", true);
+
+      // Mapa main_id → [jeho id + id všech jeho subs]
+      const mainToIds: Record<string, string[]> = {};
+      mains.forEach((m) => { mainToIds[m.id] = [m.id]; });
+      allActive?.forEach((c) => {
+        if (c.parent_id && mainToIds[c.parent_id]) {
+          mainToIds[c.parent_id].push(c.id);
+        }
+      });
+
+      // Count providers per category (pak agregujeme do hlavních)
       const { data: providerCats } = await supabase
         .from("provider_categories")
         .select("category_id");
@@ -61,11 +79,16 @@ export default function Kategorie() {
       });
 
       setCategories(
-        cats.map((c) => ({
-          ...c,
-          providerCount: providerCounts[c.id] || 0,
-          requestCount: requestCounts[c.id] || 0,
-        }))
+        mains.map((m) => {
+          const ids = mainToIds[m.id] || [m.id];
+          const providerSum = ids.reduce((s, id) => s + (providerCounts[id] || 0), 0);
+          const requestSum = ids.reduce((s, id) => s + (requestCounts[id] || 0), 0);
+          return {
+            ...m,
+            providerCount: providerSum,
+            requestCount: requestSum,
+          };
+        })
       );
       setLoading(false);
     }
@@ -150,7 +173,7 @@ export default function Kategorie() {
               {filtered.map((cat, i) => (
                 <Link
                   key={cat.id}
-                  href={`/fachmani?kategorie=${cat.id}`}
+                  href={`/kategorie/${cat.slug}`}
                   className={`bg-white rounded-2xl p-4 border border-gray-100 hover:border-cyan-300 hover:shadow-md transition-all group ${
                     mounted ? "animate-fade-in-up" : "opacity-0"
                   }`}

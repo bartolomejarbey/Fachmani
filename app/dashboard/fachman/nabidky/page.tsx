@@ -77,6 +77,7 @@ export default function MojeNabidkyPage() {
     const { data: categoriesData } = await supabase
       .from("categories")
       .select("id, name, icon")
+      .eq("is_active", true)
       .order("name");
 
     if (categoriesData) setCategories(categoriesData);

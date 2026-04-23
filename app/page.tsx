@@ -94,26 +94,45 @@ export default function Home() {
   };
 
   const loadCategories = async () => {
-    const { data: cats } = await supabase
+    // Homepage — jen 12 hlavních aktivních
+    const { data: mains } = await supabase
       .from("categories")
       .select("id, name, icon, slug")
-      .order("name");
+      .is("parent_id", null)
+      .eq("is_active", true)
+      .order("sort_order");
 
-    if (cats) {
+    if (mains) {
+      // Count providers agregovaně přes main + jeho subs
+      const { data: allActive } = await supabase
+        .from("categories")
+        .select("id, parent_id")
+        .eq("is_active", true);
+
+      const mainToIds: Record<string, string[]> = {};
+      mains.forEach(m => { mainToIds[m.id] = [m.id]; });
+      allActive?.forEach(c => {
+        if (c.parent_id && mainToIds[c.parent_id]) mainToIds[c.parent_id].push(c.id);
+      });
+
       const { data: providerCategories } = await supabase
         .from("provider_categories")
         .select("category_id");
 
-      const counts: Record<string, number> = {};
+      const perCat: Record<string, number> = {};
       providerCategories?.forEach((pc) => {
-        counts[pc.category_id] = (counts[pc.category_id] || 0) + 1;
+        perCat[pc.category_id] = (perCat[pc.category_id] || 0) + 1;
       });
 
-      setCategories(cats.map(c => ({
-        ...c,
-        slug: c.slug || c.name.toLowerCase().replace(/\s+/g, "-"),
-        count: counts[c.id] || 0,
-      })));
+      setCategories(mains.map(m => {
+        const ids = mainToIds[m.id] || [m.id];
+        const count = ids.reduce((s, id) => s + (perCat[id] || 0), 0);
+        return {
+          ...m,
+          slug: m.slug || m.name.toLowerCase().replace(/\s+/g, "-"),
+          count,
+        };
+      }));
     }
   };
 
