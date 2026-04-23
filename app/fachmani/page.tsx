@@ -4,6 +4,7 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import PaginationLinks from "@/app/components/PaginationLinks";
+import VerifiedBadge from "@/app/components/VerifiedBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -405,11 +406,12 @@ export default async function SeznamFachmanu({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <h2 className="font-bold text-gray-900 truncate">{fachman.full_name}</h2>
-                          {fachman.is_verified && (
-                            <span className="text-emerald-500" title="Ověřený">
-                              ✓
-                            </span>
-                          )}
+                          <VerifiedBadge
+                            verified={fachman.is_verified}
+                            source="ares"
+                            size="sm"
+                            showLabel={false}
+                          />
                         </div>
 
                         {fachman.rating > 0 && (

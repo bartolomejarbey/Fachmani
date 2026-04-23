@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import VerifiedBadge from "@/app/components/VerifiedBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -263,14 +264,8 @@ export default async function FachmanDetail({ params }: { params: Promise<{ slug
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-3 mb-2">
                 <h1 className="text-3xl font-bold text-gray-900">{data.full_name}</h1>
-                {data.is_verified && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-1 text-xs font-semibold">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500 text-white text-xs">
-                      ✓
-                    </span>
-                    Ověřeno
-                  </span>
-                )}
+                <VerifiedBadge verified={data.is_verified} source="ares" />
+
               </div>
 
               {data.rating > 0 && (
