@@ -13,6 +13,8 @@ type Category = {
   id: string;
   name: string;
   icon: string;
+  parent_id: string | null;
+  sort_order: number;
 };
 
 type Fachman = {
@@ -60,11 +62,11 @@ function SeznamFachmanuContent() {
   }, []);
 
   const loadData = async () => {
-    // Načteme kategorie
+    // Načteme kategorie (hierarchie)
     const { data: categoriesData } = await supabase
       .from("categories")
-      .select("id, name, icon")
-      .order("name");
+      .select("id, name, icon, parent_id, sort_order")
+      .order("sort_order");
 
     if (categoriesData) {
       setCategories(categoriesData);
@@ -200,8 +202,12 @@ function SeznamFachmanuContent() {
     let result = [...fachmani];
 
     if (selectedCategory) {
-      result = result.filter(f =>
-        f.categories?.some(c => c.id === selectedCategory)
+      const subIds = categories
+        .filter((c) => c.parent_id === selectedCategory)
+        .map((c) => c.id);
+      const matchIds = new Set<string>([selectedCategory, ...subIds]);
+      result = result.filter((f) =>
+        f.categories?.some((c) => matchIds.has(c.id))
       );
     }
 
@@ -219,7 +225,7 @@ function SeznamFachmanuContent() {
 
     setFilteredFachmani(result);
     setCurrentPage(1);
-  }, [fachmani, selectedCategory, locationFilter, verifiedOnly]);
+  }, [fachmani, selectedCategory, locationFilter, verifiedOnly, categories]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -262,11 +268,23 @@ function SeznamFachmanuContent() {
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
                   <option value="">Všechny kategorie</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.icon} {cat.name}
-                    </option>
-                  ))}
+                  {categories
+                    .filter((c) => c.parent_id === null)
+                    .map((main) => {
+                      const subs = categories.filter((c) => c.parent_id === main.id);
+                      return (
+                        <optgroup key={main.id} label={`${main.icon} ${main.name}`}>
+                          <option value={main.id}>
+                            {main.icon} {main.name} (vše)
+                          </option>
+                          {subs.map((sub) => (
+                            <option key={sub.id} value={sub.id}>
+                              &nbsp;&nbsp;↳ {sub.icon} {sub.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
                 </select>
               </div>
 

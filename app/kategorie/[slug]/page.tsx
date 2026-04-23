@@ -14,6 +14,13 @@ type Category = {
   slug: string;
   description: string | null;
   icon: string;
+  parent_id: string | null;
+  sort_order: number;
+};
+
+type SubCategory = Category & {
+  providerCount: number;
+  requestCount: number;
 };
 
 type Request = {
@@ -62,6 +69,7 @@ export default function KategorieDetail() {
   const slug = params.slug as string;
 
   const [category, setCategory] = useState<Category | null>(null);
+  const [subcategories, setSubcategories] = useState<SubCategory[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +86,7 @@ export default function KategorieDetail() {
     // Načteme kategorii
     const { data: catData } = await supabase
       .from("categories")
-      .select("*")
+      .select("id, name, slug, description, icon, parent_id, sort_order")
       .eq("slug", slug)
       .single();
 
@@ -89,27 +97,76 @@ export default function KategorieDetail() {
 
     setCategory(catData);
 
-    // === Načteme poptávky v této kategorii ===
+    const isMain = catData.parent_id === null;
+
+    // Pokud je to hlavní kategorie, načteme podkategorie a jejich počty
+    let categoryIds = [catData.id];
+    if (isMain) {
+      const { data: subs } = await supabase
+        .from("categories")
+        .select("id, name, slug, description, icon, parent_id, sort_order")
+        .eq("parent_id", catData.id)
+        .order("sort_order");
+
+      if (subs && subs.length > 0) {
+        const subIds = subs.map((s) => s.id);
+        categoryIds = [catData.id, ...subIds];
+
+        // Count providers per sub
+        const { data: pcs } = await supabase
+          .from("provider_categories")
+          .select("category_id")
+          .in("category_id", subIds);
+
+        const providerCounts: Record<string, number> = {};
+        pcs?.forEach((p) => {
+          providerCounts[p.category_id] = (providerCounts[p.category_id] || 0) + 1;
+        });
+
+        const { data: reqs } = await supabase
+          .from("requests")
+          .select("category_id")
+          .eq("status", "active")
+          .in("category_id", subIds);
+
+        const requestCounts: Record<string, number> = {};
+        reqs?.forEach((r) => {
+          if (r.category_id) {
+            requestCounts[r.category_id] = (requestCounts[r.category_id] || 0) + 1;
+          }
+        });
+
+        setSubcategories(
+          subs.map((s) => ({
+            ...s,
+            providerCount: providerCounts[s.id] || 0,
+            requestCount: requestCounts[s.id] || 0,
+          }))
+        );
+      }
+    }
+
+    // === Načteme poptávky (pro hlavní kat. = všechny z podkategorií + přímé) ===
     const { data: reqData } = await supabase
       .from("requests")
       .select("*")
-      .eq("category_id", catData.id)
+      .in("category_id", categoryIds)
       .eq("status", "active")
       .order("created_at", { ascending: false });
 
     setRequests(reqData || []);
 
-    // === Načteme fachmany v této kategorii ===
+    // === Načteme fachmany (pro hlavní kat. = ze všech podkategorií + přímé) ===
     const allProviders: Provider[] = [];
 
     // 1. REÁLNÍ fachmani
     const { data: providerCategoriesData } = await supabase
       .from("provider_categories")
       .select("provider_id")
-      .eq("category_id", catData.id);
+      .in("category_id", categoryIds);
 
     if (providerCategoriesData && providerCategoriesData.length > 0) {
-      const providerIds = providerCategoriesData.map(pc => pc.provider_id);
+      const providerIds = Array.from(new Set(providerCategoriesData.map((pc) => pc.provider_id)));
 
       // Načteme profily
       const { data: profilesData } = await supabase
@@ -164,12 +221,13 @@ export default function KategorieDetail() {
       });
     }
 
-    // 2. FIKTIVNÍ fachmani v této kategorii
-    const { data: seedData } = await supabase
+    // 2. FIKTIVNÍ fachmani — pokud je hlavní kat., vezmeme seedy ze všech podkategorií
+    const { data: seedRaw } = await supabase
       .from("seed_providers")
       .select("*")
       .eq("is_active", true)
-      .contains("category_ids", [catData.id]);
+      .overlaps("category_ids", categoryIds);
+    const seedData = seedRaw;
 
     seedData?.forEach(seed => {
       allProviders.push({
@@ -290,6 +348,34 @@ export default function KategorieDetail() {
           </div>
         </div>
       </section>
+
+      {/* Subcategories Grid (only for main category) */}
+      {category.parent_id === null && subcategories.length > 0 && (
+        <section className="py-10 bg-white border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-5">Podkategorie</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {subcategories.map((sub) => (
+                <Link
+                  key={sub.id}
+                  href={`/kategorie/${sub.slug}`}
+                  className="bg-white rounded-xl p-4 border border-gray-200 hover:border-cyan-300 hover:shadow-md transition-all group"
+                >
+                  <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">
+                    {sub.icon}
+                  </div>
+                  <h3 className="font-semibold text-gray-900 text-sm mb-1 group-hover:text-cyan-700">
+                    {sub.name}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {sub.providerCount} fachmanů · {sub.requestCount} poptávek
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Filters & Tabs */}
       <section className="bg-white border-b sticky top-16 z-20">

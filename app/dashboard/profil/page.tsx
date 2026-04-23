@@ -13,6 +13,8 @@ type Category = {
   id: string;
   name: string;
   icon: string;
+  parent_id: string | null;
+  sort_order: number;
 };
 
 type Profile = {
@@ -140,8 +142,8 @@ export default function FachmanProfil() {
       // Načteme všechny kategorie
       const { data: catsData } = await supabase
         .from("categories")
-        .select("*")
-        .order("name");
+        .select("id, name, icon, parent_id, sort_order")
+        .order("sort_order");
 
       if (catsData) {
         setCategories(catsData);
@@ -537,33 +539,78 @@ export default function FachmanProfil() {
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               {Icons.star} Kategorie služeb
             </h2>
-            <p className="text-gray-600 text-sm mb-4">Vyberte kategorie, ve kterých nabízíte své služby</p>
-            
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {categories.map((cat) => (
-                <label
-                  key={cat.id}
-                  className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                    selectedCategories.includes(cat.id)
-                      ? "border-cyan-500 bg-cyan-50"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedCategories.includes(cat.id)}
-                    onChange={() => handleCategoryToggle(cat.id)}
-                    className="sr-only"
-                  />
-                  <span className="text-xl mr-2">{cat.icon}</span>
-                  <span className={`font-medium ${selectedCategories.includes(cat.id) ? 'text-cyan-700' : 'text-gray-700'}`}>
-                    {cat.name}
-                  </span>
-                  {selectedCategories.includes(cat.id) && (
-                    <span className="ml-auto text-cyan-500">{Icons.check}</span>
-                  )}
-                </label>
-              ))}
+            <p className="text-gray-600 text-sm mb-4">Vyberte kategorie, ve kterých nabízíte své služby. Podkategorie jsou seskupené pod hlavní kategorií.</p>
+
+            <div className="space-y-6">
+              {categories
+                .filter((c) => c.parent_id === null)
+                .map((main) => {
+                  const subs = categories.filter((c) => c.parent_id === main.id);
+                  const selectedInGroup = subs.filter((s) => selectedCategories.includes(s.id)).length;
+                  return (
+                    <div key={main.id} className="border border-gray-200 rounded-2xl p-4 bg-gray-50/50">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                          <span className="text-xl">{main.icon}</span> {main.name}
+                        </h3>
+                        {selectedInGroup > 0 && (
+                          <span className="text-xs bg-cyan-100 text-cyan-700 px-2 py-1 rounded-full font-semibold">
+                            {selectedInGroup} vybráno
+                          </span>
+                        )}
+                      </div>
+                      {subs.length === 0 ? (
+                        <label
+                          className={`flex items-center p-3 border-2 rounded-xl cursor-pointer transition-all ${
+                            selectedCategories.includes(main.id)
+                              ? "border-cyan-500 bg-cyan-50"
+                              : "border-gray-200 bg-white hover:border-gray-300"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCategories.includes(main.id)}
+                            onChange={() => handleCategoryToggle(main.id)}
+                            className="sr-only"
+                          />
+                          <span className={`font-medium text-sm ${selectedCategories.includes(main.id) ? 'text-cyan-700' : 'text-gray-700'}`}>
+                            Nabízím v kategorii „{main.name}"
+                          </span>
+                          {selectedCategories.includes(main.id) && (
+                            <span className="ml-auto text-cyan-500">{Icons.check}</span>
+                          )}
+                        </label>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {subs.map((sub) => (
+                            <label
+                              key={sub.id}
+                              className={`flex items-center p-3 border-2 rounded-xl cursor-pointer transition-all ${
+                                selectedCategories.includes(sub.id)
+                                  ? "border-cyan-500 bg-cyan-50"
+                                  : "border-gray-200 bg-white hover:border-gray-300"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedCategories.includes(sub.id)}
+                                onChange={() => handleCategoryToggle(sub.id)}
+                                className="sr-only"
+                              />
+                              <span className="text-base mr-2">{sub.icon}</span>
+                              <span className={`font-medium text-sm ${selectedCategories.includes(sub.id) ? 'text-cyan-700' : 'text-gray-700'}`}>
+                                {sub.name}
+                              </span>
+                              {selectedCategories.includes(sub.id) && (
+                                <span className="ml-auto text-cyan-500">{Icons.check}</span>
+                              )}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </div>
 

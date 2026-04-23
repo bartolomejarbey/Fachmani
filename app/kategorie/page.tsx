@@ -15,6 +15,7 @@ type Category = {
   icon: string;
   providerCount: number;
   requestCount: number;
+  subCount: number;
 };
 
 export default function Kategorie() {
@@ -29,8 +30,8 @@ export default function Kategorie() {
     async function loadCategories() {
       const { data: cats } = await supabase
         .from("categories")
-        .select("*")
-        .order("name");
+        .select("id, name, slug, description, icon, parent_id, sort_order")
+        .order("sort_order");
 
       if (!cats) {
         setLoading(false);
@@ -60,12 +61,41 @@ export default function Kategorie() {
         }
       });
 
+      const childrenByParent: Record<string, string[]> = {};
+      cats.forEach((c) => {
+        if (c.parent_id) {
+          (childrenByParent[c.parent_id] ??= []).push(c.id);
+        }
+      });
+
+      const mains = cats
+        .filter((c) => c.parent_id === null)
+        .sort(
+          (a, b) =>
+            (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+            a.name.localeCompare(b.name, "cs")
+        );
+
       setCategories(
-        cats.map((c) => ({
-          ...c,
-          providerCount: providerCounts[c.id] || 0,
-          requestCount: requestCounts[c.id] || 0,
-        }))
+        mains.map((c) => {
+          const childIds = childrenByParent[c.id] || [];
+          const pc =
+            (providerCounts[c.id] || 0) +
+            childIds.reduce((s, id) => s + (providerCounts[id] || 0), 0);
+          const rc =
+            (requestCounts[c.id] || 0) +
+            childIds.reduce((s, id) => s + (requestCounts[id] || 0), 0);
+          return {
+            id: c.id,
+            name: c.name,
+            slug: c.slug,
+            description: c.description,
+            icon: c.icon,
+            providerCount: pc,
+            requestCount: rc,
+            subCount: childIds.length,
+          };
+        })
       );
       setLoading(false);
     }
@@ -150,7 +180,7 @@ export default function Kategorie() {
               {filtered.map((cat, i) => (
                 <Link
                   key={cat.id}
-                  href={`/fachmani?kategorie=${cat.id}`}
+                  href={`/kategorie/${cat.slug}`}
                   className={`bg-white rounded-2xl p-4 border border-gray-100 hover:border-cyan-300 hover:shadow-md transition-all group ${
                     mounted ? "animate-fade-in-up" : "opacity-0"
                   }`}
@@ -163,6 +193,12 @@ export default function Kategorie() {
                     {cat.name}
                   </h2>
                   <div className="space-y-1">
+                    {cat.subCount > 0 && (
+                      <p className="text-sm text-gray-500 flex items-center gap-1.5">
+                        <span className="text-blue-500">📂</span>
+                        {cat.subCount} podkategorií
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500 flex items-center gap-1.5">
                       <span className="text-cyan-500">{Icons.users}</span>
                       {cat.providerCount} fachmanů

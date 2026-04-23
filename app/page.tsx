@@ -96,24 +96,47 @@ export default function Home() {
   const loadCategories = async () => {
     const { data: cats } = await supabase
       .from("categories")
-      .select("id, name, icon, slug")
-      .order("name");
+      .select("id, name, icon, slug, parent_id, sort_order")
+      .order("sort_order");
 
     if (cats) {
       const { data: providerCategories } = await supabase
         .from("provider_categories")
         .select("category_id");
 
-      const counts: Record<string, number> = {};
+      const countsByCat: Record<string, number> = {};
       providerCategories?.forEach((pc) => {
-        counts[pc.category_id] = (counts[pc.category_id] || 0) + 1;
+        countsByCat[pc.category_id] = (countsByCat[pc.category_id] || 0) + 1;
       });
 
-      setCategories(cats.map(c => ({
-        ...c,
-        slug: c.slug || c.name.toLowerCase().replace(/\s+/g, "-"),
-        count: counts[c.id] || 0,
-      })));
+      const childrenByParent: Record<string, string[]> = {};
+      cats.forEach((c) => {
+        if (c.parent_id) {
+          (childrenByParent[c.parent_id] ??= []).push(c.id);
+        }
+      });
+
+      const mains = cats
+        .filter((c) => c.parent_id === null)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "cs"))
+        .slice(0, 8);
+
+      setCategories(
+        mains.map((c) => {
+          const directCount = countsByCat[c.id] || 0;
+          const childCount = (childrenByParent[c.id] || []).reduce(
+            (sum, childId) => sum + (countsByCat[childId] || 0),
+            0
+          );
+          return {
+            id: c.id,
+            name: c.name,
+            icon: c.icon,
+            slug: c.slug || c.name.toLowerCase().replace(/\s+/g, "-"),
+            count: directCount + childCount,
+          };
+        })
+      );
     }
   };
 
