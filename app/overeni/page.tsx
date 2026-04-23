@@ -4,152 +4,147 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Navbar from "@/app/components/Navbar";
+import Footer from "@/app/components/Footer";
+import IcoInput from "@/app/components/IcoInput";
+import VerifiedBadge from "@/app/components/VerifiedBadge";
+
+type Profile = {
+  id: string;
+  role: string;
+  is_verified: boolean;
+  ico: string | null;
+  ares_verified_at: string | null;
+  ares_verified_name: string | null;
+};
 
 export default function Overeni() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [verified, setVerified] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [ico, setIco] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    async function checkUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-
+    async function load() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         router.push("/auth/login");
         return;
       }
-
-      const { data: profile } = await supabase
+      const { data } = await supabase
         .from("profiles")
-        .select("is_verified, role")
+        .select("id, role, is_verified, ico, ares_verified_at, ares_verified_name")
         .eq("id", user.id)
         .single();
-
-      if (profile?.is_verified) {
-        setVerified(true);
+      if (!data) {
+        router.push("/auth/login");
+        return;
       }
-
-      if (profile?.role !== "provider") {
+      if (data.role !== "provider") {
         router.push("/dashboard");
         return;
       }
-
+      setProfile(data as Profile);
+      setIco(data.ico || "");
       setLoading(false);
     }
-
-    checkUser();
+    load();
   }, [router]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p>Načítám...</p>
+        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
+  const alreadyVerifiedAres = !!profile?.ares_verified_at;
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigace */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-blue-600">
-            Fachmani
-          </Link>
-          <Link href="/dashboard/fachman" className="text-gray-600 hover:text-gray-900">
-            Zpět na dashboard
-          </Link>
+      <Navbar />
+
+      <div className="max-w-2xl mx-auto px-4 pt-28 pb-12">
+        <Link
+          href="/dashboard/fachman"
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-cyan-600 mb-4 transition-colors"
+        >
+          ← Zpět na dashboard
+        </Link>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Ověření účtu</h1>
+        <p className="text-gray-600 mb-8">
+          Ověřte svůj subjekt proti ARES — zvýšíte tím důvěryhodnost svého profilu
+          a zákazníci uvidí odznak „Ověřeno".
+        </p>
+
+        {profile?.is_verified && (
+          <div className="bg-white rounded-2xl border border-emerald-200 p-6 mb-6">
+            <div className="flex items-center gap-3">
+              <VerifiedBadge verified source={alreadyVerifiedAres ? "ares" : "manual"} />
+              <div className="text-sm">
+                <div className="font-bold text-gray-900">
+                  Váš účet je plně ověřen
+                </div>
+                <div className="text-gray-600">
+                  Můžete posílat nabídky bez omezení.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {alreadyVerifiedAres && !profile?.is_verified && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 text-sm text-blue-800">
+            ARES ověření bylo úspěšné (<strong>{profile?.ares_verified_name}</strong>).
+            Finální schválení provádí administrátor.
+          </div>
+        )}
+
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
+          <h2 className="font-bold text-gray-900 text-lg">Ověření IČO v ARES</h2>
+          <p className="text-sm text-gray-600">
+            Zadejte osmimístné IČO a klikněte „Ověřit v ARES". Data získáme
+            z veřejného registru Ministerstva financí ČR. Po úspěšném ověření se
+            uloží název subjektu z ARES do vašeho profilu.
+          </p>
+
+          <IcoInput
+            value={ico}
+            onChange={setIco}
+            persistToProfile
+            onVerified={(r) => {
+              setMessage(`ARES ověření uloženo do profilu: ${r.name}`);
+              setProfile((p) =>
+                p
+                  ? {
+                      ...p,
+                      ico: r.ico,
+                      ares_verified_name: r.name,
+                      ares_verified_at: new Date().toISOString(),
+                    }
+                  : p
+              );
+            }}
+          />
+
+          {message && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+              ✓ {message}
+            </div>
+          )}
         </div>
-      </nav>
 
-      <div className="max-w-2xl mx-auto px-4 py-12">
-        {!verified && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-amber-900">
-            Funkce verifikace je momentálně ve vývoji. Tato stránka slouží jako mockup budoucího procesu.
-          </div>
-        )}
-
-        {/* Již ověřen */}
-        {verified && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center">
-            <div className="text-6xl mb-4">✅</div>
-            <h1 className="text-2xl font-bold text-green-800 mb-2">Váš účet je ověřen</h1>
-            <p className="text-green-700 mb-6">
-              Můžete posílat nabídky na poptávky zákazníků.
-            </p>
-            <Link
-              href="/dashboard/fachman"
-              className="inline-block bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700"
-            >
-              Přejít na dashboard
-            </Link>
-          </div>
-        )}
-
-        {/* Neověřený - info o procesu */}
-        {!verified && !submitted && (
-          <div className="bg-white rounded-xl shadow-sm p-8">
-            <div className="text-center mb-8">
-              <div className="text-6xl mb-4">🔐</div>
-              <h1 className="text-3xl font-bold mb-2">Verifikace profilu</h1>
-              <p className="text-gray-600">
-                Připravujeme budoucí verifikaci profilů pro poskytovatele služeb.
-              </p>
-            </div>
-
-            <div className="space-y-4 mb-8">
-              <div className="flex items-start gap-4 p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl">🧪</div>
-                <div>
-                  <h3 className="font-semibold">Stav funkce</h3>
-                  <p className="text-sm text-gray-600">
-                    Verifikační proces je aktuálně ve vývoji a zatím není aktivní
-                    pro reálné použití.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl">✓</div>
-                <div>
-                  <h3 className="font-semibold">Co bude cílem</h3>
-                  <p className="text-sm text-gray-600">
-                    Do budoucna má verifikace pomoci zvýšit důvěryhodnost profilů
-                    a zpřehlednit nabídku poskytovatelů.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4 p-4 bg-yellow-50 rounded-lg">
-                <div className="text-2xl">📋</div>
-                <div>
-                  <h3 className="font-semibold">Co zatím dělat</h3>
-                  <p className="text-sm text-gray-600">
-                    Pro tuto chvíli stačí doplnit profil a sledovat další vývoj.
-                    Jakmile bude verifikace spuštěna, zobrazíme přesný postup.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <Link
-                href="/dashboard/fachman"
-                className="block w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 text-center"
-              >
-                Zpět na dashboard
-              </Link>
-              <Link
-                href="/dashboard/profil"
-                className="block w-full bg-gray-100 text-gray-700 py-4 rounded-lg font-semibold text-lg hover:bg-gray-200 text-center"
-              >
-                Doplnit profil
-              </Link>
-            </div>
-          </div>
-        )}
+        <div className="mt-6 text-center text-xs text-gray-500">
+          Rate-limit: max 10 dotazů/min z jedné IP, 30 dotazů/min pro přihlášeného
+          uživatele. Výsledky jsou cachované 30 dní.
+        </div>
       </div>
+
+      <Footer />
     </div>
   );
 }

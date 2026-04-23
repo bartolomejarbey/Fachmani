@@ -8,6 +8,8 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 import ImageCropper from "@/app/components/ImageCropper";
+import IcoInput from "@/app/components/IcoInput";
+import VerifiedBadge from "@/app/components/VerifiedBadge";
 
 type Category = {
   id: string;
@@ -26,6 +28,8 @@ type Profile = {
   description: string | null;
   location: string | null;
   ico: string | null;
+  ares_verified_at: string | null;
+  ares_verified_name: string | null;
 };
 
 type ProviderProfile = {
@@ -451,16 +455,36 @@ export default function FachmanProfil() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  IČO
-                </label>
-                <input
-                  type="text"
+                <IcoInput
                   value={ico}
-                  onChange={(e) => setIco(e.target.value)}
-                  placeholder="12345678"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                  onChange={setIco}
+                  persistToProfile
+                  onVerified={(r) => {
+                    setProfile((p) =>
+                      p
+                        ? {
+                            ...p,
+                            ico: r.ico,
+                            ares_verified_name: r.name,
+                            ares_verified_at: new Date().toISOString(),
+                          }
+                        : p
+                    );
+                  }}
                 />
+                {profile?.ares_verified_at && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+                    <VerifiedBadge verified source="ares" size="sm" />
+                    {profile.ares_verified_name && (
+                      <span>
+                        Ověřeno jako{" "}
+                        <span className="font-medium text-gray-800">
+                          {profile.ares_verified_name}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
