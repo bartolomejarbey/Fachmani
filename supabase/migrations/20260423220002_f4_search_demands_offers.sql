@@ -6,6 +6,11 @@
 alter table public.requests        add column if not exists search_tsv tsvector;
 alter table public.service_offers  add column if not exists search_tsv tsvector;
 
+-- service_offers.image_url nemusí existovat ve všech prostředích (některá prod DB
+-- neprošla 20260316_fix_service_offers.sql, který tento sloupec přidával).
+-- Přidáme jej proaktivně, aby search_index VIEW níže mohl referencovat coalesce(o.image_url, '').
+alter table public.service_offers  add column if not exists image_url text;
+
 create index if not exists requests_search_tsv_idx       on public.requests       using gin(search_tsv);
 create index if not exists service_offers_search_tsv_idx on public.service_offers using gin(search_tsv);
 
