@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   if (!isValidQuery(query)) {
     return NextResponse.json({ error: "Neplatný dotaz." }, { status: 400 });
   }
-  if (!["provider", "seed_provider", "category"].includes(entityType)) {
+  if (!["provider", "seed_provider", "category", "demand", "offer"].includes(entityType)) {
     return NextResponse.json({ error: "Neplatný entity_type." }, { status: 400 });
   }
   if (!entityId || entityId.length > 100) {
