@@ -39,7 +39,9 @@ export async function GET(req: Request) {
     entityFilter === "provider_any" ||
     entityFilter === "provider" ||
     entityFilter === "seed_provider" ||
-    entityFilter === "category"
+    entityFilter === "category" ||
+    entityFilter === "demand" ||
+    entityFilter === "offer"
       ? entityFilter
       : null;
 

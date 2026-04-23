@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback } from "react";
 
 type Result = {
-  entity_type: "provider" | "seed_provider" | "category";
+  entity_type: "provider" | "seed_provider" | "category" | "demand" | "offer";
   entity_id: string;
   title: string;
   snippet: string;
@@ -110,13 +110,16 @@ export default function SearchResults({ query, results }: Props) {
 
 function labelFor(type: Result["entity_type"]): string {
   if (type === "category") return "Kategorie";
+  if (type === "demand") return "Poptávka";
+  if (type === "offer") return "Nabídka";
   return "Fachman";
 }
 
 function hrefFor(r: Result): string {
   if (r.entity_type === "category") return `/kategorie`;
-  // provider or seed_provider — detail page používá id na /fachman/[id];
-  // seed_provider dostane prefix "seed_", aby existující detail route fungovala.
+  if (r.entity_type === "demand") return `/poptavka/${r.entity_id}`;
+  if (r.entity_type === "offer") return `/nabidky#offer-${r.entity_id}`;
+  // seed_provider dostane prefix "seed_", aby existující /fachman/[id] routa fungovala.
   if (r.entity_type === "seed_provider") return `/fachman/seed_${r.entity_id}`;
   return `/fachman/${r.entity_id}`;
 }

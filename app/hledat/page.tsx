@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 type Result = {
-  entity_type: "provider" | "seed_provider" | "category";
+  entity_type: "provider" | "seed_provider" | "category" | "demand" | "offer";
   entity_id: string;
   title: string;
   snippet: string;
@@ -34,7 +34,12 @@ export default async function Hledat({ searchParams }: { searchParams: SP }) {
   const q = (sp.q || "").slice(0, 200);
   const typ = sp.typ;
   const typeFilter =
-    typ === "provider_any" || typ === "provider" || typ === "seed_provider" || typ === "category"
+    typ === "provider_any" ||
+    typ === "provider" ||
+    typ === "seed_provider" ||
+    typ === "category" ||
+    typ === "demand" ||
+    typ === "offer"
       ? typ
       : null;
 
@@ -65,7 +70,13 @@ export default async function Hledat({ searchParams }: { searchParams: SP }) {
     });
   }
 
-  const countsByType: Record<string, number> = { provider: 0, seed_provider: 0, category: 0 };
+  const countsByType: Record<string, number> = {
+    provider: 0,
+    seed_provider: 0,
+    category: 0,
+    demand: 0,
+    offer: 0,
+  };
   for (const r of results) countsByType[r.entity_type] = (countsByType[r.entity_type] || 0) + 1;
 
   return (
@@ -96,6 +107,8 @@ export default async function Hledat({ searchParams }: { searchParams: SP }) {
                       { key: null, label: "Vše" },
                       { key: "provider_any", label: `Fachmani (${countsByType.provider + countsByType.seed_provider})` },
                       { key: "category", label: `Kategorie (${countsByType.category})` },
+                      { key: "demand", label: `Poptávky (${countsByType.demand})` },
+                      { key: "offer", label: `Nabídky (${countsByType.offer})` },
                     ] as { key: string | null; label: string }[]
                   ).map((f) => {
                     const url = `/hledat?q=${encodeURIComponent(q)}${f.key ? `&typ=${f.key}` : ""}`;
