@@ -1,6 +1,6 @@
 // ARES cache — 30denní DB cache ARES lookupů
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AresResult } from "./client";
+import type { AresResult, StructuredAddress } from "./client";
 
 type Supabase = SupabaseClient<any, any, any>;
 
@@ -34,6 +34,7 @@ export async function readCache(
     legalForm?: string | null;
     dic?: string | null;
     address?: string | null;
+    structuredAddress?: StructuredAddress | null;
     raw?: unknown;
   };
   return {
@@ -43,6 +44,7 @@ export async function readCache(
     legalForm: p.legalForm ?? null,
     dic: p.dic ?? null,
     address: p.address ?? null,
+    structuredAddress: p.structuredAddress ?? null,
     raw: p.raw ?? null,
   };
 }
@@ -58,6 +60,7 @@ export async function writeCache(
           legalForm: result.legalForm,
           dic: result.dic,
           address: result.address,
+          structuredAddress: result.structuredAddress,
           raw: result.raw,
         }
       : result.status === "error"

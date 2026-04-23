@@ -83,8 +83,21 @@ export async function POST(req: NextRequest) {
         legalForm: result.legalForm,
         dic: result.dic,
         address: result.address,
+        structuredAddress: result.structuredAddress,
         raw: result.raw,
       },
+      legal_address: result.structuredAddress
+        ? {
+            street: result.structuredAddress.street,
+            house_number: result.structuredAddress.house_number,
+            orientation_number: result.structuredAddress.orientation_number,
+            city: result.structuredAddress.city,
+            postal_code: result.structuredAddress.postal_code,
+            country: result.structuredAddress.country,
+            source: "ares",
+            verified_at: new Date().toISOString(),
+          }
+        : null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", user.id);
