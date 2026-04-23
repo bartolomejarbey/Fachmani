@@ -3,7 +3,7 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import { isValidIco } from "@/lib/ares/validate";
 import { lookupAres } from "@/lib/ares/client";
 import { readCache, writeCache } from "@/lib/ares/cache";
-import { checkRateLimit, recordHit, extractIp } from "@/lib/ares/rate-limit";
+import { checkRateLimit, extractIp } from "@/lib/ares/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -49,13 +49,11 @@ export async function POST(req: NextRequest) {
   // Pokusíme se nejprve cache
   const cached = await readCache(supabase, rawIco);
   if (cached) {
-    await recordHit(supabase, ip, user?.id ?? null);
     return NextResponse.json({ source: "cache", result: cached });
   }
 
   // Live dotaz na ARES
   const result = await lookupAres(rawIco);
-  await recordHit(supabase, ip, user?.id ?? null);
 
   // Cache i chyby (s krátkým TTL) — aby se nezatěžoval ARES
   await writeCache(supabase, result);

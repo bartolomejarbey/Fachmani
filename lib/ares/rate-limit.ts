@@ -1,28 +1,36 @@
-// ARES rate limiting — DB-based sliding window (1 minuta)
-// Limity: 10 requestů/min per IP, 30 requestů/min per přihlášený user
+// ARES rate limiting — SECURITY DEFINER RPC (check_ares_rate_limit)
+// Limity: 10 requestů/min per IP, 30 requestů/min per přihlášený user.
+// Funkce check_ares_rate_limit zároveň zapisuje hit i kontroluje limit
+// v sliding-window 1 minuta — volajíc ji nemusí samostatně recordovat.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Supabase = SupabaseClient<any, any, any>;
 
-const WINDOW_MS = 60_000;
-const IP_LIMIT = 10;
-const USER_LIMIT = 30;
-
 export type RateLimitResult = { ok: boolean; retryAfterSec?: number; reason?: string };
 
-async function countSince(
+type RpcResult = {
+  allowed: boolean;
+  count: number;
+  limit: number;
+  reset_at: string;
+};
+
+async function callCheck(
   supabase: Supabase,
   keyType: "ip" | "user",
-  keyValue: string,
-  sinceIso: string
-): Promise<number> {
-  const { count } = await supabase
-    .from("ares_rate_limit")
-    .select("*", { count: "exact", head: true })
-    .eq("key_type", keyType)
-    .eq("key_value", keyValue)
-    .gte("created_at", sinceIso);
-  return count ?? 0;
+  keyValue: string
+): Promise<RpcResult | null> {
+  const { data, error } = await supabase.rpc("check_ares_rate_limit", {
+    p_key_type: keyType,
+    p_key_value: keyValue,
+  });
+  if (error || !data) return null;
+  return data as RpcResult;
+}
+
+function retryAfterSeconds(resetAt: string): number {
+  const ms = new Date(resetAt).getTime() - Date.now();
+  return Math.max(1, Math.ceil(ms / 1000));
 }
 
 export async function checkRateLimit(
@@ -30,41 +38,27 @@ export async function checkRateLimit(
   ip: string,
   userId: string | null
 ): Promise<RateLimitResult> {
-  const sinceIso = new Date(Date.now() - WINDOW_MS).toISOString();
-
-  const ipCount = await countSince(supabase, "ip", ip, sinceIso);
-  if (ipCount >= IP_LIMIT) {
+  const ipRes = await callCheck(supabase, "ip", ip);
+  if (ipRes && !ipRes.allowed) {
     return {
       ok: false,
-      retryAfterSec: 60,
-      reason: `Překročen limit ${IP_LIMIT} dotazů/min z vaší IP.`,
+      retryAfterSec: retryAfterSeconds(ipRes.reset_at),
+      reason: `Překročen limit ${ipRes.limit} dotazů/min z vaší IP.`,
     };
   }
 
   if (userId) {
-    const userCount = await countSince(supabase, "user", userId, sinceIso);
-    if (userCount >= USER_LIMIT) {
+    const userRes = await callCheck(supabase, "user", userId);
+    if (userRes && !userRes.allowed) {
       return {
         ok: false,
-        retryAfterSec: 60,
-        reason: `Překročen limit ${USER_LIMIT} dotazů/min pro váš účet.`,
+        retryAfterSec: retryAfterSeconds(userRes.reset_at),
+        reason: `Překročen limit ${userRes.limit} dotazů/min pro váš účet.`,
       };
     }
   }
 
   return { ok: true };
-}
-
-export async function recordHit(
-  supabase: Supabase,
-  ip: string,
-  userId: string | null
-): Promise<void> {
-  const rows: { key_type: "ip" | "user"; key_value: string }[] = [
-    { key_type: "ip", key_value: ip },
-  ];
-  if (userId) rows.push({ key_type: "user", key_value: userId });
-  await supabase.from("ares_rate_limit").insert(rows);
 }
 
 export function extractIp(headers: Headers): string {

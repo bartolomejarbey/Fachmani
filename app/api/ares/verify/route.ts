@@ -3,7 +3,7 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import { isValidIco } from "@/lib/ares/validate";
 import { lookupAres } from "@/lib/ares/client";
 import { readCache, writeCache } from "@/lib/ares/cache";
-import { checkRateLimit, recordHit, extractIp } from "@/lib/ares/rate-limit";
+import { checkRateLimit, extractIp } from "@/lib/ares/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -57,7 +57,6 @@ export async function POST(req: NextRequest) {
     result = await lookupAres(ico);
     await writeCache(supabase, result);
   }
-  await recordHit(supabase, ip, user.id);
 
   if (result.status !== "ok") {
     return NextResponse.json(
