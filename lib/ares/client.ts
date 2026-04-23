@@ -6,8 +6,18 @@ import { isValidIco } from "./validate";
 
 const ARES_BASE = "https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty";
 const REQUEST_TIMEOUT_MS = 5000;
-const MAX_RETRIES = 2;
-const RETRY_BACKOFF_MS = 300;
+// 3 retries po iniciálním pokusu = celkem 4 attempty; exponenciální backoff 500/1000/2000ms.
+const MAX_RETRIES = 3;
+const RETRY_BACKOFF_BASE_MS = 500;
+
+export type StructuredAddress = {
+  street: string | null;
+  house_number: string | null;
+  orientation_number: string | null;
+  city: string | null;
+  postal_code: string | null;
+  country: string | null;
+};
 
 export type AresResult =
   | {
@@ -17,6 +27,7 @@ export type AresResult =
       legalForm: string | null;
       dic: string | null;
       address: string | null;
+      structuredAddress: StructuredAddress | null;
       raw: unknown;
     }
   | { status: "not_found"; ico: string }
@@ -51,23 +62,36 @@ function abortSignalAny(signals: AbortSignal[]): AbortSignal {
   return controller.signal;
 }
 
-function formatAddress(sidlo: unknown): string | null {
-  if (!sidlo || typeof sidlo !== "object") return null;
+function parseAddress(sidlo: unknown): { display: string | null; structured: StructuredAddress | null } {
+  if (!sidlo || typeof sidlo !== "object") return { display: null, structured: null };
   const s = sidlo as Record<string, unknown>;
-  const parts: string[] = [];
-  const ulice = s.nazevUlice as string | undefined;
+  const ulice = (s.nazevUlice as string | undefined) ?? null;
   const cp = s.cisloDomovni as number | string | undefined;
   const co = s.cisloOrientacni as number | string | undefined;
-  const obec = s.nazevObce as string | undefined;
+  const obec = (s.nazevObce as string | undefined) ?? null;
   const psc = s.psc as number | string | undefined;
+  const stat = (s.nazevStatu as string | undefined) ?? null;
 
+  const structured: StructuredAddress = {
+    street: ulice || null,
+    house_number: cp !== undefined && cp !== null ? String(cp) : null,
+    orientation_number: co !== undefined && co !== null ? String(co) : null,
+    city: obec,
+    postal_code: psc !== undefined && psc !== null ? String(psc) : null,
+    country: stat,
+  };
+
+  const parts: string[] = [];
   const street =
     (ulice ? `${ulice}` : "") +
     (cp ? ` ${cp}${co ? `/${co}` : ""}` : "");
   if (street.trim()) parts.push(street.trim());
   if (obec) parts.push(psc ? `${psc} ${obec}` : obec);
 
-  return parts.length > 0 ? parts.join(", ") : null;
+  return {
+    display: parts.length > 0 ? parts.join(", ") : null,
+    structured: ulice || obec || psc ? structured : null,
+  };
 }
 
 export async function lookupAres(icoInput: string): Promise<AresResult> {
@@ -88,7 +112,7 @@ export async function lookupAres(icoInput: string): Promise<AresResult> {
       if (res.status === 429 || res.status >= 500) {
         lastErr = `ARES dočasně nedostupné (HTTP ${res.status}).`;
         if (attempt < MAX_RETRIES) {
-          await sleep(RETRY_BACKOFF_MS * (attempt + 1));
+          await sleep(RETRY_BACKOFF_BASE_MS * Math.pow(2, attempt));
           continue;
         }
         return { status: "error", ico, message: lastErr };
@@ -103,20 +127,22 @@ export async function lookupAres(icoInput: string): Promise<AresResult> {
         return { status: "not_found", ico };
       }
 
+      const parsed = parseAddress(data.sidlo);
       return {
         status: "ok",
         ico,
         name,
         legalForm: (data.pravniForma as string) || null,
         dic: (data.dic as string) || null,
-        address: formatAddress(data.sidlo),
+        address: parsed.display,
+        structuredAddress: parsed.structured,
         raw: data,
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       lastErr = msg.includes("abort") ? "ARES timeout." : `ARES chyba: ${msg}`;
       if (attempt < MAX_RETRIES) {
-        await sleep(RETRY_BACKOFF_MS * (attempt + 1));
+        await sleep(RETRY_BACKOFF_BASE_MS * Math.pow(2, attempt));
         continue;
       }
     }
