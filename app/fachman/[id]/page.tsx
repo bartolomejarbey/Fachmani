@@ -113,9 +113,12 @@ export default function FachmanDetailPage() {
     } else {
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, email, full_name, role, description, location, ico, avatar_url, is_verified, subscription_type, created_at")
         .eq("id", realId)
         .single();
+
+      const { data: phoneData } = await supabase
+        .rpc("get_provider_phone", { p_provider_id: realId });
 
       if (profileData) {
         const { data: providerProfileData } = await supabase
@@ -169,7 +172,7 @@ export default function FachmanDetailPage() {
           id: profileData.id,
           full_name: profileData.full_name,
           email: profileData.email,
-          phone: profileData.phone,
+          phone: (phoneData as string | null) ?? null,
           is_verified: profileData.is_verified,
           subscription_type: profileData.subscription_type || "free",
           bio: providerProfileData?.bio || null,

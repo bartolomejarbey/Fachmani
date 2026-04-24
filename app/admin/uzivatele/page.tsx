@@ -38,7 +38,7 @@ function UzivateleContent() {
     setLoading(true);
     let query = supabase
       .from("profiles")
-      .select("*")
+      .select("id, email, full_name, role, admin_role, is_verified, subscription_type, created_at")
       .order("created_at", { ascending: false });
 
     if (filter === "providers") {
@@ -54,7 +54,7 @@ function UzivateleContent() {
     }
 
     const { data } = await query;
-    setUsers(data || []);
+    setUsers((data || []).map((u) => ({ ...u, phone: null })));
     setLoading(false);
   };
 
@@ -278,7 +278,15 @@ function UzivateleContent() {
                             </button>
                           )}
                           <button
-                            onClick={() => { setSelectedUser(user); setShowModal(true); }}
+                            onClick={async () => {
+                              setSelectedUser({ ...user, phone: null });
+                              setShowModal(true);
+                              const { data: ph } = await supabase
+                                .rpc("get_provider_phone", { p_provider_id: user.id });
+                              setSelectedUser((prev) => prev && prev.id === user.id
+                                ? { ...prev, phone: (ph as string | null) ?? null }
+                                : prev);
+                            }}
                             className="px-3 py-1.5 bg-white/5 text-slate-400 rounded-lg text-sm font-medium hover:bg-white/10 hover:text-white transition-colors"
                           >
                             Upravit

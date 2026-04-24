@@ -72,10 +72,10 @@ export default function FachmanProfil() {
         return;
       }
 
-      // Načteme profil
+      // Načteme profil (bez phone — je column-level REVOKED; čte se přes RPC)
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, email, full_name, role, description, location, ico, avatar_url, is_verified, subscription_type, created_at")
         .eq("id", user.id)
         .single();
 
@@ -84,9 +84,12 @@ export default function FachmanProfil() {
         return;
       }
 
-      setProfile(profileData);
+      const { data: ownPhone } = await supabase
+        .rpc("get_provider_phone", { p_provider_id: user.id });
+
+      setProfile({ ...profileData, phone: (ownPhone as string | null) ?? null });
       setFullName(profileData.full_name || "");
-      setPhone(profileData.phone || "");
+      setPhone((ownPhone as string | null) ?? "");
       setDescription(profileData.description || "");
       setLocation(profileData.location || "");
       setIco(profileData.ico || "");
