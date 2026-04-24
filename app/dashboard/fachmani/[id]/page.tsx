@@ -11,7 +11,6 @@ import { Icons } from "@/app/components/Icons";
 type Profile = {
   id: string;
   full_name: string;
-  phone: string | null;
   is_verified: boolean;
   subscription_type: string;
   created_at: string;
@@ -56,7 +55,7 @@ export default function FachmanProfile() {
       // Načteme profil
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, full_name, is_verified, subscription_type, created_at")
         .eq("id", params.id)
         .eq("role", "provider")
         .single();
