@@ -36,7 +36,7 @@ export default function NabidkyPage() {
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const { data: cats } = await supabase.from("categories").select("id, name, icon").order("name");
+    const { data: cats } = await supabase.from("categories").select("id, name, icon").eq("is_active", true).order("name");
     if (cats) setCategories(cats);
     const { data } = await supabase.from("service_offers").select("*, profiles:provider_id(full_name, is_verified, avatar_url), categories:category_id(id, name, icon)").eq("is_active", true).order("created_at", { ascending: false });
     if (data) { setOffers(data as ServiceOffer[]); setFilteredOffers(data as ServiceOffer[]); }

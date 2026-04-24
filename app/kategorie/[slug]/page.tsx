@@ -14,6 +14,17 @@ type Category = {
   slug: string;
   description: string | null;
   icon: string;
+  parent_id: string | null;
+  is_active: boolean;
+};
+
+type SubCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string;
+  providerCount: number;
+  requestCount: number;
 };
 
 type Request = {
@@ -62,6 +73,8 @@ export default function KategorieDetail() {
   const slug = params.slug as string;
 
   const [category, setCategory] = useState<Category | null>(null);
+  const [parentCategory, setParentCategory] = useState<Category | null>(null);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,11 +88,12 @@ export default function KategorieDetail() {
   }, [slug]);
 
   const loadData = async () => {
-    // Načteme kategorii
+    // Načteme kategorii (pouze aktivní)
     const { data: catData } = await supabase
       .from("categories")
       .select("*")
       .eq("slug", slug)
+      .eq("is_active", true)
       .single();
 
     if (!catData) {
@@ -89,27 +103,87 @@ export default function KategorieDetail() {
 
     setCategory(catData);
 
-    // === Načteme poptávky v této kategorii ===
+    // Pokud je to MAIN (parent_id NULL), načteme subs a agregujeme přes ně
+    const isMain = catData.parent_id === null;
+    let categoryIds: string[] = [catData.id];
+
+    if (isMain) {
+      const { data: subs } = await supabase
+        .from("categories")
+        .select("id, name, slug, icon")
+        .eq("parent_id", catData.id)
+        .eq("is_active", true)
+        .order("sort_order")
+        .order("name");
+
+      if (subs && subs.length > 0) {
+        const subIds = subs.map(s => s.id);
+        categoryIds = [catData.id, ...subIds];
+
+        // Počty pro subs (providers + requests)
+        const { data: subProviderCats } = await supabase
+          .from("provider_categories")
+          .select("category_id")
+          .in("category_id", subIds);
+        const subProviderCounts: Record<string, number> = {};
+        subProviderCats?.forEach(pc => {
+          subProviderCounts[pc.category_id] = (subProviderCounts[pc.category_id] || 0) + 1;
+        });
+
+        const { data: subRequests } = await supabase
+          .from("requests")
+          .select("category_id")
+          .in("category_id", subIds)
+          .eq("status", "active");
+        const subRequestCounts: Record<string, number> = {};
+        subRequests?.forEach(r => {
+          if (r.category_id) {
+            subRequestCounts[r.category_id] = (subRequestCounts[r.category_id] || 0) + 1;
+          }
+        });
+
+        setSubCategories(subs.map(s => ({
+          ...s,
+          providerCount: subProviderCounts[s.id] || 0,
+          requestCount: subRequestCounts[s.id] || 0,
+        })));
+      } else {
+        setSubCategories([]);
+      }
+    } else {
+      // Sub — načti parent pro breadcrumb
+      if (catData.parent_id) {
+        const { data: parentData } = await supabase
+          .from("categories")
+          .select("*")
+          .eq("id", catData.parent_id)
+          .eq("is_active", true)
+          .single();
+        if (parentData) setParentCategory(parentData);
+      }
+    }
+
+    // === Načteme poptávky (pro main z main+subs, pro sub jen z té sub) ===
     const { data: reqData } = await supabase
       .from("requests")
       .select("*")
-      .eq("category_id", catData.id)
+      .in("category_id", categoryIds)
       .eq("status", "active")
       .order("created_at", { ascending: false });
 
     setRequests(reqData || []);
 
-    // === Načteme fachmany v této kategorii ===
+    // === Načteme fachmany ===
     const allProviders: Provider[] = [];
 
     // 1. REÁLNÍ fachmani
     const { data: providerCategoriesData } = await supabase
       .from("provider_categories")
       .select("provider_id")
-      .eq("category_id", catData.id);
+      .in("category_id", categoryIds);
 
     if (providerCategoriesData && providerCategoriesData.length > 0) {
-      const providerIds = providerCategoriesData.map(pc => pc.provider_id);
+      const providerIds = Array.from(new Set(providerCategoriesData.map(pc => pc.provider_id)));
 
       // Načteme profily
       const { data: profilesData } = await supabase
@@ -164,12 +238,12 @@ export default function KategorieDetail() {
       });
     }
 
-    // 2. FIKTIVNÍ fachmani v této kategorii
+    // 2. FIKTIVNÍ fachmani (pro main: v hlavní i jejích subs; pro sub: jen v té sub)
     const { data: seedData } = await supabase
       .from("seed_providers")
       .select("*")
       .eq("is_active", true)
-      .contains("category_ids", [catData.id]);
+      .overlaps("category_ids", categoryIds);
 
     seedData?.forEach(seed => {
       allProviders.push({
@@ -269,12 +343,21 @@ export default function KategorieDetail() {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <Link
-              href="/kategorie"
-              className="inline-flex items-center gap-2 text-gray-500 hover:text-cyan-600 mb-6 transition-colors"
-            >
-              ← Všechny kategorie
-            </Link>
+            <nav className="flex items-center gap-2 text-sm text-gray-500 mb-6">
+              <Link href="/kategorie" className="hover:text-cyan-600 transition-colors">
+                Všechny kategorie
+              </Link>
+              {parentCategory && (
+                <>
+                  <span>/</span>
+                  <Link href={`/kategorie/${parentCategory.slug}`} className="hover:text-cyan-600 transition-colors">
+                    {parentCategory.name}
+                  </Link>
+                </>
+              )}
+              <span>/</span>
+              <span className="text-gray-700 font-medium">{category.name}</span>
+            </nav>
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
               <div className="w-20 h-20 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-2xl flex items-center justify-center text-5xl">
@@ -290,6 +373,30 @@ export default function KategorieDetail() {
           </div>
         </div>
       </section>
+
+      {/* Grid podkategorií (pouze pro hlavní kategorie s subs) */}
+      {category.parent_id === null && subCategories.length > 0 && (
+        <section className="bg-white border-b py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Podkategorie</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {subCategories.map((sub) => (
+                <Link
+                  key={sub.id}
+                  href={`/kategorie/${sub.slug}`}
+                  className="group bg-gray-50 hover:bg-cyan-50 border border-gray-100 hover:border-cyan-200 rounded-xl p-4 transition-all"
+                >
+                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">{sub.icon}</div>
+                  <div className="font-semibold text-gray-900 text-sm group-hover:text-cyan-700">{sub.name}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {sub.providerCount} fachmanů · {sub.requestCount} poptávek
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Filters & Tabs */}
       <section className="bg-white border-b sticky top-16 z-20">

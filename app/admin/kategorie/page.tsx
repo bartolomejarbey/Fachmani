@@ -11,6 +11,9 @@ type Category = {
   slug: string;
   icon: string;
   description: string | null;
+  parent_id: string | null;
+  sort_order: number | null;
+  is_active: boolean;
 };
 
 export default function AdminKategorie() {
@@ -25,6 +28,8 @@ export default function AdminKategorie() {
   const [slug, setSlug] = useState("");
   const [icon, setIcon] = useState("");
   const [description, setDescription] = useState("");
+  const [parentId, setParentId] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -55,9 +60,11 @@ export default function AdminKategorie() {
   }, [router]);
 
   const loadCategories = async () => {
+    // Admin vidí VŠECHNY kategorie včetně deaktivovaných (is_active filter NEPOUŽÍVAT)
     const { data } = await supabase
       .from("categories")
       .select("*")
+      .order("sort_order", { ascending: true, nullsFirst: false })
       .order("name");
 
     if (data) {
@@ -90,6 +97,8 @@ export default function AdminKategorie() {
       slug,
       icon,
       description: description || null,
+      parent_id: parentId || null,
+      sort_order: sortOrder ? parseInt(sortOrder, 10) : null,
     };
 
     if (editingId) {
@@ -114,18 +123,21 @@ export default function AdminKategorie() {
     setSlug(category.slug);
     setIcon(category.icon);
     setDescription(category.description || "");
+    setParentId(category.parent_id || "");
+    setSortOrder(category.sort_order !== null ? String(category.sort_order) : "");
     setShowForm(true);
   };
 
-  const handleDelete = async (categoryId: string) => {
-    if (!confirm("Opravdu chcete smazat tuto kategorii? Tato akce může ovlivnit existující poptávky.")) {
+  const handleToggleActive = async (category: Category) => {
+    const nextState = !category.is_active;
+    const verb = nextState ? "reaktivovat" : "deaktivovat";
+    if (!confirm(`Opravdu chcete ${verb} kategorii "${category.name}"?`)) {
       return;
     }
-
     await supabase
       .from("categories")
-      .delete()
-      .eq("id", categoryId);
+      .update({ is_active: nextState })
+      .eq("id", category.id);
 
     await loadCategories();
   };
@@ -137,6 +149,8 @@ export default function AdminKategorie() {
     setSlug("");
     setIcon("");
     setDescription("");
+    setParentId("");
+    setSortOrder("");
   };
 
   const commonIcons = ["🔧", "⚡", "🔨", "🎨", "🏠", "🚗", "💻", "📱", "🌿", "🧹", "📦", "🔒", "💡", "🚿", "❄️", "🔥", "📸", "✂️", "🧰", "🛠️"];
@@ -160,6 +174,10 @@ export default function AdminKategorie() {
             <h1 className="text-2xl font-bold text-white">📂 Kategorie</h1>
             <p className="text-slate-400">
               Celkem {categories.length} kategorií
+              {" · "}
+              <span className="text-emerald-400">{categories.filter((c) => c.is_active).length} aktivních</span>
+              {" · "}
+              <span className="text-slate-500">{categories.filter((c) => !c.is_active).length} deaktivovaných</span>
             </p>
           </div>
           <button
@@ -251,6 +269,40 @@ export default function AdminKategorie() {
                 />
               </div>
 
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">
+                    Hlavní kategorie (parent)
+                  </label>
+                  <select
+                    value={parentId}
+                    onChange={(e) => setParentId(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  >
+                    <option value="">— Hlavní kategorie (bez parenta) —</option>
+                    {categories
+                      .filter((c) => c.parent_id === null && c.id !== editingId)
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.icon} {m.name} {!m.is_active && "(deaktivováno)"}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">
+                    Pořadí (sort_order)
+                  </label>
+                  <input
+                    type="number"
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    placeholder="např. 10"
+                    className="w-full px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <button
                   type="submit"
@@ -292,7 +344,10 @@ export default function AdminKategorie() {
                       Slug
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      Popis
+                      Typ / Parent
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Stav
                     </th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       Akce
@@ -300,38 +355,68 @@ export default function AdminKategorie() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {categories.map((category) => (
-                    <tr key={category.id} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 text-2xl">
-                        {category.icon}
-                      </td>
-                      <td className="px-6 py-4 text-white font-medium">
-                        {category.name}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-400">
-                        {category.slug}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-400">
-                        {category.description || "—"}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => handleEdit(category)}
-                            className="px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded-lg text-sm font-medium hover:bg-cyan-500/30 transition-colors"
-                          >
-                            Upravit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(category.id)}
-                            className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-colors"
-                          >
-                            Smazat
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {categories.map((category) => {
+                    const parent = category.parent_id
+                      ? categories.find((c) => c.id === category.parent_id)
+                      : null;
+                    return (
+                      <tr
+                        key={category.id}
+                        className={`hover:bg-white/5 transition-colors ${
+                          !category.is_active ? "opacity-60" : ""
+                        }`}
+                      >
+                        <td className="px-6 py-4 text-2xl">{category.icon}</td>
+                        <td className="px-6 py-4 text-white font-medium">
+                          {category.name}
+                          {category.sort_order !== null && (
+                            <span className="ml-2 text-xs text-slate-500">#{category.sort_order}</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-400">{category.slug}</td>
+                        <td className="px-6 py-4 text-sm">
+                          {parent ? (
+                            <span className="text-slate-400">
+                              sub → <span className="text-slate-200">{parent.icon} {parent.name}</span>
+                            </span>
+                          ) : (
+                            <span className="text-cyan-400 font-semibold">HLAVNÍ</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          {category.is_active ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400">
+                              ● Aktivní
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-500/20 text-slate-400">
+                              ○ Deaktivováno
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => handleEdit(category)}
+                              className="px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded-lg text-sm font-medium hover:bg-cyan-500/30 transition-colors"
+                            >
+                              Upravit
+                            </button>
+                            <button
+                              onClick={() => handleToggleActive(category)}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                category.is_active
+                                  ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
+                                  : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                              }`}
+                            >
+                              {category.is_active ? "Deaktivovat" : "Reaktivovat"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

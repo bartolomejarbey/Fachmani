@@ -13,6 +13,8 @@ type Category = {
   id: string;
   name: string;
   icon: string;
+  parent_id: string | null;
+  sort_order: number | null;
 };
 
 type Fachman = {
@@ -40,19 +42,28 @@ function SeznamFachmanuContent() {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
+  const [selectedMain, setSelectedMain] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
 
-  // Read category from URL param
+  // Read category from URL param — match against all categories (main or sub)
   useEffect(() => {
     const kategorie = searchParams.get("kategorie");
-    if (kategorie) {
-      setSelectedCategory(kategorie);
+    if (kategorie && categories.length > 0) {
+      const match = categories.find(c => c.id === kategorie);
+      if (!match) return;
+      if (match.parent_id === null) {
+        setSelectedMain(match.id);
+        setSelectedCategory("");
+      } else {
+        setSelectedMain(match.parent_id);
+        setSelectedCategory(match.id);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, categories]);
 
   useEffect(() => {
     setMounted(true);
@@ -60,10 +71,12 @@ function SeznamFachmanuContent() {
   }, []);
 
   const loadData = async () => {
-    // Načteme kategorie
+    // Načteme kategorie (pouze aktivní)
     const { data: categoriesData } = await supabase
       .from("categories")
-      .select("id, name, icon")
+      .select("id, name, icon, parent_id, sort_order")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true, nullsFirst: false })
       .order("name");
 
     if (categoriesData) {
@@ -196,12 +209,26 @@ function SeznamFachmanuContent() {
     setLoading(false);
   };
 
+  const mainCategories = categories.filter(c => c.parent_id === null);
+  const subCategories = categories.filter(c => c.parent_id !== null);
+  const subsOfSelectedMain = selectedMain
+    ? subCategories.filter(c => c.parent_id === selectedMain)
+    : [];
+
   useEffect(() => {
     let result = [...fachmani];
 
     if (selectedCategory) {
       result = result.filter(f =>
         f.categories?.some(c => c.id === selectedCategory)
+      );
+    } else if (selectedMain) {
+      const allowedIds = new Set<string>([
+        selectedMain,
+        ...subCategories.filter(c => c.parent_id === selectedMain).map(c => c.id),
+      ]);
+      result = result.filter(f =>
+        f.categories?.some(c => allowedIds.has(c.id))
       );
     }
 
@@ -219,7 +246,7 @@ function SeznamFachmanuContent() {
 
     setFilteredFachmani(result);
     setCurrentPage(1);
-  }, [fachmani, selectedCategory, locationFilter, verifiedOnly]);
+  }, [fachmani, selectedMain, selectedCategory, locationFilter, verifiedOnly, categories]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -251,18 +278,40 @@ function SeznamFachmanuContent() {
         <div className="max-w-7xl mx-auto px-4">
           {/* Filtry */}
           <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <div className="grid md:grid-cols-4 gap-4">
+            <div className="grid md:grid-cols-5 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kategorie
+                  Hlavní kategorie
+                </label>
+                <select
+                  value={selectedMain}
+                  onChange={(e) => {
+                    setSelectedMain(e.target.value);
+                    setSelectedCategory("");
+                  }}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                >
+                  <option value="">Všechny kategorie</option>
+                  {mainCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.icon} {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Podkategorie
                 </label>
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  disabled={!selectedMain || subsOfSelectedMain.length === 0}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <option value="">Všechny kategorie</option>
-                  {categories.map((cat) => (
+                  <option value="">Všechny podkategorie</option>
+                  {subsOfSelectedMain.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.icon} {cat.name}
                     </option>
@@ -298,6 +347,7 @@ function SeznamFachmanuContent() {
               <div className="flex items-end">
                 <button
                   onClick={() => {
+                    setSelectedMain("");
                     setSelectedCategory("");
                     setLocationFilter("");
                     setVerifiedOnly(false);

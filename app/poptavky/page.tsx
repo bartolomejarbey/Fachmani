@@ -12,6 +12,8 @@ type Category = {
   id: string;
   name: string;
   icon: string;
+  parent_id: string | null;
+  sort_order: number | null;
 };
 
 type Request = {
@@ -35,6 +37,7 @@ export default function PoptavkyPage() {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
+  const [selectedMain, setSelectedMain] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [sortBy, setSortBy] = useState("newest");
@@ -51,7 +54,9 @@ export default function PoptavkyPage() {
 
     const { data: categoriesData } = await supabase
       .from("categories")
-      .select("id, name, icon")
+      .select("id, name, icon, parent_id, sort_order")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true, nullsFirst: false })
       .order("name");
 
     if (categoriesData) setCategories(categoriesData);
@@ -88,11 +93,23 @@ export default function PoptavkyPage() {
     setLoading(false);
   };
 
+  const mainCategories = categories.filter(c => c.parent_id === null);
+  const subCategories = categories.filter(c => c.parent_id !== null);
+  const subsOfSelectedMain = selectedMain
+    ? subCategories.filter(c => c.parent_id === selectedMain)
+    : [];
+
   useEffect(() => {
     let result = [...requests];
 
     if (selectedCategory) {
       result = result.filter(r => r.categories?.id === selectedCategory);
+    } else if (selectedMain) {
+      const allowedIds = new Set<string>([
+        selectedMain,
+        ...subCategories.filter(c => c.parent_id === selectedMain).map(c => c.id),
+      ]);
+      result = result.filter(r => r.categories?.id && allowedIds.has(r.categories.id));
     }
 
     if (locationFilter) {
@@ -111,7 +128,7 @@ export default function PoptavkyPage() {
 
     setFilteredRequests(result);
     setCurrentPage(1);
-  }, [requests, selectedCategory, locationFilter, sortBy]);
+  }, [requests, selectedMain, selectedCategory, locationFilter, sortBy, categories]);
 
   const daysLeft = (expiresAt: string) => {
     const now = new Date();
@@ -187,16 +204,36 @@ export default function PoptavkyPage() {
 
           {/* Filtry */}
           <div className={`bg-white border border-gray-200 rounded-2xl p-6 mb-8 ${mounted ? 'animate-fade-in-up animation-delay-100' : 'opacity-0'}`}>
-            <div className="grid md:grid-cols-4 gap-4">
+            <div className="grid md:grid-cols-5 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Kategorie</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Hlavní kategorie</label>
                 <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  value={selectedMain}
+                  onChange={(e) => {
+                    setSelectedMain(e.target.value);
+                    setSelectedCategory("");
+                  }}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                 >
                   <option value="">Všechny kategorie</option>
-                  {categories.map((cat) => (
+                  {mainCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.icon} {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Podkategorie</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  disabled={!selectedMain || subsOfSelectedMain.length === 0}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Všechny podkategorie</option>
+                  {subsOfSelectedMain.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.icon} {cat.name}
                     </option>
@@ -231,6 +268,7 @@ export default function PoptavkyPage() {
               <div className="flex items-end">
                 <button
                   onClick={() => {
+                    setSelectedMain("");
                     setSelectedCategory("");
                     setLocationFilter("");
                     setSortBy("newest");

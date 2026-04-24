@@ -98,10 +98,11 @@ export default function FachmanDashboard() {
       setSettings(settingsData.value);
     }
 
-    // Načteme kategorie
+    // Načteme pouze aktivní kategorie
     const { data: categoriesData } = await supabase
       .from("categories")
       .select("id, name, icon")
+      .eq("is_active", true)
       .order("name");
 
     setCategories(categoriesData || []);

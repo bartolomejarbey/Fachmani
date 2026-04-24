@@ -12,6 +12,8 @@ type Category = {
   id: string;
   name: string;
   icon: string;
+  parent_id: string | null;
+  sort_order: number | null;
 };
 
 export default function NovaPoptavka() {
@@ -23,6 +25,7 @@ export default function NovaPoptavka() {
   const [expiryDays, setExpiryDays] = useState(30); // Default
 
   const [title, setTitle] = useState("");
+  const [mainCategoryId, setMainCategoryId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -37,10 +40,12 @@ export default function NovaPoptavka() {
 
   useEffect(() => {
     async function loadData() {
-      // Načteme kategorie
+      // Načteme pouze aktivní kategorie
       const { data: categoriesData } = await supabase
         .from("categories")
-        .select("id, name, icon")
+        .select("id, name, icon, parent_id, sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true, nullsFirst: false })
         .order("name");
 
       if (categoriesData) {
@@ -233,23 +238,51 @@ export default function NovaPoptavka() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Kategorie *
-            </label>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-            >
-              <option value="">Vyberte kategorii</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.icon} {cat.name}
-                </option>
-              ))}
-            </select>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Hlavní kategorie *
+              </label>
+              <select
+                value={mainCategoryId}
+                onChange={(e) => {
+                  setMainCategoryId(e.target.value);
+                  setCategoryId(e.target.value);
+                }}
+                required
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+              >
+                <option value="">Vyberte hlavní kategorii</option>
+                {categories
+                  .filter((c) => c.parent_id === null)
+                  .map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.icon} {cat.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Podkategorie
+              </label>
+              <select
+                value={categoryId === mainCategoryId ? "" : categoryId}
+                onChange={(e) => setCategoryId(e.target.value || mainCategoryId)}
+                disabled={!mainCategoryId || categories.filter((c) => c.parent_id === mainCategoryId).length === 0}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">(volitelné) Upřesnit</option>
+                {categories
+                  .filter((c) => c.parent_id === mainCategoryId)
+                  .map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.icon} {cat.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
           </div>
 
           <div>

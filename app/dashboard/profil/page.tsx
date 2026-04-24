@@ -15,6 +15,8 @@ type Category = {
   id: string;
   name: string;
   icon: string;
+  parent_id: string | null;
+  sort_order: number | null;
 };
 
 type Profile = {
@@ -141,10 +143,12 @@ export default function FachmanProfil() {
         }
       }
 
-      // Načteme všechny kategorie
+      // Načteme pouze aktivní kategorie
       const { data: catsData } = await supabase
         .from("categories")
-        .select("*")
+        .select("id, name, icon, parent_id, sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true, nullsFirst: false })
         .order("name");
 
       if (catsData) {
@@ -562,32 +566,75 @@ export default function FachmanProfil() {
               {Icons.star} Kategorie služeb
             </h2>
             <p className="text-gray-600 text-sm mb-4">Vyberte kategorie, ve kterých nabízíte své služby</p>
-            
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {categories.map((cat) => (
-                <label
-                  key={cat.id}
-                  className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                    selectedCategories.includes(cat.id)
-                      ? "border-cyan-500 bg-cyan-50"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedCategories.includes(cat.id)}
-                    onChange={() => handleCategoryToggle(cat.id)}
-                    className="sr-only"
-                  />
-                  <span className="text-xl mr-2">{cat.icon}</span>
-                  <span className={`font-medium ${selectedCategories.includes(cat.id) ? 'text-cyan-700' : 'text-gray-700'}`}>
-                    {cat.name}
-                  </span>
-                  {selectedCategories.includes(cat.id) && (
-                    <span className="ml-auto text-cyan-500">{Icons.check}</span>
-                  )}
-                </label>
-              ))}
+
+            <div className="space-y-6">
+              {categories
+                .filter((c) => c.parent_id === null)
+                .map((main) => {
+                  const subs = categories.filter((c) => c.parent_id === main.id);
+                  return (
+                    <div key={main.id}>
+                      <label
+                        className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all mb-2 ${
+                          selectedCategories.includes(main.id)
+                            ? "border-cyan-500 bg-cyan-50"
+                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(main.id)}
+                          onChange={() => handleCategoryToggle(main.id)}
+                          className="sr-only"
+                        />
+                        <span className="text-2xl mr-3">{main.icon}</span>
+                        <span
+                          className={`font-bold ${
+                            selectedCategories.includes(main.id) ? "text-cyan-700" : "text-gray-900"
+                          }`}
+                        >
+                          {main.name}
+                        </span>
+                        {selectedCategories.includes(main.id) && (
+                          <span className="ml-auto text-cyan-500">{Icons.check}</span>
+                        )}
+                      </label>
+
+                      {subs.length > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pl-6">
+                          {subs.map((sub) => (
+                            <label
+                              key={sub.id}
+                              className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all text-sm ${
+                                selectedCategories.includes(sub.id)
+                                  ? "border-cyan-400 bg-cyan-50"
+                                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedCategories.includes(sub.id)}
+                                onChange={() => handleCategoryToggle(sub.id)}
+                                className="sr-only"
+                              />
+                              <span className="text-base mr-2">{sub.icon}</span>
+                              <span
+                                className={`${
+                                  selectedCategories.includes(sub.id) ? "text-cyan-700" : "text-gray-700"
+                                }`}
+                              >
+                                {sub.name}
+                              </span>
+                              {selectedCategories.includes(sub.id) && (
+                                <span className="ml-auto text-cyan-500">{Icons.check}</span>
+                              )}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </div>
 
