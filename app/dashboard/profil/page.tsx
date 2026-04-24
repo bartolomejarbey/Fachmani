@@ -10,6 +10,7 @@ import { Icons } from "@/app/components/Icons";
 import ImageCropper from "@/app/components/ImageCropper";
 import IcoInput from "@/app/components/IcoInput";
 import VerifiedBadge from "@/app/components/VerifiedBadge";
+import LocationSelect from "@/app/components/LocationSelect";
 
 type Category = {
   id: string;
@@ -32,6 +33,8 @@ type Profile = {
   ico: string | null;
   ares_verified_at: string | null;
   ares_verified_name: string | null;
+  region_id: string | null;
+  district_id: string | null;
 };
 
 type ProviderProfile = {
@@ -60,7 +63,8 @@ export default function FachmanProfil() {
   const [locations, setLocations] = useState("");
   const [hourlyRate, setHourlyRate] = useState("");
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
+  const [regionId, setRegionId] = useState<string | null>(null);
+  const [districtId, setDistrictId] = useState<string | null>(null);
   const [ico, setIco] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -94,7 +98,8 @@ export default function FachmanProfil() {
       setFullName(profileData.full_name || "");
       setPhone(profileData.phone || "");
       setDescription(profileData.description || "");
-      setLocation(profileData.location || "");
+      setRegionId(profileData.region_id || null);
+      setDistrictId(profileData.district_id || null);
       setIco(profileData.ico || "");
       setAvatarUrl(profileData.avatar_url || null);
 
@@ -231,7 +236,7 @@ export default function FachmanProfil() {
     if (phone && !/^\+?[\d\s\-()]{7,20}$/.test(phone)) { setMessage("Neplatný formát telefonu."); setSaving(false); return; }
     if (description && description.length > 5000) { setMessage("Popis je příliš dlouhý (max 5000 znaků)."); setSaving(false); return; }
     if (ico && !/^\d{8}$/.test(ico)) { setMessage("IČO musí být 8 číslic."); setSaving(false); return; }
-    if (location && location.length > 200) { setMessage("Lokalita je příliš dlouhá."); setSaving(false); return; }
+    if (districtId && !regionId) { setMessage("Okres nelze uložit bez zvoleného kraje."); setSaving(false); return; }
 
     try {
       // Aktualizujeme základní profil
@@ -241,7 +246,8 @@ export default function FachmanProfil() {
           full_name: fullName,
           phone: phone || null,
           description: description || null,
-          location: location || null,
+          region_id: regionId,
+          district_id: districtId,
           ico: ico || null,
           updated_at: new Date().toISOString(),
         })
@@ -445,17 +451,21 @@ export default function FachmanProfil() {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Lokalita
+                  Sídlo / hlavní lokalita
                 </label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Praha"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                <p className="text-xs text-gray-500 mb-2">
+                  Vyberte kraj a okres, kde máte sídlo. Používá se pro filtrování ve veřejném seznamu.
+                </p>
+                <LocationSelect
+                  regionId={regionId}
+                  districtId={districtId}
+                  onChange={({ regionId: nextRegion, districtId: nextDistrict }) => {
+                    setRegionId(nextRegion);
+                    setDistrictId(nextDistrict);
+                  }}
                 />
               </div>
               <div>

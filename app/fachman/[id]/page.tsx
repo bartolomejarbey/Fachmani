@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import { formatLocation } from "@/app/types/location";
 
 type Category = {
   id: string;
@@ -31,6 +32,8 @@ type FachmanDetail = {
   bio: string | null;
   description: string | null;
   location: string | null;
+  region_name: string | null;
+  district_name: string | null;
   ico: string | null;
   hourly_rate: number | null;
   locations: string[] | null;
@@ -90,6 +93,8 @@ export default function FachmanDetailPage() {
           bio: seedData.bio,
           description: seedData.description || null,
           location: seedData.location || null,
+          region_name: null,
+          district_name: null,
           ico: null,
           avatar_url: seedData.avatar_url || null,
           hourly_rate: seedData.hourly_rate,
@@ -113,7 +118,7 @@ export default function FachmanDetailPage() {
     } else {
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("*")
+        .select("*, region:region_id(name_cs), district:district_id(name_cs)")
         .eq("id", realId)
         .single();
 
@@ -165,6 +170,9 @@ export default function FachmanDetailPage() {
               ) / 10
             : 0;
 
+        const regionName = (profileData.region as { name_cs?: string } | null)?.name_cs ?? null;
+        const districtName = (profileData.district as { name_cs?: string } | null)?.name_cs ?? null;
+
         setFachman({
           id: profileData.id,
           full_name: profileData.full_name,
@@ -175,6 +183,8 @@ export default function FachmanDetailPage() {
           bio: providerProfileData?.bio || null,
           description: profileData.description || null,
           location: profileData.location || null,
+          region_name: regionName,
+          district_name: districtName,
           ico: profileData.ico || null,
           avatar_url: profileData.avatar_url || null,
           hourly_rate: providerProfileData?.hourly_rate || null,
@@ -349,11 +359,16 @@ export default function FachmanDetailPage() {
               )}
 
               <div className="flex flex-wrap gap-4 text-gray-600">
-                {fachman.locations && fachman.locations.length > 0 && (
-                  <span className="flex items-center gap-1">
-                    📍 {fachman.locations.join(", ")}
-                  </span>
-                )}
+                {(() => {
+                  const primary = formatLocation(fachman.region_name, fachman.district_name);
+                  if (primary) {
+                    return <span className="flex items-center gap-1">📍 {primary}</span>;
+                  }
+                  if (fachman.locations && fachman.locations.length > 0) {
+                    return <span className="flex items-center gap-1">📍 {fachman.locations.join(", ")}</span>;
+                  }
+                  return null;
+                })()}
                 {fachman.hourly_rate && (
                   <span className="flex items-center gap-1">
                     💰 od{" "}
@@ -376,7 +391,9 @@ export default function FachmanDetailPage() {
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-xs text-gray-500 mb-1">📍 Lokalita</p>
               <p className="font-semibold text-gray-900 text-sm">
-                {fachman.location || (fachman.locations && fachman.locations.length > 0 ? fachman.locations.join(", ") : "Lokalita neuvedena")}
+                {formatLocation(fachman.region_name, fachman.district_name)
+                  || fachman.location
+                  || (fachman.locations && fachman.locations.length > 0 ? fachman.locations.join(", ") : "Lokalita neuvedena")}
               </p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4">
