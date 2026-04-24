@@ -78,7 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { count: pendingVerifications },
         { count: activeRequests },
       ] = await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true })
+        supabase.from("profiles").select("id", { count: "exact", head: true })
           .eq("role", "provider").eq("is_verified", false),
         supabase.from("requests").select("*", { count: "exact", head: true })
           .eq("status", "active"),
