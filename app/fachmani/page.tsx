@@ -17,6 +17,21 @@ type Category = {
   sort_order: number | null;
 };
 
+type Region = {
+  id: string;
+  code: string;
+  name_cs: string;
+  sort_order: number | null;
+};
+
+type District = {
+  id: string;
+  code: string;
+  name_cs: string;
+  region_id: string;
+  sort_order: number | null;
+};
+
 type Fachman = {
   id: string;
   full_name: string;
@@ -26,6 +41,8 @@ type Fachman = {
   bio: string | null;
   hourly_rate: number | null;
   locations: string[] | null;
+  region_id: string | null;
+  district_id: string | null;
   categories: { id: string; name: string; icon: string }[];
   rating: number;
   review_count: number;
@@ -39,12 +56,15 @@ function SeznamFachmanuContent() {
   const [fachmani, setFachmani] = useState<Fachman[]>([]);
   const [filteredFachmani, setFilteredFachmani] = useState<Fachman[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [districts, setDistricts] = useState<District[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   const [selectedMain, setSelectedMain] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [locationFilter, setLocationFilter] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState("");
+  const [selectedDistrict, setSelectedDistrict] = useState("");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
@@ -65,6 +85,25 @@ function SeznamFachmanuContent() {
     }
   }, [searchParams, categories]);
 
+  // Read kraj/okres from URL params (code or id)
+  useEffect(() => {
+    const kraj = searchParams.get("kraj");
+    if (kraj && regions.length > 0) {
+      const match = regions.find(r => r.id === kraj || r.code === kraj);
+      if (match) setSelectedRegion(match.id);
+    }
+  }, [searchParams, regions]);
+  useEffect(() => {
+    const okres = searchParams.get("okres");
+    if (okres && districts.length > 0) {
+      const match = districts.find(d => d.id === okres || d.code === okres);
+      if (match) {
+        setSelectedDistrict(match.id);
+        setSelectedRegion(match.region_id);
+      }
+    }
+  }, [searchParams, districts]);
+
   useEffect(() => {
     setMounted(true);
     loadData();
@@ -83,12 +122,20 @@ function SeznamFachmanuContent() {
       setCategories(categoriesData);
     }
 
+    // Načteme kraje + okresy
+    const [{ data: regionsData }, { data: districtsData }] = await Promise.all([
+      supabase.from("regions").select("id, code, name_cs, sort_order").order("sort_order", { ascending: true, nullsFirst: false }).order("name_cs"),
+      supabase.from("districts").select("id, code, name_cs, region_id, sort_order").order("sort_order", { ascending: true, nullsFirst: false }).order("name_cs"),
+    ]);
+    if (regionsData) setRegions(regionsData);
+    if (districtsData) setDistricts(districtsData);
+
     const allFachmani: Fachman[] = [];
 
     // === 1. Načteme REÁLNÉ fachmany ===
     const { data: profilesData } = await supabase
       .from("profiles")
-      .select("id, full_name, avatar_url, is_verified, subscription_type, created_at")
+      .select("id, full_name, avatar_url, is_verified, subscription_type, region_id, district_id, created_at")
       .eq("role", "provider")
       .order("subscription_type", { ascending: false });
 
@@ -139,6 +186,8 @@ function SeznamFachmanuContent() {
           bio: providerProfile?.bio || null,
           hourly_rate: providerProfile?.hourly_rate || null,
           locations: providerProfile?.locations || null,
+          region_id: profile.region_id || null,
+          district_id: profile.district_id || null,
           categories: cats.flatMap((c) => {
             const cat = (c as unknown as { categories: { id: string; name: string; icon: string } | null }).categories;
             return cat ? [cat] : [];
@@ -174,6 +223,8 @@ function SeznamFachmanuContent() {
           bio: seed.bio,
           hourly_rate: seed.hourly_rate,
           locations: seed.locations,
+          region_id: null,
+          district_id: null,
           categories: seedCategories,
           rating: seed.rating || 0,
           review_count: seed.review_count || 0,
@@ -232,12 +283,32 @@ function SeznamFachmanuContent() {
       );
     }
 
-    if (locationFilter) {
-      result = result.filter(f =>
-        f.locations?.some(loc =>
-          loc.toLowerCase().includes(locationFilter.toLowerCase())
-        )
-      );
+    // Lokalita: pro reálné fachmany (region_id/district_id) + fallback textový match na locations[] pro seedy
+    if (selectedDistrict) {
+      const districtObj = districts.find(d => d.id === selectedDistrict);
+      const districtName = districtObj?.name_cs.toLowerCase() || "";
+      result = result.filter(f => {
+        if (f.district_id === selectedDistrict) return true;
+        if (districtName && f.locations?.some(loc => loc.toLowerCase().includes(districtName))) return true;
+        return false;
+      });
+    } else if (selectedRegion) {
+      const regionObj = regions.find(r => r.id === selectedRegion);
+      const regionName = regionObj?.name_cs.toLowerCase() || "";
+      const districtIdsInRegion = new Set(districts.filter(d => d.region_id === selectedRegion).map(d => d.id));
+      const districtNamesInRegion = districts
+        .filter(d => d.region_id === selectedRegion)
+        .map(d => d.name_cs.toLowerCase());
+      result = result.filter(f => {
+        if (f.region_id === selectedRegion) return true;
+        if (f.district_id && districtIdsInRegion.has(f.district_id)) return true;
+        if (!f.locations) return false;
+        return f.locations.some(loc => {
+          const l = loc.toLowerCase();
+          if (regionName && l.includes(regionName)) return true;
+          return districtNamesInRegion.some(dn => l.includes(dn));
+        });
+      });
     }
 
     if (verifiedOnly) {
@@ -246,7 +317,7 @@ function SeznamFachmanuContent() {
 
     setFilteredFachmani(result);
     setCurrentPage(1);
-  }, [fachmani, selectedMain, selectedCategory, locationFilter, verifiedOnly, categories]);
+  }, [fachmani, selectedMain, selectedCategory, selectedRegion, selectedDistrict, verifiedOnly, categories, regions, districts]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -278,7 +349,7 @@ function SeznamFachmanuContent() {
         <div className="max-w-7xl mx-auto px-4">
           {/* Filtry */}
           <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <div className="grid md:grid-cols-5 gap-4">
+            <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Hlavní kategorie
@@ -321,15 +392,40 @@ function SeznamFachmanuContent() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Lokalita
+                  Kraj
                 </label>
-                <input
-                  type="text"
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  placeholder="Např. Praha, Brno..."
+                <select
+                  value={selectedRegion}
+                  onChange={(e) => {
+                    setSelectedRegion(e.target.value);
+                    setSelectedDistrict("");
+                  }}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
+                >
+                  <option value="">Všechny kraje</option>
+                  {regions.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name_cs}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Okres
+                </label>
+                <select
+                  value={selectedDistrict}
+                  onChange={(e) => setSelectedDistrict(e.target.value)}
+                  disabled={!selectedRegion}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Všechny okresy</option>
+                  {districts
+                    .filter((d) => d.region_id === selectedRegion)
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>{d.name_cs}</option>
+                    ))}
+                </select>
               </div>
 
               <div className="flex items-end">
@@ -349,7 +445,8 @@ function SeznamFachmanuContent() {
                   onClick={() => {
                     setSelectedMain("");
                     setSelectedCategory("");
-                    setLocationFilter("");
+                    setSelectedRegion("");
+                    setSelectedDistrict("");
                     setVerifiedOnly(false);
                   }}
                   className="w-full px-4 py-3 text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors font-medium"
