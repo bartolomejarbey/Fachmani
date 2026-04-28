@@ -1,51 +1,51 @@
 /**
  * import-ares-ghost.ts
  * =====================
- * Bootstrap script: stáhne bulk XML dump z ARES Open Data, vyfiltruje řemeslné NACE
- * obory a aktivní subjekty, namapuje na Fachmani schéma (kategorie + okres) a
- * upsertne do public.ghost_subjects.
+ * Bootstrap script: stáhne všechny aktivní řemeslné subjekty z ARES přes
+ * paginované REST API a upsertne do public.ghost_subjects.
  *
  * Spuštění:
- *   $ ARES_BULK_URL="https://ares.gov.cz/.../ares-data-<datum>.zip" \
- *     SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+ *   $ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
  *     npx tsx scripts/import-ares-ghost.ts
  *
  * Volitelně:
- *   ARES_BULK_DRY_RUN=1   - jen logy, nic se nepíše do DB
- *   ARES_BULK_LIMIT=10000 - omezí počet zpracovaných záznamů (test)
+ *   ARES_DRY_RUN=1        — jen logy, nic se nepíše do DB
+ *   ARES_NACE_PREFIXES=43 — čárkou oddělené NACE prefixy (default = RELEVANT_NACE_PREFIXES)
+ *   ARES_PAGE_SIZE=100    — velikost stránky (max 100 doporučeno, hard limit 1000 per query)
+ *   ARES_THROTTLE_MS=200  — pauza mezi requesty (proti rate-limitu)
  *
- * URL bulk dumpu je třeba zjistit ručně z https://ares.gov.cz/cs/api/ares-data
- * (otevřená data se publikují měsíčně).
+ * Strategie (proč ne bulk dump):
+ *   ARES nemá veřejný bulk XML/CSV dump. POST /ekonomicke-subjekty/vyhledat má
+ *   tvrdý limit 1 000 výsledků per query — proto musíme dotazovat per 5-cif. NACE
+ *   kód (3-4-cif. kódy nejsou indexované, 2-cif. sekce typicky vrací >1 000).
  *
- * Logika:
- *   1. Stáhne ZIP do /tmp.
- *   2. Streamem (yauzl) iteruje XML entries v ZIPu.
- *   3. SAX-em parseruje každý XML — emituje strukturovaný RawSubject pro každý
- *      <ekonomickySubjekt> element. Žádné loadování celého XML do paměti.
- *   4. Pro každý subjekt:
- *      - kontrola NACE (alespoň jedno czNACE musí být v RELEVANT_NACE_PREFIXES)
- *      - kontrola aktivity (datumZaniku is null + aspoň jeden stavZdroje*=AKTIVNI)
- *      - mapping NACE → category_ids (přes lookup z public.categories.slug)
- *      - mapping PSČ → district_id (přes psc_prefixes column v public.districts)
- *   5. Batch upsert (1000 záznamů per batch) do ghost_subjects.
+ *   1. Stáhneme aktuální CzNace číselník z /ciselniky-nazevniky/vyhledat.
+ *   2. Vyfiltrujeme 5-cif. kódy odpovídající RELEVANT_NACE_PREFIXES.
+ *   3. Per kód: paginované volání /ekonomicke-subjekty/vyhledat (start=0, +100…).
+ *   4. Per subjekt: aplikujeme isActive + relevantní NACE filtr (subjekt může mít
+ *      více NACE — vyhodíme ho jen pokud žádný neodpovídá našim prefixům).
+ *   5. Mapping NACE → category_ids, PSČ → district_id (přes psc_prefixes lookup).
+ *   6. Batch upsert (1000 záznamů per batch) do ghost_subjects (onConflict: ico).
  *
  * Bezpečnostní poznámky:
  *   - Skript musí běžet se SUPABASE_SERVICE_ROLE_KEY (RLS by jinak blokoval insert).
- *   - První spuštění: ARES_BULK_DRY_RUN=1 + ARES_BULK_LIMIT=1000 pro ověření.
- *   - Očekávaný objem: 100 000 – 200 000 záznamů po NACE filtru (~30–60 min).
+ *   - První spuštění: ARES_DRY_RUN=1 + ARES_NACE_PREFIXES=4321 pro ověření.
+ *   - Throttle 200 ms mezi calls — ARES nemá oficiální limit, ale spam nedělat.
+ *   - Pokud nějaký 5-cif. NACE vrátí pocetCelkem > 1000, script to zaloguje a
+ *     posune se dál (subjekty nad limit zůstanou neimportované — operator musí
+ *     ten kód rozdělit ručně, např. po krajích).
  */
 
 // @ts-nocheck — Supabase typed client se v scripts/ nesnáší se strict mode
 import { createClient } from "@supabase/supabase-js";
-import sax from "sax";
-import yauzl from "yauzl";
-import { promises as fs } from "node:fs";
-import { createReadStream } from "node:fs";
-import path from "node:path";
 
 // -------------------------------------------------------------------------
 // Konfigurace
 // -------------------------------------------------------------------------
+const ARES_BASE = "https://ares.gov.cz/ekonomicke-subjekty-v-be/rest";
+const ARES_VYHLEDAT = `${ARES_BASE}/ekonomicke-subjekty/vyhledat`;
+const ARES_CISELNIK = `${ARES_BASE}/ciselniky-nazevniky/vyhledat`;
+
 const RELEVANT_NACE_PREFIXES = [
   "41", "42", "43", "45",
   "9521", "9522", "9523", "9524", "9525", "9529",
@@ -75,30 +75,34 @@ const NACE_TO_CATEGORY_KEY: Record<string, string> = {
 };
 
 const BATCH_SIZE = 1000;
-const TMP_DIR = "/tmp/fachmani-ares";
-const DRY_RUN = process.env.ARES_BULK_DRY_RUN === "1";
-const LIMIT = process.env.ARES_BULK_LIMIT
-  ? Number(process.env.ARES_BULK_LIMIT)
-  : Infinity;
+const PAGE_SIZE = Number(process.env.ARES_PAGE_SIZE ?? 100);
+const THROTTLE_MS = Number(process.env.ARES_THROTTLE_MS ?? 200);
+const DRY_RUN = process.env.ARES_DRY_RUN === "1";
+const ARES_LIMIT_PER_QUERY = 1000;
+
+const PREFIX_OVERRIDE = process.env.ARES_NACE_PREFIXES
+  ? process.env.ARES_NACE_PREFIXES.split(",").map((s) => s.trim()).filter(Boolean)
+  : null;
+const ACTIVE_PREFIXES = PREFIX_OVERRIDE ?? RELEVANT_NACE_PREFIXES;
 
 // -------------------------------------------------------------------------
 // Typy
 // -------------------------------------------------------------------------
-type RawSubject = {
+type AresSubject = {
   ico: string;
   obchodniJmeno: string;
   pravniForma?: string;
   datumVzniku?: string;
   datumZaniku?: string;
-  czNace: string[];
+  czNace?: string[];
   sidlo?: {
-    psc?: string;
+    psc?: number | string;
     nazevObce?: string;
     nazevUlice?: string;
-    cisloDomovni?: string;
-    cisloOrientacni?: string;
+    cisloDomovni?: number | string;
+    cisloOrientacni?: number | string;
   };
-  seznamRegistraci: Record<string, string>;
+  seznamRegistraci?: Record<string, string>;
 };
 
 type GhostRow = {
@@ -116,15 +120,74 @@ type GhostRow = {
 };
 
 type Stats = {
-  parsed: number;
+  fetched: number;
   filtered_inactive: number;
   filtered_nace: number;
   kept: number;
   upserted: number;
+  over_limit_codes: string[];
 };
 
 // -------------------------------------------------------------------------
-// Filtr + mapping
+// HTTP helper
+// -------------------------------------------------------------------------
+async function aresPost(url: string, body: unknown, attempt = 0): Promise<any> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 429 || res.status >= 500) {
+    if (attempt >= 3) throw new Error(`ARES ${res.status} po 3 retries`);
+    const wait = 500 * Math.pow(2, attempt);
+    await new Promise((r) => setTimeout(r, wait));
+    return aresPost(url, body, attempt + 1);
+  }
+
+  const text = await res.text();
+  if (!res.ok) {
+    // ARES vrací 400 s payloadem { kod: 'CHYBA_VSTUPU', popis: '...' } pro >1000 výsledků
+    let parsed: any = null;
+    try { parsed = JSON.parse(text); } catch { /* */ }
+    if (parsed?.kod === "CHYBA_VSTUPU") {
+      const err = new Error(parsed.popis ?? "CHYBA_VSTUPU");
+      (err as any).code = "CHYBA_VSTUPU";
+      throw err;
+    }
+    throw new Error(`ARES HTTP ${res.status}: ${text.slice(0, 200)}`);
+  }
+
+  return JSON.parse(text);
+}
+
+// -------------------------------------------------------------------------
+// CzNace ciselnik
+// -------------------------------------------------------------------------
+type NaceCode = { kod: string; nazev: string };
+
+async function fetchCzNace5DigitCodes(): Promise<NaceCode[]> {
+  const data = await aresPost(ARES_CISELNIK, {
+    kodCiselniku: "CzNace",
+    pocet: 5000,
+  });
+  const items: any[] = data?.polozkyCiselniku ?? [];
+  // Filtr: jen 5-cif. (subclasses) které matchují naše prefixy
+  const out: NaceCode[] = [];
+  for (const item of items) {
+    const codes: string[] = item?.kody ?? [];
+    for (const code of codes) {
+      if (code.length === 5 && ACTIVE_PREFIXES.some((p) => code.startsWith(p))) {
+        out.push({ kod: code, nazev: item?.nazev ?? "" });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+// -------------------------------------------------------------------------
+// Filtr + mapping (reused from old version)
 // -------------------------------------------------------------------------
 function isRelevantNace(nace: string[]): boolean {
   return nace.some((n) =>
@@ -132,7 +195,7 @@ function isRelevantNace(nace: string[]): boolean {
   );
 }
 
-function isActive(subject: RawSubject): boolean {
+function isActive(subject: AresSubject): boolean {
   if (subject.datumZaniku) return false;
   const states = subject.seznamRegistraci ?? {};
   const active = (k: string) => states[k] === "AKTIVNI";
@@ -150,11 +213,10 @@ function deriveCategoryIds(
   categorySlugMap: Map<string, string>
 ): string[] {
   const ids = new Set<string>();
+  const sortedKeys = Object.keys(NACE_TO_CATEGORY_KEY).sort(
+    (a, b) => b.length - a.length
+  );
   for (const code of nace) {
-    // longest-prefix-match: zkusíme od nejdelšího po nejkratší
-    const sortedKeys = Object.keys(NACE_TO_CATEGORY_KEY).sort(
-      (a, b) => b.length - a.length
-    );
     for (const prefix of sortedKeys) {
       if (code.startsWith(prefix)) {
         const slug = NACE_TO_CATEGORY_KEY[prefix];
@@ -168,17 +230,19 @@ function deriveCategoryIds(
 }
 
 function mapToGhostRow(
-  subject: RawSubject,
+  subject: AresSubject,
   categorySlugMap: Map<string, string>,
   pscToDistrict: Map<string, { district_id: string; region_id: string }>
 ): GhostRow | null {
-  if (!isRelevantNace(subject.czNace)) return null;
+  const naces = (subject.czNace ?? []).map(String);
+  if (!isRelevantNace(naces)) return null;
   if (!isActive(subject)) return null;
 
   // PSČ → okres lookup. Jdeme od plného PSČ přes 4-ciferný prefix po 3-ciferný.
   let district_id: string | null = null;
   let region_id: string | null = null;
-  const psc = subject.sidlo?.psc?.replace(/\s+/g, "") ?? "";
+  const pscRaw = subject.sidlo?.psc;
+  const psc = pscRaw != null ? String(pscRaw).replace(/\s+/g, "") : "";
   if (psc) {
     const candidates = [psc, psc.slice(0, 4), psc.slice(0, 3)];
     for (const key of candidates) {
@@ -195,282 +259,27 @@ function mapToGhostRow(
     ico: subject.ico,
     name: subject.obchodniJmeno,
     legal_form: subject.pravniForma ?? null,
-    cz_nace: subject.czNace,
-    category_ids: deriveCategoryIds(subject.czNace, categorySlugMap),
+    cz_nace: naces,
+    category_ids: deriveCategoryIds(naces, categorySlugMap),
     region_id,
     district_id,
     legal_address: subject.sidlo
       ? {
           street: subject.sidlo.nazevUlice ?? null,
-          house_number: subject.sidlo.cisloDomovni ?? null,
-          orientation_number: subject.sidlo.cisloOrientacni ?? null,
+          house_number: subject.sidlo.cisloDomovni != null
+            ? String(subject.sidlo.cisloDomovni) : null,
+          orientation_number: subject.sidlo.cisloOrientacni != null
+            ? String(subject.sidlo.cisloOrientacni) : null,
           city: subject.sidlo.nazevObce ?? null,
           postal_code: psc || null,
           country: "Česká republika",
-          source: "ares_bulk",
+          source: "ares_api",
         }
       : null,
     datum_vzniku: subject.datumVzniku ?? null,
     datum_zaniku: subject.datumZaniku ?? null,
-    registration_states: subject.seznamRegistraci,
+    registration_states: subject.seznamRegistraci ?? {},
   };
-}
-
-// -------------------------------------------------------------------------
-// SAX streaming parser
-// -------------------------------------------------------------------------
-/**
- * Parsuje XML stream a yieldne každý <ekonomickySubjekt> jako RawSubject.
- * Předpokládá strukturu (zjednodušeně):
- *   <ekonomickySubjekt>
- *     <ico>27082440</ico>
- *     <obchodniJmeno>Acme s.r.o.</obchodniJmeno>
- *     <pravniForma>112</pravniForma>
- *     <datumVzniku>2010-03-01</datumVzniku>
- *     <datumZaniku>2024-05-01</datumZaniku>  <!-- volitelné -->
- *     <sidlo>
- *       <psc>11000</psc>
- *       <nazevObce>Praha</nazevObce>
- *       ...
- *     </sidlo>
- *     <czNace>
- *       <kod>4334</kod>
- *       <kod>4321</kod>
- *     </czNace>
- *     <seznamRegistraci>
- *       <stavZdrojeVr>AKTIVNI</stavZdrojeVr>
- *       <stavZdrojeRzp>AKTIVNI</stavZdrojeRzp>
- *     </seznamRegistraci>
- *   </ekonomickySubjekt>
- *
- * POZNÁMKA: Pokud má reálný ARES bulk XML jiné názvy nebo nesting (např. dvě
- * úrovně <Vypis>), tato funkce potřebuje úpravu. Spusť s ARES_BULK_LIMIT=10
- * a podívej se na první výstup před plným importem.
- */
-function parseAresXmlStream(
-  stream: NodeJS.ReadableStream
-): AsyncIterable<RawSubject> {
-  return {
-    [Symbol.asyncIterator]() {
-      const parser = sax.createStream(true, { trim: true, lowercase: false });
-      const queue: RawSubject[] = [];
-      let resolveNext: ((v: IteratorResult<RawSubject>) => void) | null = null;
-      let ended = false;
-      let errored: Error | null = null;
-
-      const stack: string[] = [];
-      let current: Partial<RawSubject> | null = null;
-      let inSidlo = false;
-      let inCzNace = false;
-      let inSeznamRegistraci = false;
-      let textBuffer = "";
-
-      const flush = () => {
-        if (resolveNext && queue.length > 0) {
-          const r = resolveNext;
-          resolveNext = null;
-          r({ value: queue.shift()!, done: false });
-        } else if (resolveNext && ended) {
-          const r = resolveNext;
-          resolveNext = null;
-          r({ value: undefined as unknown as RawSubject, done: true });
-        }
-      };
-
-      parser.on("opentag", (node) => {
-        const name = node.name;
-        stack.push(name);
-        textBuffer = "";
-
-        if (name === "ekonomickySubjekt" || name === "EkonomickySubjekt") {
-          current = { czNace: [], seznamRegistraci: {} };
-          inSidlo = false;
-          inCzNace = false;
-          inSeznamRegistraci = false;
-        } else if (current) {
-          if (name === "sidlo" || name === "Sidlo") inSidlo = true;
-          else if (name === "czNace" || name === "CzNace") inCzNace = true;
-          else if (name === "seznamRegistraci" || name === "SeznamRegistraci")
-            inSeznamRegistraci = true;
-        }
-      });
-
-      parser.on("text", (text) => {
-        textBuffer += text;
-      });
-
-      parser.on("cdata", (text) => {
-        textBuffer += text;
-      });
-
-      parser.on("closetag", (name) => {
-        const txt = textBuffer.trim();
-        textBuffer = "";
-
-        if (current) {
-          // Top-level fields
-          if (stack.length >= 2) {
-            const parent = stack[stack.length - 2];
-            const isTopLevel =
-              parent === "ekonomickySubjekt" || parent === "EkonomickySubjekt";
-
-            if (isTopLevel && txt) {
-              switch (name) {
-                case "ico":
-                case "Ico":
-                  current.ico = txt;
-                  break;
-                case "obchodniJmeno":
-                case "ObchodniJmeno":
-                  current.obchodniJmeno = txt;
-                  break;
-                case "pravniForma":
-                case "PravniForma":
-                  current.pravniForma = txt;
-                  break;
-                case "datumVzniku":
-                case "DatumVzniku":
-                  current.datumVzniku = txt;
-                  break;
-                case "datumZaniku":
-                case "DatumZaniku":
-                  current.datumZaniku = txt;
-                  break;
-              }
-            }
-
-            // Sidlo nested
-            if (inSidlo && txt && parent === "sidlo") {
-              if (!current.sidlo) current.sidlo = {};
-              if (name === "psc" || name === "Psc") current.sidlo.psc = txt;
-              else if (name === "nazevObce" || name === "NazevObce")
-                current.sidlo.nazevObce = txt;
-              else if (name === "nazevUlice" || name === "NazevUlice")
-                current.sidlo.nazevUlice = txt;
-              else if (name === "cisloDomovni" || name === "CisloDomovni")
-                current.sidlo.cisloDomovni = txt;
-              else if (
-                name === "cisloOrientacni" ||
-                name === "CisloOrientacni"
-              )
-                current.sidlo.cisloOrientacni = txt;
-            }
-
-            // czNace/kod
-            if (
-              inCzNace &&
-              txt &&
-              (name === "kod" || name === "Kod") &&
-              current.czNace
-            ) {
-              current.czNace.push(txt);
-            }
-
-            // seznamRegistraci/stavZdrojeXxx
-            if (
-              inSeznamRegistraci &&
-              txt &&
-              name.startsWith("stavZdroje") &&
-              current.seznamRegistraci
-            ) {
-              current.seznamRegistraci[name] = txt;
-            }
-          }
-        }
-
-        if (name === "sidlo" || name === "Sidlo") inSidlo = false;
-        else if (name === "czNace" || name === "CzNace") inCzNace = false;
-        else if (name === "seznamRegistraci" || name === "SeznamRegistraci")
-          inSeznamRegistraci = false;
-        else if (
-          (name === "ekonomickySubjekt" || name === "EkonomickySubjekt") &&
-          current
-        ) {
-          if (current.ico && current.obchodniJmeno) {
-            queue.push(current as RawSubject);
-            flush();
-          }
-          current = null;
-        }
-
-        stack.pop();
-      });
-
-      parser.on("error", (e) => {
-        errored = e;
-        if (resolveNext) {
-          const r = resolveNext;
-          resolveNext = null;
-          r(Promise.reject(e) as unknown as IteratorResult<RawSubject>);
-        }
-      });
-
-      parser.on("end", () => {
-        ended = true;
-        flush();
-      });
-
-      stream.pipe(parser);
-
-      return {
-        next(): Promise<IteratorResult<RawSubject>> {
-          if (errored) return Promise.reject(errored);
-          if (queue.length > 0) {
-            return Promise.resolve({ value: queue.shift()!, done: false });
-          }
-          if (ended) return Promise.resolve({ value: undefined as unknown as RawSubject, done: true });
-          return new Promise((resolve) => {
-            resolveNext = resolve;
-          });
-        },
-      };
-    },
-  };
-}
-
-// -------------------------------------------------------------------------
-// Yauzl streaming unzip — yieldne každý XML entry jako readable stream
-// -------------------------------------------------------------------------
-function openZipEntries(zipPath: string): Promise<{
-  iterate: (
-    handler: (entryName: string, stream: NodeJS.ReadableStream) => Promise<void>
-  ) => Promise<void>;
-}> {
-  return new Promise((resolve, reject) => {
-    yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
-      if (err || !zipfile) return reject(err);
-      resolve({
-        iterate: (handler) =>
-          new Promise((res, rej) => {
-            zipfile.on("error", rej);
-            zipfile.on("end", () => res());
-            zipfile.on("entry", async (entry) => {
-              if (/\/$/.test(entry.fileName)) {
-                zipfile.readEntry();
-                return;
-              }
-              if (!/\.xml$/i.test(entry.fileName)) {
-                zipfile.readEntry();
-                return;
-              }
-              zipfile.openReadStream(entry, async (e, stream) => {
-                if (e || !stream) {
-                  rej(e ?? new Error("no stream"));
-                  return;
-                }
-                try {
-                  await handler(entry.fileName, stream);
-                  zipfile.readEntry();
-                } catch (err) {
-                  rej(err as Error);
-                }
-              });
-            });
-            zipfile.readEntry();
-          }),
-      });
-    });
-  });
 }
 
 // -------------------------------------------------------------------------
@@ -489,8 +298,6 @@ async function loadCategorySlugMap(supabase: any) {
 }
 
 async function loadPscToDistrictMap(supabase: any) {
-  // Vyžaduje migraci 20260429000001_districts_psc_prefixes.sql, která přidá
-  // sloupec psc_prefixes text[] a naseedí first-3 PSČ prefixy per okres.
   const { data } = await supabase
     .from("districts")
     .select("id, region_id, psc_prefixes");
@@ -508,18 +315,57 @@ async function loadPscToDistrictMap(supabase: any) {
 }
 
 // -------------------------------------------------------------------------
-// Download
+// Pagination per NACE code
 // -------------------------------------------------------------------------
-async function downloadBulkZip(url: string): Promise<string> {
-  await fs.mkdir(TMP_DIR, { recursive: true });
-  const dest = path.join(TMP_DIR, "ares-bulk.zip");
-  console.log(`[download] ${url} → ${dest}`);
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Download selhal: HTTP ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  await fs.writeFile(dest, buf);
-  console.log(`[download] hotovo: ${(buf.length / 1024 / 1024).toFixed(1)} MB`);
-  return dest;
+async function* iterateNace(
+  naceCode: string,
+  stats: Stats
+): AsyncGenerator<AresSubject> {
+  let start = 0;
+  let total = -1;
+
+  while (true) {
+    let data: any;
+    try {
+      data = await aresPost(ARES_VYHLEDAT, {
+        czNace: [naceCode],
+        start,
+        pocet: PAGE_SIZE,
+      });
+    } catch (e: any) {
+      if (e.code === "CHYBA_VSTUPU") {
+        console.warn(`  [${naceCode}] nad limit 1 000: ${e.message}`);
+        stats.over_limit_codes.push(naceCode);
+        return;
+      }
+      throw e;
+    }
+
+    const items: AresSubject[] = data?.ekonomickeSubjekty ?? [];
+    total = data?.pocetCelkem ?? 0;
+
+    if (start === 0) {
+      console.log(`  [${naceCode}] celkem ${total} subjektů`);
+      if (total > ARES_LIMIT_PER_QUERY) {
+        console.warn(
+          `  [${naceCode}] varování: ${total} > ${ARES_LIMIT_PER_QUERY}, ` +
+          `dostaneme jen prvních ${ARES_LIMIT_PER_QUERY}`
+        );
+        stats.over_limit_codes.push(naceCode);
+      }
+    }
+
+    for (const item of items) {
+      stats.fetched++;
+      yield item;
+    }
+
+    start += items.length;
+    if (items.length === 0 || start >= total || start >= ARES_LIMIT_PER_QUERY) break;
+
+    // Throttle proti rate-limitu
+    if (THROTTLE_MS > 0) await new Promise((r) => setTimeout(r, THROTTLE_MS));
+  }
 }
 
 // -------------------------------------------------------------------------
@@ -528,12 +374,12 @@ async function downloadBulkZip(url: string): Promise<string> {
 async function upsertBatch(supabase: any, rows: GhostRow[]): Promise<number> {
   if (rows.length === 0) return 0;
   if (DRY_RUN) {
-    console.log(`[dry-run] would upsert ${rows.length} rows`);
+    console.log(`  [dry-run] would upsert ${rows.length} rows`);
     return rows.length;
   }
   const { error, count } = await supabase
     .from("ghost_subjects")
-    .upsert(rows, { onConflict: "ico", count: "exact" });
+    .upsert(rows, { onConflict: "ico", count: "exact", ignoreDuplicates: false });
   if (error) throw new Error(`Upsert selhal: ${error.message}`);
   return count ?? rows.length;
 }
@@ -542,53 +388,62 @@ async function upsertBatch(supabase: any, rows: GhostRow[]): Promise<number> {
 // Main
 // -------------------------------------------------------------------------
 async function main() {
-  const url = process.env.ARES_BULK_URL;
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !supabaseUrl || !serviceKey) {
-    throw new Error(
-      "Chybí env vars: ARES_BULK_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY"
-    );
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error("Chybí env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY");
   }
 
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false },
   });
 
-  console.log("[1/4] Stahuji ARES bulk dump...");
-  const zipPath = await downloadBulkZip(url);
+  console.log("[1/4] Načítám CzNace číselník (5-cif. kódy)...");
+  const naceCodes = await fetchCzNace5DigitCodes();
+  console.log(
+    `  ${naceCodes.length} kódů k naimportování (prefixy: ${ACTIVE_PREFIXES.join(", ")})`
+  );
+  if (naceCodes.length === 0) {
+    console.warn("  Žádné NACE kódy nenalezeny — kontrola prefixů?");
+    return;
+  }
 
-  console.log("[2/4] Načítám lookup tables...");
+  console.log("[2/4] Načítám lookup tables (categories + districts.psc_prefixes)...");
   const categoryMap = await loadCategorySlugMap(supabase);
   const pscMap = await loadPscToDistrictMap(supabase);
   console.log(
     `  kategorií: ${categoryMap.size}, PSČ→okres entries: ${pscMap.size}`
   );
+  if (pscMap.size === 0) {
+    console.warn(
+      "  PSČ mapa je prázdná — všechny ghost_subjects budou bez district_id. " +
+      "Doplň districts.psc_prefixes před spuštěním."
+    );
+  }
 
-  console.log("[3/4] Stream-parseruji ZIP + XML...");
+  console.log("[3/4] Stahuji a upsertuji ghost_subjects...");
   const stats: Stats = {
-    parsed: 0,
+    fetched: 0,
     filtered_inactive: 0,
     filtered_nace: 0,
     kept: 0,
     upserted: 0,
+    over_limit_codes: [],
   };
   const buffer: GhostRow[] = [];
 
-  const { iterate } = await openZipEntries(zipPath);
-
-  await iterate(async (entryName, stream) => {
-    console.log(`  entry: ${entryName}`);
-    for await (const subject of parseAresXmlStream(stream)) {
-      stats.parsed++;
-      if (stats.parsed >= LIMIT) break;
-
-      if (!isRelevantNace(subject.czNace)) {
-        stats.filtered_nace++;
-        continue;
-      }
+  for (const { kod, nazev } of naceCodes) {
+    console.log(`\n  → NACE ${kod} (${nazev})`);
+    for await (const subject of iterateNace(kod, stats)) {
+      // isActive check
       if (!isActive(subject)) {
         stats.filtered_inactive++;
+        continue;
+      }
+      // isRelevantNace (subjekt může mít více NACE; nejmíň jeden musí matchnout)
+      const naces = (subject.czNace ?? []).map(String);
+      if (!isRelevantNace(naces)) {
+        stats.filtered_nace++;
         continue;
       }
 
@@ -600,12 +455,11 @@ async function main() {
       if (buffer.length >= BATCH_SIZE) {
         const n = await upsertBatch(supabase, buffer.splice(0));
         stats.upserted += n;
-        process.stdout.write(
-          `  parsed=${stats.parsed.toLocaleString()} kept=${stats.kept.toLocaleString()} upserted=${stats.upserted.toLocaleString()}\r`
-        );
       }
     }
-  });
+
+    if (THROTTLE_MS > 0) await new Promise((r) => setTimeout(r, THROTTLE_MS));
+  }
 
   if (buffer.length > 0) {
     const n = await upsertBatch(supabase, buffer);
@@ -613,17 +467,23 @@ async function main() {
   }
 
   console.log("\n[4/4] Hotovo:");
-  console.log(`  parsed:         ${stats.parsed.toLocaleString()}`);
+  console.log(`  fetched:        ${stats.fetched.toLocaleString()}`);
   console.log(`  filtered NACE:  ${stats.filtered_nace.toLocaleString()}`);
   console.log(`  filtered inactive: ${stats.filtered_inactive.toLocaleString()}`);
   console.log(`  kept:           ${stats.kept.toLocaleString()}`);
   console.log(`  upserted:       ${stats.upserted.toLocaleString()}`);
+  if (stats.over_limit_codes.length > 0) {
+    console.warn(
+      `  POZOR: ${stats.over_limit_codes.length} NACE kódů přeplnilo limit 1 000 ` +
+      `(některé subjekty se nestáhly): ${stats.over_limit_codes.join(", ")}`
+    );
+    console.warn(
+      `  Tyto kódy je třeba sub-splitnout (např. po krajích) — doplň manuální logiku.`
+    );
+  }
 }
 
 main().catch((e) => {
   console.error("FATAL:", e);
   process.exit(1);
 });
-
-// Suppress unused import warning for createReadStream — yauzl uses it internally
-void createReadStream;
