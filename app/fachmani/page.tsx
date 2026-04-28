@@ -47,6 +47,8 @@ type Fachman = {
   rating: number;
   review_count: number;
   is_seed: boolean; // fiktivní nebo reálný
+  is_ghost?: boolean; // importovaný z ARES, ještě neclaimnut
+  ghost_ico?: string;
   has_promo: boolean; // má aktivní promo
   promo_type: string | null;
 };
@@ -235,9 +237,61 @@ function SeznamFachmanuContent() {
       });
     }
 
-    // === 3. Seřadíme ===
-    // Pořadí: promo/topovaní > premium/business > verified > ostatní > podle ratingu
+    // === 3. Načteme GHOST fachmany (z ARES, ještě neclaimnutí) ===
+    const { data: ghostData } = await supabase
+      .from("ghost_subjects")
+      .select("ico, name, legal_form, category_ids, region_id, district_id, legal_address, datum_vzniku")
+      .is("claimed_at", null)
+      .eq("is_active", true)
+      .limit(500); // safety cap; bulk je obrovský
+
+    if (ghostData && ghostData.length > 0) {
+      ghostData.forEach((g: {
+        ico: string;
+        name: string;
+        legal_form: string | null;
+        category_ids: string[];
+        region_id: string | null;
+        district_id: string | null;
+        legal_address: { city?: string } | null;
+        datum_vzniku: string | null;
+      }) => {
+        const ghostCategories = (g.category_ids || [])
+          .map((catId) => categoriesData?.find((c) => c.id === catId))
+          .filter(Boolean) as { id: string; name: string; icon: string }[];
+
+        const city = g.legal_address?.city ?? null;
+
+        allFachmani.push({
+          id: `ghost_${g.ico}`,
+          full_name: g.name,
+          avatar_url: null,
+          is_verified: false,
+          subscription_type: "free",
+          bio: g.legal_form ?? null,
+          hourly_rate: null,
+          locations: city ? [city] : null,
+          region_id: g.region_id,
+          district_id: g.district_id,
+          categories: ghostCategories,
+          rating: 0,
+          review_count: 0,
+          is_seed: false,
+          is_ghost: true,
+          ghost_ico: g.ico,
+          has_promo: false,
+          promo_type: null,
+        });
+      });
+    }
+
+    // === 4. Seřadíme ===
+    // Pořadí: promo/topovaní > premium/business > verified > ostatní > ghost (nakonec) > podle ratingu
     allFachmani.sort((a, b) => {
+      // Ghost subjekty vždy na konec
+      if (a.is_ghost && !b.is_ghost) return 1;
+      if (!a.is_ghost && b.is_ghost) return -1;
+
       // Promo nahoře
       if (a.has_promo && !b.has_promo) return -1;
       if (!a.has_promo && b.has_promo) return 1;
@@ -489,8 +543,11 @@ function SeznamFachmanuContent() {
                 return (
                   <Link
                     key={fachman.id}
-                    href={`/fachman/${fachman.id}`}
+                    href={fachman.is_ghost && fachman.ghost_ico
+                      ? `/fachman/ghost/${fachman.ghost_ico}`
+                      : `/fachman/${fachman.id}`}
                     className={`group relative bg-white rounded-3xl p-6 border border-gray-100 hover:border-transparent hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 ${
+                      fachman.is_ghost ? "opacity-90" :
                       isTopProfile ? "ring-2 ring-yellow-400/50 bg-yellow-50/30" :
                       isPremium ? "ring-2 ring-cyan-500/50" : ""
                     } ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}
@@ -503,9 +560,14 @@ function SeznamFachmanuContent() {
                           🚀 Top
                         </span>
                       )}
-                      {isPremium && !isTopProfile && (
+                      {isPremium && !isTopProfile && !fachman.is_ghost && (
                         <span className="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white text-xs px-3 py-1 rounded-full font-semibold shadow-lg">
                           Premium
+                        </span>
+                      )}
+                      {fachman.is_ghost && (
+                        <span className="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full font-semibold border border-gray-200" title="Subjekt importovaný z ARES, profil zatím nepřevzal">
+                          Neověřeno (ARES)
                         </span>
                       )}
                     </div>
@@ -582,8 +644,12 @@ function SeznamFachmanuContent() {
                       </p>
                     )}
 
-                    <div className="w-full text-center bg-gradient-to-r from-cyan-500 to-cyan-600 text-white py-3 rounded-xl font-semibold group-hover:shadow-lg transition-all">
-                      Zobrazit profil
+                    <div className={`w-full text-center py-3 rounded-xl font-semibold group-hover:shadow-lg transition-all ${
+                      fachman.is_ghost
+                        ? "bg-gray-100 text-gray-700 border border-gray-200"
+                        : "bg-gradient-to-r from-cyan-500 to-cyan-600 text-white"
+                    }`}>
+                      {fachman.is_ghost ? "Detail subjektu" : "Zobrazit profil"}
                     </div>
                   </Link>
                 );

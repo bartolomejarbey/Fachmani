@@ -112,5 +112,33 @@ export async function POST(req: NextRequest) {
     })
     .eq("id", user.id);
 
-  return NextResponse.json({ result });
+  // Pokud existuje ghost subjekt pro toto IČO a ještě není claimnut, převzít.
+  // Tím se automaticky skryje z veřejného listingu (RLS: claimed_at IS NULL).
+  let ghostClaimed = false;
+  const { data: existingGhost } = await supabase
+    .from("ghost_subjects")
+    .select("ico, claimed_at")
+    .eq("ico", result.ico)
+    .maybeSingle();
+
+  if (existingGhost && !existingGhost.claimed_at) {
+    await supabase
+      .from("ghost_subjects")
+      .update({
+        claimed_at: new Date().toISOString(),
+        claimed_by: user.id,
+      })
+      .eq("ico", result.ico);
+
+    // Existující leady na tento ghost přepneme do stavu 'claimed'
+    await supabase
+      .from("ghost_leads")
+      .update({ status: "claimed" })
+      .eq("ghost_ico", result.ico)
+      .in("status", ["new", "contacted"]);
+
+    ghostClaimed = true;
+  }
+
+  return NextResponse.json({ result, ghostClaimed });
 }

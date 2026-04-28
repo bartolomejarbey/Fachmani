@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import ImageCropper from "@/app/components/ImageCropper";
@@ -16,13 +16,16 @@ type Category = {
   sort_order: number | null;
 };
 
-export default function NovaPoptavka() {
+function NovaPoptavkaInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const ghostIco = searchParams.get("ghostIco");
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState("");
   const [expiryDays, setExpiryDays] = useState(30); // Default
+  const [ghostName, setGhostName] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [mainCategoryId, setMainCategoryId] = useState("");
@@ -63,11 +66,20 @@ export default function NovaPoptavka() {
         setExpiryDays(settingsData.value.request_expiry_days);
       }
 
+      if (ghostIco && /^[0-9]{8}$/.test(ghostIco)) {
+        const { data: g } = await supabase
+          .from("ghost_subjects")
+          .select("name")
+          .eq("ico", ghostIco)
+          .maybeSingle();
+        if (g?.name) setGhostName(g.name);
+      }
+
       setPageLoading(false);
     }
 
     loadData();
-  }, []);
+  }, [ghostIco]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -191,6 +203,25 @@ export default function NovaPoptavka() {
       return;
     }
 
+    // Pokud poptávka míří na ghost subjekt, založíme i ghost_lead pro admin tým.
+    if (ghostIco && /^[0-9]{8}$/.test(ghostIco)) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, phone, email")
+        .eq("id", user.id)
+        .maybeSingle();
+      await supabase.from("ghost_leads").insert({
+        ghost_ico: ghostIco,
+        request_id: data.id,
+        customer_id: user.id,
+        customer_name: profile?.full_name ?? null,
+        customer_phone: profile?.phone ?? null,
+        customer_email: profile?.email ?? null,
+        message: `${title}\n\n${description}`.slice(0, 4000),
+        status: "new",
+      });
+    }
+
     router.push(`/poptavka/${data.id}`);
   };
 
@@ -215,6 +246,16 @@ export default function NovaPoptavka() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Nová poptávka</h1>
           <p className="text-gray-600">Popište co potřebujete a získejte nabídky od ověřených fachmanů</p>
         </div>
+
+        {ghostIco && ghostName && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-xl mb-6">
+            <strong>Poptávka pro {ghostName}</strong>
+            <p className="text-sm mt-1">
+              Tento subjekt zatím na Fachmani nemá aktivní profil. Náš tým ho po odeslání
+              osobně zkontaktuje a poptávku mu předá.
+            </p>
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl mb-6">
@@ -439,5 +480,13 @@ export default function NovaPoptavka() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function NovaPoptavka() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+      <NovaPoptavkaInner />
+    </Suspense>
   );
 }
