@@ -19,19 +19,74 @@ export type StructuredAddress = {
   country: string | null;
 };
 
+export type AresOk = {
+  status: "ok";
+  ico: string;
+  name: string;
+  legalForm: string | null;
+  dic: string | null;
+  address: string | null;
+  structuredAddress: StructuredAddress | null;
+  datumVzniku: string | null;
+  datumZaniku: string | null;
+  registrationStates: Record<string, string>;
+  raw: unknown;
+};
+
+export type AresInactive = {
+  status: "inactive";
+  ico: string;
+  name: string | null;
+  reason: "deleted" | "never_active";
+  datumZaniku: string | null;
+  registrationStates: Record<string, string>;
+  raw: unknown;
+};
+
 export type AresResult =
-  | {
-      status: "ok";
-      ico: string;
-      name: string;
-      legalForm: string | null;
-      dic: string | null;
-      address: string | null;
-      structuredAddress: StructuredAddress | null;
-      raw: unknown;
-    }
+  | AresOk
+  | AresInactive
   | { status: "not_found"; ico: string }
   | { status: "error"; ico: string; message: string };
+
+const REGISTRATION_KEYS = [
+  "stavZdrojeVr",
+  "stavZdrojeRzp",
+  "stavZdrojeRos",
+  "stavZdrojeCeu",
+  "stavZdrojeRs",
+] as const;
+
+function extractRegistrationStates(seznamRegistraci: unknown): Record<string, string> {
+  if (!seznamRegistraci || typeof seznamRegistraci !== "object") return {};
+  const s = seznamRegistraci as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const key of REGISTRATION_KEYS) {
+    const v = s[key];
+    if (typeof v === "string" && v.length > 0) out[key] = v;
+  }
+  // include stavZdrojeRes for diagnostic but NOT for the activity decision
+  if (typeof s.stavZdrojeRes === "string" && s.stavZdrojeRes.length > 0) {
+    out.stavZdrojeRes = s.stavZdrojeRes;
+  }
+  return out;
+}
+
+/**
+ * Aktivní subjekt = nemá datumZaniku a alespoň jeden z primárních rejstříků
+ * (VR, RZP, ROS, CEU, RS) je AKTIVNI. RES (statistický rejstřík) ignorujeme —
+ * zůstává AKTIVNI i u zaniklých subjektů.
+ */
+export function isAresSubjectActive(
+  datumZaniku: string | null,
+  registrationStates: Record<string, string>
+): { active: true } | { active: false; reason: "deleted" | "never_active" } {
+  if (datumZaniku) return { active: false, reason: "deleted" };
+  for (const key of REGISTRATION_KEYS) {
+    if (registrationStates[key] === "AKTIVNI") return { active: true };
+  }
+  return { active: false, reason: "never_active" };
+}
 
 async function fetchWithTimeout(url: string, signal?: AbortSignal): Promise<Response> {
   const controller = new AbortController();
@@ -127,6 +182,23 @@ export async function lookupAres(icoInput: string): Promise<AresResult> {
         return { status: "not_found", ico };
       }
 
+      const datumVzniku = (data.datumVzniku as string) || null;
+      const datumZaniku = (data.datumZaniku as string) || null;
+      const registrationStates = extractRegistrationStates(data.seznamRegistraci);
+      const activity = isAresSubjectActive(datumZaniku, registrationStates);
+
+      if (!activity.active) {
+        return {
+          status: "inactive",
+          ico,
+          name,
+          reason: activity.reason,
+          datumZaniku,
+          registrationStates,
+          raw: data,
+        };
+      }
+
       const parsed = parseAddress(data.sidlo);
       return {
         status: "ok",
@@ -136,6 +208,9 @@ export async function lookupAres(icoInput: string): Promise<AresResult> {
         dic: (data.dic as string) || null,
         address: parsed.display,
         structuredAddress: parsed.structured,
+        datumVzniku,
+        datumZaniku,
+        registrationStates,
         raw: data,
       };
     } catch (err) {

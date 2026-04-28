@@ -26,6 +26,7 @@ describe("lookupAres — odpověď ARES", () => {
             psc: 11000,
             nazevStatu: "Česká republika",
           },
+          seznamRegistraci: { stavZdrojeVr: "AKTIVNI" },
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       )
@@ -45,6 +46,7 @@ describe("lookupAres — odpověď ARES", () => {
       postal_code: "11000",
       country: "Česká republika",
     });
+    expect(res.registrationStates.stavZdrojeVr).toBe("AKTIVNI");
   });
 
   it("vrátí not_found pro HTTP 404", async () => {
@@ -77,12 +79,81 @@ describe("lookupAres — odpověď ARES", () => {
 
   it("strukturovaná adresa null když sidlo nemá relevantní pole", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ obchodniJmeno: "Bez sídla s.r.o." }), { status: 200 })
+      new Response(
+        JSON.stringify({
+          obchodniJmeno: "Bez sídla s.r.o.",
+          seznamRegistraci: { stavZdrojeVr: "AKTIVNI" },
+        }),
+        { status: 200 }
+      )
     );
     const res = await lookupAres("27082440");
     expect(res.status).toBe("ok");
     if (res.status !== "ok") throw new Error("unreachable");
     expect(res.structuredAddress).toBeNull();
     expect(res.address).toBeNull();
+  });
+
+  it("vrátí inactive/deleted když ARES má datumZaniku", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          obchodniJmeno: "Zaniklá s.r.o.",
+          datumVzniku: "2010-03-01",
+          datumZaniku: "2024-05-01",
+          seznamRegistraci: { stavZdrojeVr: "VYMAZANY" },
+        }),
+        { status: 200 }
+      )
+    );
+    const res = await lookupAres("27082440");
+    expect(res.status).toBe("inactive");
+    if (res.status !== "inactive") throw new Error("unreachable");
+    expect(res.reason).toBe("deleted");
+    expect(res.datumZaniku).toBe("2024-05-01");
+    expect(res.name).toBe("Zaniklá s.r.o.");
+  });
+
+  it("vrátí inactive/never_active když všechny rejstříky != AKTIVNI", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          obchodniJmeno: "Vymazaná bez data zániku",
+          seznamRegistraci: {
+            stavZdrojeVr: "VYMAZANY",
+            stavZdrojeRzp: "NEEXISTUJICI",
+            stavZdrojeRes: "AKTIVNI", // RES nesmí stačit pro aktivitu
+          },
+        }),
+        { status: 200 }
+      )
+    );
+    const res = await lookupAres("27082440");
+    expect(res.status).toBe("inactive");
+    if (res.status !== "inactive") throw new Error("unreachable");
+    expect(res.reason).toBe("never_active");
+    expect(res.datumZaniku).toBeNull();
+  });
+
+  it("vrátí ok když je aktivní jen v RZP (živnostenský)", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          obchodniJmeno: "OSVČ řemeslník",
+          datumVzniku: "2018-06-01",
+          seznamRegistraci: {
+            stavZdrojeVr: "NEEXISTUJICI",
+            stavZdrojeRzp: "AKTIVNI",
+          },
+        }),
+        { status: 200 }
+      )
+    );
+    const res = await lookupAres("27082440");
+    expect(res.status).toBe("ok");
+    if (res.status !== "ok") throw new Error("unreachable");
+    expect(res.datumVzniku).toBe("2018-06-01");
+    expect(res.datumZaniku).toBeNull();
+    expect(res.registrationStates.stavZdrojeRzp).toBe("AKTIVNI");
   });
 });

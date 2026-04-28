@@ -12,9 +12,16 @@ type AresOk = {
   address: string | null;
 };
 
+type AresInactive = {
+  status: "inactive";
+  ico: string;
+  name: string | null;
+  reason: "deleted" | "never_active";
+  datumZaniku: string | null;
+};
 type AresNotFound = { status: "not_found"; ico: string };
 type AresError = { status: "error"; ico: string; message: string };
-type AresResult = AresOk | AresNotFound | AresError;
+type AresResult = AresOk | AresInactive | AresNotFound | AresError;
 
 type Props = {
   value: string;
@@ -146,6 +153,21 @@ export default function IcoInput({
       {result?.status === "not_found" && (
         <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
           ARES tento subjekt nenašel. Zkontrolujte IČO.
+        </div>
+      )}
+
+      {result?.status === "inactive" && (
+        <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          <div className="font-semibold">
+            {result.reason === "deleted"
+              ? `Subjekt${result.name ? ` „${result.name}"` : ""} je v ARES zaniklý${
+                  result.datumZaniku ? ` (${result.datumZaniku})` : ""
+                }.`
+              : `Subjekt${result.name ? ` „${result.name}"` : ""} není aktivní v žádném rejstříku.`}
+          </div>
+          <div className="text-xs text-red-600 mt-1">
+            Pro registraci na Fachmani je potřeba aktivní subjekt.
+          </div>
         </div>
       )}
     </div>

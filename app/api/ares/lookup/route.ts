@@ -46,24 +46,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Pokusíme se nejprve cache
-  const cached = await readCache(supabase, rawIco);
-  if (cached) {
-    return NextResponse.json({ source: "cache", result: cached });
+  // Pokusíme se nejprve cache; pokud chybí, jdeme live a cachneme.
+  let result = await readCache(supabase, rawIco);
+  const source: "cache" | "live" = result ? "cache" : "live";
+  if (!result) {
+    result = await lookupAres(rawIco);
+    await writeCache(supabase, result);
   }
-
-  // Live dotaz na ARES
-  const result = await lookupAres(rawIco);
-
-  // Cache i chyby (s krátkým TTL) — aby se nezatěžoval ARES
-  await writeCache(supabase, result);
 
   if (result.status === "error") {
     return NextResponse.json(
-      { source: "live", result, error: result.message },
+      { source, result, error: result.message },
       { status: 502 }
     );
   }
 
-  return NextResponse.json({ source: "live", result });
+  if (result.status === "inactive") {
+    const reason =
+      result.reason === "deleted"
+        ? `Subjekt v ARES je zaniklý${result.datumZaniku ? ` (datum zániku ${result.datumZaniku})` : ""}.`
+        : "Subjekt v ARES není aktivní v žádném z rejstříků.";
+    return NextResponse.json(
+      { source, result, error: reason },
+      { status: 422 }
+    );
+  }
+
+  return NextResponse.json({ source, result });
 }

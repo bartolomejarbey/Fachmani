@@ -58,6 +58,17 @@ export async function POST(req: NextRequest) {
     await writeCache(supabase, result);
   }
 
+  if (result.status === "inactive") {
+    const reason =
+      result.reason === "deleted"
+        ? `Subjekt v ARES je zaniklý${result.datumZaniku ? ` (datum zániku ${result.datumZaniku})` : ""}.`
+        : "Subjekt v ARES není aktivní v žádném z rejstříků.";
+    return NextResponse.json(
+      { result, error: reason },
+      { status: 422 }
+    );
+  }
+
   if (result.status !== "ok") {
     return NextResponse.json(
       {
