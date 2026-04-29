@@ -353,7 +353,9 @@ function SeznamFachmanuContent() {
         }
       }
 
-      if (opts?.order) q = q.order("name", { ascending: true });
+      // Pozn.: order podle ico (PK, indexovaný) — order podle name by spustil
+      // full sort přes 290k řádků a překonal by PostgREST statement_timeout.
+      if (opts?.order) q = q.order("ico", { ascending: true });
       if (opts?.range) q = q.range(opts.range[0], opts.range[1]);
       return q;
     },
