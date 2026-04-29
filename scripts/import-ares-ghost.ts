@@ -34,6 +34,7 @@
 
 // @ts-nocheck — Supabase typed client se v scripts/ nesnáší se strict mode
 import { createClient } from "@supabase/supabase-js";
+import { naceToCategoryIds, type CategoryRef } from "../lib/ares/nace-categories";
 
 // -------------------------------------------------------------------------
 // Konfigurace
@@ -42,35 +43,18 @@ const ARES_BASE = "https://ares.gov.cz/ekonomicke-subjekty-v-be/rest";
 const ARES_VYHLEDAT = `${ARES_BASE}/ekonomicke-subjekty/vyhledat`;
 const ARES_CISELNIK = `${ARES_BASE}/ciselniky-nazevniky/vyhledat`;
 
+// NACE prefixy pro filtraci ARES dotazů (chceme jen řemeslné/službové subjekty,
+// ne 100 % ARESu). Subjekty s NACE mimo tento seznam se ignorují.
 const RELEVANT_NACE_PREFIXES = [
   "41", "42", "43", "45",
+  "14", "16", "23", "25", "31", "33", "38",
+  "49", "56",
+  "62", "631", "69", "70", "71", "73", "74", "75", "79",
+  "81", "82", "85", "881",
+  "9001", "9002", "9003", "93",
   "9521", "9522", "9523", "9524", "9525", "9529",
-  "8130", "8121", "9609",
+  "9601", "9602", "9603", "9604", "9609",
 ];
-
-const NACE_TO_CATEGORY_KEY: Record<string, string> = {
-  "41": "stavebnictvi",
-  "42": "stavebnictvi",
-  "43": "stavebnictvi",
-  "4321": "elektro-voda-topeni",
-  "4322": "elektro-voda-topeni",
-  "4329": "elektro-voda-topeni",
-  "4331": "remeslnici",
-  "4332": "remeslnici",
-  "4333": "remeslnici",
-  "4334": "remeslnici",
-  "4339": "remeslnici",
-  "45": "auto-moto",
-  "9521": "elektro-voda-topeni",
-  "9522": "elektro-voda-topeni",
-  "9523": "ostatni",
-  "9524": "remeslnici",
-  "9525": "ostatni",
-  "9529": "ostatni",
-  "8130": "zahrada",
-  "8121": "uklid",
-  "9609": "ostatni",
-};
 
 // Populární právní formy. Pokud subjekt má pf mimo tento seznam, nezachytíme
 // ho při sub-splitu — řemeslné NACE ale typicky jsou koncentrovaná v 101/112.
@@ -234,26 +218,7 @@ function isActive(subject: AresSubject): boolean {
   );
 }
 
-function deriveCategoryIds(
-  nace: string[],
-  categorySlugMap: Map<string, string>
-): string[] {
-  const ids = new Set<string>();
-  const sortedKeys = Object.keys(NACE_TO_CATEGORY_KEY).sort(
-    (a, b) => b.length - a.length
-  );
-  for (const code of nace) {
-    for (const prefix of sortedKeys) {
-      if (code.startsWith(prefix)) {
-        const slug = NACE_TO_CATEGORY_KEY[prefix];
-        const id = categorySlugMap.get(slug);
-        if (id) ids.add(id);
-        break;
-      }
-    }
-  }
-  return Array.from(ids);
-}
+// deriveCategoryIds nahrazena `naceToCategoryIds` z lib/ares/nace-categories.
 
 function normalizeNazev(s: string | undefined | null): string {
   if (!s) return "";
@@ -267,7 +232,7 @@ function extractNaces(subject: AresSubject): string[] {
 
 function mapToGhostRow(
   subject: AresSubject,
-  categorySlugMap: Map<string, string>,
+  categorySlugMap: Map<string, CategoryRef>,
   regionByNazev: Map<string, string>,
   districtByNazev: Map<string, { id: string; region_id: string }>,
   prahaDistrictId: string | null
@@ -306,7 +271,7 @@ function mapToGhostRow(
     name: subject.obchodniJmeno,
     legal_form: subject.pravniForma ?? null,
     cz_nace: naces,
-    category_ids: deriveCategoryIds(naces, categorySlugMap),
+    category_ids: naceToCategoryIds(naces, categorySlugMap),
     region_id,
     district_id,
     legal_address: sidlo
@@ -333,11 +298,15 @@ function mapToGhostRow(
 async function loadCategorySlugMap(supabase: any) {
   const { data } = await supabase
     .from("categories")
-    .select("id, slug")
-    .is("parent_id", null);
-  const map = new Map<string, string>();
+    .select("id, slug, parent_id");
+  const map = new Map<string, CategoryRef>();
   for (const c of data ?? []) {
-    if (c.slug) map.set(c.slug as string, c.id as string);
+    if (c.slug) {
+      map.set(c.slug as string, {
+        id: c.id as string,
+        parent_id: (c.parent_id as string | null) ?? null,
+      });
+    }
   }
   return map;
 }

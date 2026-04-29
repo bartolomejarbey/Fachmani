@@ -62,6 +62,14 @@ export default function Home() {
       .from("seed_providers")
       .select("*", { count: "exact", head: true });
 
+    // ARES ghost subjekty — aktivní + neclaimnutí. Počítají se jako profesionálové
+    // dostupní na platformě (tvoří drtivou většinu — viz ghost_subjects_active_visible_idx).
+    const { count: ghostSubjects } = await supabase
+      .from("ghost_subjects")
+      .select("*", { count: "exact", head: true })
+      .is("claimed_at", null)
+      .eq("is_active", true);
+
     // Expire old requests (may fail if RPC not created yet)
     await supabase.rpc('expire_old_requests');
 
@@ -86,7 +94,7 @@ export default function Home() {
       : 4.8;
 
     setStats({
-      providers: (realProviders || 0) + (seedProviders || 0),
+      providers: (realProviders || 0) + (seedProviders || 0) + (ghostSubjects || 0),
       requests: activeRequests || 0,
       completed: completedRequests || 0,
       avgRating,
