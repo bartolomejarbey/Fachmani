@@ -11,29 +11,25 @@
  * Volitelně:
  *   ARES_DRY_RUN=1        — jen logy, nic se nepíše do DB
  *   ARES_NACE_PREFIXES=43 — čárkou oddělené NACE prefixy (default = RELEVANT_NACE_PREFIXES)
- *   ARES_PAGE_SIZE=100    — velikost stránky (max 100 doporučeno, hard limit 1000 per query)
- *   ARES_THROTTLE_MS=200  — pauza mezi requesty (proti rate-limitu)
+ *   ARES_PAGE_SIZE=100    — velikost stránky (max 100 doporučeno)
+ *   ARES_THROTTLE_MS=200  — pauza mezi requesty
  *
  * Strategie (proč ne bulk dump):
- *   ARES nemá veřejný bulk XML/CSV dump. POST /ekonomicke-subjekty/vyhledat má
- *   tvrdý limit 1 000 výsledků per query — proto musíme dotazovat per 5-cif. NACE
- *   kód (3-4-cif. kódy nejsou indexované, 2-cif. sekce typicky vrací >1 000).
+ *   ARES nemá veřejný bulk dump. POST /ekonomicke-subjekty/vyhledat má hard
+ *   limit 1 000 výsledků/query. Iterujeme per 5-cif. NACE z CzNace ciselniku.
+ *   Pokud nějaký NACE překročí limit, sub-split:
+ *     1) NACE × pravniForma  (z hardkódovaného seznamu populárních forem)
+ *     2) NACE × pravniForma × financniUrad  (139 územních pracovišť)
  *
- *   1. Stáhneme aktuální CzNace číselník z /ciselniky-nazevniky/vyhledat.
- *   2. Vyfiltrujeme 5-cif. kódy odpovídající RELEVANT_NACE_PREFIXES.
- *   3. Per kód: paginované volání /ekonomicke-subjekty/vyhledat (start=0, +100…).
- *   4. Per subjekt: aplikujeme isActive + relevantní NACE filtr (subjekt může mít
- *      více NACE — vyhodíme ho jen pokud žádný neodpovídá našim prefixům).
- *   5. Mapping NACE → category_ids, PSČ → district_id (přes psc_prefixes lookup).
- *   6. Batch upsert (1000 záznamů per batch) do ghost_subjects (onConflict: ico).
+ * Mapping na lokální data:
+ *   - region_id přes nazevKraje match s public.regions.name_cs
+ *   - district_id přes nazevOkresu match s public.districts.name_cs
+ *     (pro Prahu kraj 19 → district „Hlavní město Praha")
+ *   - category_ids přes NACE prefix → categories.slug map
  *
- * Bezpečnostní poznámky:
- *   - Skript musí běžet se SUPABASE_SERVICE_ROLE_KEY (RLS by jinak blokoval insert).
+ * Bezpečnost:
+ *   - Skript musí běžet se SUPABASE_SERVICE_ROLE_KEY (RLS by jinak blokoval).
  *   - První spuštění: ARES_DRY_RUN=1 + ARES_NACE_PREFIXES=4321 pro ověření.
- *   - Throttle 200 ms mezi calls — ARES nemá oficiální limit, ale spam nedělat.
- *   - Pokud nějaký 5-cif. NACE vrátí pocetCelkem > 1000, script to zaloguje a
- *     posune se dál (subjekty nad limit zůstanou neimportované — operator musí
- *     ten kód rozdělit ručně, např. po krajích).
  */
 
 // @ts-nocheck — Supabase typed client se v scripts/ nesnáší se strict mode
@@ -56,23 +52,37 @@ const NACE_TO_CATEGORY_KEY: Record<string, string> = {
   "41": "stavebnictvi",
   "42": "stavebnictvi",
   "43": "stavebnictvi",
-  "4321": "elektro",
-  "4322": "instalater",
-  "4331": "stavebnictvi",
-  "4332": "stavebnictvi",
-  "4333": "stavebnictvi",
-  "4334": "stavebnictvi",
-  "45": "automoto",
-  "9521": "elektro",
-  "9522": "elektro",
+  "4321": "elektro-voda-topeni",
+  "4322": "elektro-voda-topeni",
+  "4329": "elektro-voda-topeni",
+  "4331": "remeslnici",
+  "4332": "remeslnici",
+  "4333": "remeslnici",
+  "4334": "remeslnici",
+  "4339": "remeslnici",
+  "45": "auto-moto",
+  "9521": "elektro-voda-topeni",
+  "9522": "elektro-voda-topeni",
   "9523": "ostatni",
-  "9524": "stavebnictvi",
+  "9524": "remeslnici",
   "9525": "ostatni",
   "9529": "ostatni",
   "8130": "zahrada",
   "8121": "uklid",
   "9609": "ostatni",
 };
+
+// Populární právní formy. Pokud subjekt má pf mimo tento seznam, nezachytíme
+// ho při sub-splitu — řemeslné NACE ale typicky jsou koncentrovaná v 101/112.
+const POPULAR_PRAVNI_FORMY = [
+  "101", "102", "103", "105", "107",  // FO podnikající
+  "111", "112", "113", "117", "118",  // PO obchodní
+  "121", "141", "144", "145",         // a.s., SE
+  "161", "205",                       // organizační složky
+  "301", "311", "421", "501",         // ostatní právní formy
+  "601", "701", "706", "731",         // sdružení / SVJ
+  "751", "761", "771", "999",
+];
 
 const BATCH_SIZE = 1000;
 const PAGE_SIZE = Number(process.env.ARES_PAGE_SIZE ?? 100);
@@ -95,9 +105,17 @@ type AresSubject = {
   datumVzniku?: string;
   datumZaniku?: string;
   czNace?: string[];
+  czNace2008?: string[];
   sidlo?: {
     psc?: number | string;
+    kodKraje?: number;
+    nazevKraje?: string;
+    kodOkresu?: number;
+    nazevOkresu?: string;
+    kodObce?: number;
     nazevObce?: string;
+    kodSpravnihoObvodu?: number;
+    nazevSpravnihoObvodu?: string;
     nazevUlice?: string;
     cisloDomovni?: number | string;
     cisloOrientacni?: number | string;
@@ -123,9 +141,10 @@ type Stats = {
   fetched: number;
   filtered_inactive: number;
   filtered_nace: number;
+  duplicates: number;
   kept: number;
   upserted: number;
-  over_limit_codes: string[];
+  over_limit_buckets: string[];
 };
 
 // -------------------------------------------------------------------------
@@ -146,48 +165,55 @@ async function aresPost(url: string, body: unknown, attempt = 0): Promise<any> {
   }
 
   const text = await res.text();
-  if (!res.ok) {
-    // ARES vrací 400 s payloadem { kod: 'CHYBA_VSTUPU', popis: '...' } pro >1000 výsledků
-    let parsed: any = null;
-    try { parsed = JSON.parse(text); } catch { /* */ }
+  let parsed: any = null;
+  try { parsed = JSON.parse(text); } catch { /* */ }
+
+  if (!res.ok || parsed?.kod === "CHYBA_VSTUPU") {
     if (parsed?.kod === "CHYBA_VSTUPU") {
       const err = new Error(parsed.popis ?? "CHYBA_VSTUPU");
       (err as any).code = "CHYBA_VSTUPU";
+      (err as any).subKod = parsed.subKod;
       throw err;
     }
     throw new Error(`ARES HTTP ${res.status}: ${text.slice(0, 200)}`);
   }
 
-  return JSON.parse(text);
+  return parsed;
 }
 
 // -------------------------------------------------------------------------
-// CzNace ciselnik
+// CzNace ciselnik (5-cif. kódy odpovídající našim prefixům)
 // -------------------------------------------------------------------------
 type NaceCode = { kod: string; nazev: string };
 
 async function fetchCzNace5DigitCodes(): Promise<NaceCode[]> {
-  const data = await aresPost(ARES_CISELNIK, {
-    kodCiselniku: "CzNace",
-    pocet: 5000,
-  });
-  const items: any[] = data?.polozkyCiselniku ?? [];
-  // Filtr: jen 5-cif. (subclasses) které matchují naše prefixy
+  const data = await aresPost(ARES_CISELNIK, { kodCiselniku: "CzNace" });
+  const items: any[] = data?.ciselniky?.[0]?.polozkyCiselniku ?? [];
   const out: NaceCode[] = [];
   for (const item of items) {
-    const codes: string[] = item?.kody ?? [];
-    for (const code of codes) {
-      if (code.length === 5 && ACTIVE_PREFIXES.some((p) => code.startsWith(p))) {
-        out.push({ kod: code, nazev: item?.nazev ?? "" });
-        break;
-      }
-    }
+    const code: string = item?.kod ?? "";
+    if (code.length !== 5) continue;
+    if (!ACTIVE_PREFIXES.some((p) => code.startsWith(p))) continue;
+    const nazevs = item?.nazev ?? [];
+    const cs = nazevs.find?.((n: any) => n?.kodJazyka === "cs")?.nazev ?? "";
+    out.push({ kod: code, nazev: cs });
   }
   return out;
 }
 
 // -------------------------------------------------------------------------
-// Filtr + mapping (reused from old version)
+// FinancniUrad ciselnik (139 územních pracovišť)
+// -------------------------------------------------------------------------
+async function fetchFinancniUrady(): Promise<string[]> {
+  const data = await aresPost(ARES_CISELNIK, { kodCiselniku: "FinancniUrad" });
+  const items: any[] = data?.ciselniky?.[0]?.polozkyCiselniku ?? [];
+  return items
+    .map((it: any) => String(it?.kod ?? ""))
+    .filter((kod) => /^\d{3}$/.test(kod) && kod !== "000");
+}
+
+// -------------------------------------------------------------------------
+// Filtr + mapping
 // -------------------------------------------------------------------------
 function isRelevantNace(nace: string[]): boolean {
   return nace.some((n) =>
@@ -229,31 +255,51 @@ function deriveCategoryIds(
   return Array.from(ids);
 }
 
+function normalizeNazev(s: string | undefined | null): string {
+  if (!s) return "";
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function extractNaces(subject: AresSubject): string[] {
+  const list = subject.czNace2008 ?? subject.czNace ?? [];
+  return list.map(String);
+}
+
 function mapToGhostRow(
   subject: AresSubject,
   categorySlugMap: Map<string, string>,
-  pscToDistrict: Map<string, { district_id: string; region_id: string }>
+  regionByNazev: Map<string, string>,
+  districtByNazev: Map<string, { id: string; region_id: string }>,
+  prahaDistrictId: string | null
 ): GhostRow | null {
-  const naces = (subject.czNace ?? []).map(String);
+  const naces = extractNaces(subject);
   if (!isRelevantNace(naces)) return null;
   if (!isActive(subject)) return null;
 
-  // PSČ → okres lookup. Jdeme od plného PSČ přes 4-ciferný prefix po 3-ciferný.
-  let district_id: string | null = null;
+  // Region/district mapping přes nazev match
   let region_id: string | null = null;
-  const pscRaw = subject.sidlo?.psc;
-  const psc = pscRaw != null ? String(pscRaw).replace(/\s+/g, "") : "";
-  if (psc) {
-    const candidates = [psc, psc.slice(0, 4), psc.slice(0, 3)];
-    for (const key of candidates) {
-      const hit = pscToDistrict.get(key);
-      if (hit) {
-        district_id = hit.district_id;
-        region_id = hit.region_id;
-        break;
-      }
+  let district_id: string | null = null;
+  const sidlo = subject.sidlo ?? {};
+
+  const krajKey = normalizeNazev(sidlo.nazevKraje);
+  if (krajKey) region_id = regionByNazev.get(krajKey) ?? null;
+
+  // Pro Prahu (kodKraje 19 / "Hlavní město Praha") nemá ARES kodOkresu — používáme
+  // celou Prahu jako district (LAU CZ0100). Pro mimo-pražské mapujeme nazevOkresu.
+  if (sidlo.kodKraje === 19 || krajKey === "hlavní město praha") {
+    district_id = prahaDistrictId;
+  } else {
+    const okresKey = normalizeNazev(sidlo.nazevOkresu);
+    const hit = districtByNazev.get(okresKey);
+    if (hit) {
+      district_id = hit.id;
+      // Pokud kraj match selhal, použij kraj z okresu jako fallback
+      if (!region_id) region_id = hit.region_id;
     }
   }
+
+  const pscRaw = sidlo.psc;
+  const psc = pscRaw != null ? String(pscRaw).replace(/\s+/g, "") : "";
 
   return {
     ico: subject.ico,
@@ -263,14 +309,13 @@ function mapToGhostRow(
     category_ids: deriveCategoryIds(naces, categorySlugMap),
     region_id,
     district_id,
-    legal_address: subject.sidlo
+    legal_address: sidlo
       ? {
-          street: subject.sidlo.nazevUlice ?? null,
-          house_number: subject.sidlo.cisloDomovni != null
-            ? String(subject.sidlo.cisloDomovni) : null,
-          orientation_number: subject.sidlo.cisloOrientacni != null
-            ? String(subject.sidlo.cisloOrientacni) : null,
-          city: subject.sidlo.nazevObce ?? null,
+          street: sidlo.nazevUlice ?? null,
+          house_number: sidlo.cisloDomovni != null ? String(sidlo.cisloDomovni) : null,
+          orientation_number: sidlo.cisloOrientacni != null
+            ? String(sidlo.cisloOrientacni) : null,
+          city: sidlo.nazevObce ?? null,
           postal_code: psc || null,
           country: "Česká republika",
           source: "ares_api",
@@ -297,29 +342,40 @@ async function loadCategorySlugMap(supabase: any) {
   return map;
 }
 
-async function loadPscToDistrictMap(supabase: any) {
-  const { data } = await supabase
-    .from("districts")
-    .select("id, region_id, psc_prefixes");
-  const map = new Map<string, { district_id: string; region_id: string }>();
-  for (const d of (data ?? []) as Array<{
-    id: string;
-    region_id: string;
-    psc_prefixes: string[] | null;
-  }>) {
-    for (const p of d.psc_prefixes ?? []) {
-      map.set(p, { district_id: d.id, region_id: d.region_id });
-    }
+async function loadRegionMap(supabase: any) {
+  const { data } = await supabase.from("regions").select("id, name_cs");
+  const map = new Map<string, string>();
+  for (const r of (data ?? []) as Array<{ id: string; name_cs: string }>) {
+    map.set(normalizeNazev(r.name_cs), r.id);
   }
   return map;
 }
 
+async function loadDistrictMap(supabase: any) {
+  const { data } = await supabase
+    .from("districts")
+    .select("id, region_id, name_cs");
+  const map = new Map<string, { id: string; region_id: string }>();
+  let prahaId: string | null = null;
+  for (const d of (data ?? []) as Array<{
+    id: string;
+    region_id: string;
+    name_cs: string;
+  }>) {
+    map.set(normalizeNazev(d.name_cs), { id: d.id, region_id: d.region_id });
+    if (normalizeNazev(d.name_cs) === "hlavní město praha") prahaId = d.id;
+  }
+  return { map, prahaId };
+}
+
 // -------------------------------------------------------------------------
-// Pagination per NACE code
+// Pagination per filtr (NACE / NACE+pf / NACE+pf+fu)
 // -------------------------------------------------------------------------
-async function* iterateNace(
-  naceCode: string,
-  stats: Stats
+async function* paginateFilter(
+  baseFilter: Record<string, unknown>,
+  bucketLabel: string,
+  stats: Stats,
+  seenIcos: Set<string>
 ): AsyncGenerator<AresSubject> {
   let start = 0;
   let total = -1;
@@ -328,14 +384,14 @@ async function* iterateNace(
     let data: any;
     try {
       data = await aresPost(ARES_VYHLEDAT, {
-        czNace: [naceCode],
+        ...baseFilter,
         start,
         pocet: PAGE_SIZE,
       });
     } catch (e: any) {
       if (e.code === "CHYBA_VSTUPU") {
-        console.warn(`  [${naceCode}] nad limit 1 000: ${e.message}`);
-        stats.over_limit_codes.push(naceCode);
+        // Při paginaci by k tomuto nemělo dojít — peek by to chytnul dřív.
+        stats.over_limit_buckets.push(bucketLabel);
         return;
       }
       throw e;
@@ -344,18 +400,13 @@ async function* iterateNace(
     const items: AresSubject[] = data?.ekonomickeSubjekty ?? [];
     total = data?.pocetCelkem ?? 0;
 
-    if (start === 0) {
-      console.log(`  [${naceCode}] celkem ${total} subjektů`);
-      if (total > ARES_LIMIT_PER_QUERY) {
-        console.warn(
-          `  [${naceCode}] varování: ${total} > ${ARES_LIMIT_PER_QUERY}, ` +
-          `dostaneme jen prvních ${ARES_LIMIT_PER_QUERY}`
-        );
-        stats.over_limit_codes.push(naceCode);
-      }
-    }
-
     for (const item of items) {
+      if (!item?.ico) continue;
+      if (seenIcos.has(item.ico)) {
+        stats.duplicates++;
+        continue;
+      }
+      seenIcos.add(item.ico);
       stats.fetched++;
       yield item;
     }
@@ -363,8 +414,84 @@ async function* iterateNace(
     start += items.length;
     if (items.length === 0 || start >= total || start >= ARES_LIMIT_PER_QUERY) break;
 
-    // Throttle proti rate-limitu
     if (THROTTLE_MS > 0) await new Promise((r) => setTimeout(r, THROTTLE_MS));
+  }
+}
+
+async function peekTotal(filter: Record<string, unknown>): Promise<number> {
+  try {
+    const data = await aresPost(ARES_VYHLEDAT, { ...filter, start: 0, pocet: 1 });
+    return data?.pocetCelkem ?? 0;
+  } catch (e: any) {
+    if (e.code === "CHYBA_VSTUPU") return Infinity;
+    throw e;
+  }
+}
+
+async function* iterateNace(
+  naceCode: string,
+  fus: string[],
+  stats: Stats,
+  seenIcos: Set<string>
+): AsyncGenerator<AresSubject> {
+  // Úroveň 1: NACE-only
+  const t1 = await peekTotal({ czNace: [naceCode] });
+  if (t1 === 0) {
+    console.log(`  [${naceCode}] 0 subjektů`);
+    return;
+  }
+  if (t1 <= ARES_LIMIT_PER_QUERY) {
+    console.log(`  [${naceCode}] ${t1} subjektů (1 dotaz)`);
+    yield* paginateFilter({ czNace: [naceCode] }, naceCode, stats, seenIcos);
+    return;
+  }
+
+  console.log(`  [${naceCode}] >${ARES_LIMIT_PER_QUERY} subjektů — sub-split per pravniForma`);
+
+  // Úroveň 2: NACE × pravniForma
+  for (const pf of POPULAR_PRAVNI_FORMY) {
+    const t2 = await peekTotal({ czNace: [naceCode], pravniForma: [pf] });
+    if (t2 === 0) continue;
+
+    if (t2 <= ARES_LIMIT_PER_QUERY) {
+      console.log(`    [${naceCode}+pf=${pf}] ${t2} subjektů`);
+      yield* paginateFilter(
+        { czNace: [naceCode], pravniForma: [pf] },
+        `${naceCode}+pf=${pf}`,
+        stats,
+        seenIcos
+      );
+      if (THROTTLE_MS > 0) await new Promise((r) => setTimeout(r, THROTTLE_MS));
+      continue;
+    }
+
+    // Úroveň 3: NACE × pf × financniUrad
+    console.log(`    [${naceCode}+pf=${pf}] >${ARES_LIMIT_PER_QUERY} — sub-split per FU`);
+    let pfTotal = 0;
+    for (const fu of fus) {
+      const t3 = await peekTotal({
+        czNace: [naceCode],
+        pravniForma: [pf],
+        financniUrad: [fu],
+      });
+      if (t3 === 0) continue;
+      if (t3 > ARES_LIMIT_PER_QUERY) {
+        console.warn(
+          `      [${naceCode}+pf=${pf}+fu=${fu}] >${ARES_LIMIT_PER_QUERY} ` +
+          `— prvních ${ARES_LIMIT_PER_QUERY} se stáhne, zbytek skip`
+        );
+        stats.over_limit_buckets.push(`${naceCode}+pf=${pf}+fu=${fu}`);
+      }
+      pfTotal += t3;
+      yield* paginateFilter(
+        { czNace: [naceCode], pravniForma: [pf], financniUrad: [fu] },
+        `${naceCode}+pf=${pf}+fu=${fu}`,
+        stats,
+        seenIcos
+      );
+      if (THROTTLE_MS > 0) await new Promise((r) => setTimeout(r, THROTTLE_MS));
+    }
+    console.log(`    [${naceCode}+pf=${pf}] celkem ~${pfTotal} subjektů přes FU split`);
   }
 }
 
@@ -374,7 +501,7 @@ async function* iterateNace(
 async function upsertBatch(supabase: any, rows: GhostRow[]): Promise<number> {
   if (rows.length === 0) return 0;
   if (DRY_RUN) {
-    console.log(`  [dry-run] would upsert ${rows.length} rows`);
+    console.log(`    [dry-run] would upsert ${rows.length} rows`);
     return rows.length;
   }
   const { error, count } = await supabase
@@ -398,56 +525,66 @@ async function main() {
     auth: { persistSession: false },
   });
 
-  console.log("[1/4] Načítám CzNace číselník (5-cif. kódy)...");
-  const naceCodes = await fetchCzNace5DigitCodes();
+  console.log("[1/4] Načítám CzNace + FinancniUrad číselníky...");
+  const [naceCodes, fus] = await Promise.all([
+    fetchCzNace5DigitCodes(),
+    fetchFinancniUrady(),
+  ]);
   console.log(
-    `  ${naceCodes.length} kódů k naimportování (prefixy: ${ACTIVE_PREFIXES.join(", ")})`
+    `  ${naceCodes.length} NACE kódů, ${fus.length} finančních úřadů ` +
+    `(prefixy: ${ACTIVE_PREFIXES.join(", ")})`
   );
   if (naceCodes.length === 0) {
     console.warn("  Žádné NACE kódy nenalezeny — kontrola prefixů?");
     return;
   }
 
-  console.log("[2/4] Načítám lookup tables (categories + districts.psc_prefixes)...");
-  const categoryMap = await loadCategorySlugMap(supabase);
-  const pscMap = await loadPscToDistrictMap(supabase);
+  console.log("[2/4] Načítám lookup tables (categories, regions, districts)...");
+  const [categoryMap, regionMap, districtData] = await Promise.all([
+    loadCategorySlugMap(supabase),
+    loadRegionMap(supabase),
+    loadDistrictMap(supabase),
+  ]);
   console.log(
-    `  kategorií: ${categoryMap.size}, PSČ→okres entries: ${pscMap.size}`
+    `  kategorií: ${categoryMap.size}, krajů: ${regionMap.size}, ` +
+    `okresů: ${districtData.map.size}` +
+    (districtData.prahaId ? "" : " — POZOR: Praha district neexistuje, pražské subjekty budou bez district_id")
   );
-  if (pscMap.size === 0) {
-    console.warn(
-      "  PSČ mapa je prázdná — všechny ghost_subjects budou bez district_id. " +
-      "Doplň districts.psc_prefixes před spuštěním."
-    );
-  }
 
   console.log("[3/4] Stahuji a upsertuji ghost_subjects...");
   const stats: Stats = {
     fetched: 0,
     filtered_inactive: 0,
     filtered_nace: 0,
+    duplicates: 0,
     kept: 0,
     upserted: 0,
-    over_limit_codes: [],
+    over_limit_buckets: [],
   };
   const buffer: GhostRow[] = [];
+  const seenIcos = new Set<string>();
 
   for (const { kod, nazev } of naceCodes) {
     console.log(`\n  → NACE ${kod} (${nazev})`);
-    for await (const subject of iterateNace(kod, stats)) {
-      // isActive check
+    for await (const subject of iterateNace(kod, fus, stats, seenIcos)) {
+      // isActive a NACE filter (subjekt může mít víc NACE; alespoň jeden musí být relevantní)
       if (!isActive(subject)) {
         stats.filtered_inactive++;
         continue;
       }
-      // isRelevantNace (subjekt může mít více NACE; nejmíň jeden musí matchnout)
-      const naces = (subject.czNace ?? []).map(String);
+      const naces = extractNaces(subject);
       if (!isRelevantNace(naces)) {
         stats.filtered_nace++;
         continue;
       }
 
-      const row = mapToGhostRow(subject, categoryMap, pscMap);
+      const row = mapToGhostRow(
+        subject,
+        categoryMap,
+        regionMap,
+        districtData.map,
+        districtData.prahaId
+      );
       if (!row) continue;
       stats.kept++;
       buffer.push(row);
@@ -455,10 +592,11 @@ async function main() {
       if (buffer.length >= BATCH_SIZE) {
         const n = await upsertBatch(supabase, buffer.splice(0));
         stats.upserted += n;
+        process.stdout.write(
+          `    fetched=${stats.fetched.toLocaleString()} kept=${stats.kept.toLocaleString()} upserted=${stats.upserted.toLocaleString()}\r`
+        );
       }
     }
-
-    if (THROTTLE_MS > 0) await new Promise((r) => setTimeout(r, THROTTLE_MS));
   }
 
   if (buffer.length > 0) {
@@ -468,18 +606,20 @@ async function main() {
 
   console.log("\n[4/4] Hotovo:");
   console.log(`  fetched:        ${stats.fetched.toLocaleString()}`);
+  console.log(`  duplicates:     ${stats.duplicates.toLocaleString()}`);
   console.log(`  filtered NACE:  ${stats.filtered_nace.toLocaleString()}`);
   console.log(`  filtered inactive: ${stats.filtered_inactive.toLocaleString()}`);
   console.log(`  kept:           ${stats.kept.toLocaleString()}`);
   console.log(`  upserted:       ${stats.upserted.toLocaleString()}`);
-  if (stats.over_limit_codes.length > 0) {
+  if (stats.over_limit_buckets.length > 0) {
     console.warn(
-      `  POZOR: ${stats.over_limit_codes.length} NACE kódů přeplnilo limit 1 000 ` +
-      `(některé subjekty se nestáhly): ${stats.over_limit_codes.join(", ")}`
+      `  POZOR: ${stats.over_limit_buckets.length} bucketů přeplnilo limit 1 000 ` +
+      `(některé subjekty se nestáhly):`
     );
-    console.warn(
-      `  Tyto kódy je třeba sub-splitnout (např. po krajích) — doplň manuální logiku.`
-    );
+    for (const b of stats.over_limit_buckets.slice(0, 10)) console.warn(`    - ${b}`);
+    if (stats.over_limit_buckets.length > 10) {
+      console.warn(`    ... a ${stats.over_limit_buckets.length - 10} dalších`);
+    }
   }
 }
 
