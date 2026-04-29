@@ -33,6 +33,7 @@
  */
 
 // @ts-nocheck — Supabase typed client se v scripts/ nesnáší se strict mode
+import "./_load-env";
 import { createClient } from "@supabase/supabase-js";
 import { naceToCategoryIds, type CategoryRef } from "../lib/ares/nace-categories";
 

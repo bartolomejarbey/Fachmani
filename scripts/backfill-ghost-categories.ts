@@ -20,6 +20,7 @@
  */
 
 // @ts-nocheck — Supabase typed client se v scripts/ nesnáší se strict mode
+import "./_load-env";
 import { createClient } from "@supabase/supabase-js";
 import { naceToCategoryIds, type CategoryRef } from "../lib/ares/nace-categories";
 
@@ -80,7 +81,9 @@ async function* iterateGhosts(supabase: any): AsyncGenerator<GhostMini[]> {
     if (rows.length === 0) return;
     yield rows;
     lastIco = rows[rows.length - 1].ico;
-    if (rows.length < BATCH) return;
+    // Pozn.: nekončit při rows.length < BATCH — Supabase má server-side cap
+    // (default 1000), takže pro BATCH > 1000 by to skončilo předčasně.
+    // Iterujeme dokud server vrací aspoň 1 řádek.
   }
 }
 

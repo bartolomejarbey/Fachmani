@@ -73,7 +73,16 @@ function SeznamFachmanuContent() {
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedDistrict, setSelectedDistrict] = useState("");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Debounce searchText → debouncedSearch (300 ms), aby se neposílala query
+  // na každý úhoz klávesy (290k ghosts).
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchText.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchText]);
 
   // Read category from URL param — match against all categories (main or sub)
   useEffect(() => {
@@ -304,9 +313,18 @@ function SeznamFachmanuContent() {
       result = result.filter((f) => f.is_verified);
     }
 
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      result = result.filter((f) => {
+        if (f.full_name.toLowerCase().includes(q)) return true;
+        if (f.locations?.some((loc) => loc.toLowerCase().includes(q))) return true;
+        return false;
+      });
+    }
+
     setRealAndSeedFiltered(result);
     setCurrentPage(1);
-  }, [realAndSeed, selectedMain, selectedCategory, selectedRegion, selectedDistrict, verifiedOnly, categoryFilterIds, regions, districts]);
+  }, [realAndSeed, selectedMain, selectedCategory, selectedRegion, selectedDistrict, verifiedOnly, debouncedSearch, categoryFilterIds, regions, districts]);
 
   // === Build server-side ghost filter ===
   const buildGhostQuery = useCallback(
@@ -325,11 +343,21 @@ function SeznamFachmanuContent() {
         q = q.overlaps("category_ids", categoryFilterIds);
       }
 
+      if (debouncedSearch) {
+        // PostgREST .or() je čárka-separated — escapujeme čárky/hvězdy v inputu.
+        const safe = debouncedSearch.replace(/[,()*]/g, " ").trim();
+        if (safe) {
+          q = q.or(
+            `name.ilike.*${safe}*,legal_address->>city.ilike.*${safe}*`,
+          );
+        }
+      }
+
       if (opts?.order) q = q.order("name", { ascending: true });
       if (opts?.range) q = q.range(opts.range[0], opts.range[1]);
       return q;
     },
-    [selectedRegion, selectedDistrict, selectedCategory, categoryFilterIds],
+    [selectedRegion, selectedDistrict, selectedCategory, categoryFilterIds, debouncedSearch],
   );
 
   // === Fetch ghost count when filter changes ===
@@ -463,6 +491,16 @@ function SeznamFachmanuContent() {
         <div className="max-w-7xl mx-auto px-4">
           {/* Filtry */}
           <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8 ${mounted ? "animate-fade-in-up" : "opacity-0"}`}>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Hledat (jméno nebo město)</label>
+              <input
+                type="search"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="např. Novák, Brno, Praha 5…"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              />
+            </div>
             <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Hlavní kategorie</label>
@@ -554,6 +592,7 @@ function SeznamFachmanuContent() {
                     setSelectedRegion("");
                     setSelectedDistrict("");
                     setVerifiedOnly(false);
+                    setSearchText("");
                   }}
                   className="w-full px-4 py-3 text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors font-medium"
                 >
@@ -621,6 +660,11 @@ function SeznamFachmanuContent() {
                         {fachman.is_ghost && (
                           <span className="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full font-semibold border border-gray-200" title="Subjekt importovaný z ARES, profil zatím nepřevzal">
                             Neověřeno (ARES)
+                          </span>
+                        )}
+                        {!fachman.is_ghost && !fachman.is_verified && (
+                          <span className="bg-orange-50 text-orange-600 text-xs px-3 py-1 rounded-full font-semibold border border-orange-200" title="Profil zatím není ověřen">
+                            Neověřeno
                           </span>
                         )}
                       </div>
