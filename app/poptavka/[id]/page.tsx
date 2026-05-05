@@ -8,6 +8,7 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 import ReviewForm from "@/app/components/ReviewForm";
+import CustomerReviewForm from "@/app/components/CustomerReviewForm";
 import ImageCropper from "@/app/components/ImageCropper";
 import { useSettings } from "@/lib/useSettings";
 
@@ -71,6 +72,14 @@ export default function PoptavkaDetail() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [existingReview, setExistingReview] = useState<boolean>(false);
+  const [existingCustomerReview, setExistingCustomerReview] = useState<boolean>(false);
+  const [customerStats, setCustomerStats] = useState<{
+    avg_rating: number | null;
+    review_count: number;
+    avg_reliability: number | null;
+    avg_communication: number | null;
+    avg_payment: number | null;
+  } | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [recommendedProviders, setRecommendedProviders] = useState<RecommendedProvider[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
@@ -122,6 +131,17 @@ export default function PoptavkaDetail() {
         if (reviewData) {
           setExistingReview(true);
         }
+
+        const { data: customerReviewData } = await supabase
+          .from("customer_reviews")
+          .select("id")
+          .eq("request_id", params.id)
+          .eq("provider_id", user.id)
+          .maybeSingle();
+
+        if (customerReviewData) {
+          setExistingCustomerReview(true);
+        }
       }
 
       const { data: requestData } = await supabase
@@ -135,6 +155,16 @@ export default function PoptavkaDetail() {
         // Only load AI recommendations for demand owner
         if (user && requestData.user_id === user.id) {
           loadRecommendations(requestData as Request);
+        }
+
+        // Customer rating stats — viditelné fachmanům na seznamu nabídek
+        const { data: stats } = await supabase
+          .from("v_customer_rating_stats")
+          .select("avg_rating, review_count, avg_reliability, avg_communication, avg_payment")
+          .eq("customer_id", requestData.user_id)
+          .maybeSingle();
+        if (stats) {
+          setCustomerStats(stats as typeof customerStats);
         }
       }
 
@@ -430,6 +460,15 @@ export default function PoptavkaDetail() {
                   <span className="flex items-center gap-1">
                     <span className="text-gray-400">{Icons.users}</span>
                     {request.profiles?.full_name}
+                    {customerStats && customerStats.review_count > 0 && (
+                      <span
+                        className="ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-semibold"
+                        title={`Spolehlivost: ${customerStats.avg_reliability ?? "?"} · Komunikace: ${customerStats.avg_communication ?? "?"} · Platba: ${customerStats.avg_payment ?? "?"}`}
+                      >
+                        <span>★</span>
+                        {customerStats.avg_rating ?? "?"} ({customerStats.review_count})
+                      </span>
+                    )}
                   </span>
                   <span className="text-gray-400">
                     {new Date(request.created_at).toLocaleDateString("cs-CZ")}
@@ -615,6 +654,26 @@ export default function PoptavkaDetail() {
               <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4">
                 <p className="text-emerald-800 font-semibold flex items-center gap-2">
                   {Icons.check} Děkujeme za vaše hodnocení!
+                </p>
+              </div>
+            )}
+
+            {/* Customer review form — fachman s accepted offer hodnotí zákazníka */}
+            {isProvider && acceptedOffer && acceptedOffer.provider_id === currentUser && !existingCustomerReview && (
+              <div className={`${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
+                <CustomerReviewForm
+                  requestId={request.id}
+                  providerId={currentUser!}
+                  customerId={request.user_id}
+                  onReviewSubmitted={() => setExistingCustomerReview(true)}
+                />
+              </div>
+            )}
+
+            {isProvider && acceptedOffer && acceptedOffer.provider_id === currentUser && existingCustomerReview && (
+              <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-4">
+                <p className="text-purple-800 font-semibold flex items-center gap-2">
+                  {Icons.check} Hodnocení zákazníka odesláno.
                 </p>
               </div>
             )}

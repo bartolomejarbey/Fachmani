@@ -49,6 +49,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Ghost leady", href: "/admin/ghost-leady", icon: "👻", roles: ["master_admin", "admin", "sales"] },
     { name: "Kategorie", href: "/admin/kategorie", icon: "📁", roles: ["master_admin", "admin"] },
     { name: "Recenze", href: "/admin/recenze", icon: "⭐", roles: ["master_admin", "admin"] },
+    { name: "Recenze zákazníků", href: "/admin/recenze-zakazniku", icon: "💜", roles: ["master_admin", "admin"] },
     { name: "Topování & Promo", href: "/admin/promo", icon: "🚀", roles: ["master_admin", "admin", "sales"] },
     { name: "Platby & Penezenky", href: "/admin/payments", icon: "💰", roles: ["master_admin", "admin"] },
     { name: "Transakce", href: "/admin/transakce", icon: "💳", roles: ["master_admin", "admin"] },
