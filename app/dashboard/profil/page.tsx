@@ -95,6 +95,15 @@ export default function FachmanProfil() {
     instructions: string;
   } | null>(null);
   const [bankError, setBankError] = useState<string | null>(null);
+  // Univerzální preview QR (bez VS) — fachman vidí účet ihned po otevření profilu,
+  // ještě před zadáním vlastního čísla účtu. Slouží jen k transparentnosti
+  // (skutečné párování platby běží přes per-user VS).
+  const [bankTarget, setBankTarget] = useState<{
+    target_account: string;
+    target_iban: string | null;
+    amount_kc: string;
+    qr_data_url: string | null;
+  } | null>(null);
   const [avatarCropSrc, setAvatarCropSrc] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -215,6 +224,15 @@ export default function FachmanProfil() {
     }
 
     loadData();
+
+    // Univerzální QR + číslo účtu (bez VS) — pro transparentnost ještě před
+    // tím, než fachman zadá svoje číslo účtu.
+    fetch("/api/bank-verification/target")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && typeof d === "object") setBankTarget(d);
+      })
+      .catch(() => undefined);
   }, [router]);
 
   const handleCategoryToggle = (categoryId: string) => {
@@ -901,7 +919,7 @@ export default function FachmanProfil() {
         </form>
 
         {/* A.F5 — Bankovní ověření */}
-        <div className={`mt-6 bg-white rounded-2xl shadow-lg p-8 border-2 ${
+        <div id="bank-verification" className={`mt-6 bg-white rounded-2xl shadow-lg p-8 border-2 scroll-mt-32 ${
           profile?.bank_verification_status === "verified" ? "border-green-200" :
           profile?.bank_verification_status === "pending" ? "border-yellow-300" :
           "border-amber-300 ring-4 ring-amber-100"
@@ -1014,10 +1032,62 @@ export default function FachmanProfil() {
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
+              {/* Univerzální preview — fachman vidí náš účet ihned, ještě před zadáním
+                  vlastního čísla účtu. Skutečné párování běží přes per-user VS po kliknutí
+                  na „Spustit ověření" — preview QR sám o sobě platbu nepřiřadí. */}
+              {bankTarget && bankTarget.target_account && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl">🛡️</div>
+                    <div className="flex-1 text-sm text-emerald-900">
+                      <div className="font-semibold">Posíláte 1 Kč na náš účet — bez rizika zneužití</div>
+                      <ul className="mt-1.5 text-xs space-y-1 text-emerald-800/90 list-disc list-inside">
+                        <li>Platíte vy nám — k vašemu účtu nemáme žádný přístup ani autorizaci.</li>
+                        <li>Z platby si přečteme jen číslo účtu odesílatele (ověření vlastnictví) a variabilní symbol.</li>
+                        <li>1 Kč je symbolická částka — neslouží k pravidelnému inkasu.</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4 items-start pt-2 border-t border-emerald-200">
+                    {bankTarget.qr_data_url && (
+                      <div className="bg-white rounded-lg p-2 border border-emerald-300 shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={bankTarget.qr_data_url}
+                          alt={`QR platba 1 Kč na ${bankTarget.target_account}`}
+                          width={160}
+                          height={160}
+                          className="block"
+                        />
+                        <div className="text-[10px] text-center text-emerald-700 mt-1">Náhled QR</div>
+                      </div>
+                    )}
+                    <div className="flex-1 text-xs space-y-1.5">
+                      <div>
+                        <div className="text-emerald-700 uppercase tracking-wider text-[10px]">Náš účet</div>
+                        <div className="font-mono font-bold text-emerald-900 break-all">{bankTarget.target_account}</div>
+                      </div>
+                      {bankTarget.target_iban && (
+                        <div>
+                          <div className="text-emerald-700 uppercase tracking-wider text-[10px]">IBAN</div>
+                          <div className="font-mono font-bold text-emerald-900 break-all">{bankTarget.target_iban}</div>
+                        </div>
+                      )}
+                      <div className="text-emerald-800/80 leading-relaxed pt-1">
+                        ⚠️ Pro ověření prosím <strong>nepoužívejte tento náhledový QR</strong> —
+                        po kliknutí na „Spustit ověření" vám vygenerujeme QR s vlastním
+                        variabilním symbolem, podle kterého vaši platbu přiřadíme.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Číslo bankovního účtu
+                  Číslo vašeho podnikatelského účtu
                 </label>
                 <input
                   type="text"
@@ -1026,6 +1096,9 @@ export default function FachmanProfil() {
                   placeholder="např. 1234567890/0100"
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Z tohoto účtu pošlete 1 Kč. Číslo si uložíme abychom platbu přiřadili k vašemu profilu.
+                </p>
               </div>
               {bankError && (
                 <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -1038,7 +1111,7 @@ export default function FachmanProfil() {
                 disabled={bankInitiating || !bankAccount.trim()}
                 className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-green-700 disabled:opacity-50"
               >
-                {bankInitiating ? "Připravuji..." : "Spustit ověření"}
+                {bankInitiating ? "Připravuji..." : "Spustit ověření a vygenerovat QR s VS"}
               </button>
             </div>
           )}

@@ -8,7 +8,8 @@ const PRICES: Record<string, number> = {
   offer_publish: 29,
   profile_boost_7d: 99,
   feed_boost_1d: 49,
-  urgent_request: 99,
+  urgent_request: 100,
+  extra_request: 50,
 }
 
 const DESCRIPTIONS: Record<string, string> = {
@@ -16,6 +17,7 @@ const DESCRIPTIONS: Record<string, string> = {
   profile_boost_7d: 'Topování profilu (7 dní)',
   feed_boost_1d: 'Boost na feedu (1 den)',
   urgent_request: 'Prioritní poptávka',
+  extra_request: 'Extra poptávka navíc (denní limit)',
 }
 
 export async function POST(request: Request) {
@@ -87,6 +89,12 @@ export async function POST(request: Request) {
       description: DESCRIPTIONS[type],
       related_entity_id: relatedEntityId || null,
     })
+
+    // Pro extra_request povolíme jednu poptávku navíc dnes (nadrámec daily limitu).
+    // Bez tohoto volání by trigger check_customer_request_limit nadále blokoval insert.
+    if (type === 'extra_request') {
+      await supabase.rpc('grant_extra_request', { p_user_id: user.id })
+    }
 
     return NextResponse.json({
       success: true,

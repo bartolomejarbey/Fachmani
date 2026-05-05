@@ -26,10 +26,19 @@ function NovaPoptavkaInner() {
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState("");
   const [expiryDays, setExpiryDays] = useState(30); // Default
-  const [urgentPrice, setUrgentPrice] = useState(99);
+  const [urgentPrice, setUrgentPrice] = useState(100);
+  const [extraRequestPrice, setExtraRequestPrice] = useState(50);
   const [ghostName, setGhostName] = useState<string | null>(null);
-  // C.F1 — kvóta free zákazníka
-  const [quota, setQuota] = useState<{ used: number; limit: number; isPremium: boolean } | null>(null);
+  // Customer quota: daily request limit + paid extras + monthly free urgent
+  const [quota, setQuota] = useState<{
+    dailyUsed: number;
+    dailyLimit: number;
+    dailyExtras: number;
+    urgentUsed: number;
+    urgentFreeLimit: number;
+    isPremium: boolean;
+  } | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   const [title, setTitle] = useState("");
   const [mainCategoryId, setMainCategoryId] = useState("");
@@ -72,26 +81,45 @@ function NovaPoptavkaInner() {
       if (typeof pricingData?.value?.urgent_request === "number") {
         setUrgentPrice(pricingData.value.urgent_request);
       }
+      if (typeof pricingData?.value?.extra_request === "number") {
+        setExtraRequestPrice(pricingData.value.extra_request);
+      }
 
-      // Načteme kvótu zákazníka (C.F1)
-      const limit = typeof platformData?.value?.free_requests_per_month === "number"
-        ? platformData.value.free_requests_per_month
+      // Customer quota
+      const dailyLimit = typeof platformData?.value?.free_requests_per_day === "number"
+        ? platformData.value.free_requests_per_day
+        : 1;
+      const urgentFreeLimit = typeof platformData?.value?.urgent_free_per_month === "number"
+        ? platformData.value.urgent_free_per_month
         : 1;
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("subscription_type, monthly_request_count, monthly_request_reset_at")
-          .eq("id", user.id)
-          .maybeSingle();
+        const [{ data: prof }, { data: wallet }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("subscription_type, daily_request_count, daily_request_reset_at, daily_request_extras, monthly_urgent_count, monthly_urgent_reset_at")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("wallets")
+            .select("balance_kc")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+        ]);
         if (prof) {
           const isPremium = prof.subscription_type === "premium" || prof.subscription_type === "business";
-          // Reset >30d (lokální výpočet — server trigger udělá real reset)
-          const resetAt = prof.monthly_request_reset_at ? new Date(prof.monthly_request_reset_at) : new Date();
+          // Reset denně (server trigger udělá real reset, klient jen hint)
+          const resetAt = prof.daily_request_reset_at ? new Date(prof.daily_request_reset_at) : new Date();
+          const todayUtc = new Date(); todayUtc.setUTCHours(0, 0, 0, 0);
+          const dailyUsed = resetAt < todayUtc ? 0 : (prof.daily_request_count ?? 0);
+          const dailyExtras = resetAt < todayUtc ? 0 : (prof.daily_request_extras ?? 0);
+          // Reset měsíčního urgentu (>30d)
+          const urgentResetAt = prof.monthly_urgent_reset_at ? new Date(prof.monthly_urgent_reset_at) : new Date();
           const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-          const used = resetAt < monthAgo ? 0 : (prof.monthly_request_count ?? 0);
-          setQuota({ used, limit, isPremium });
+          const urgentUsed = urgentResetAt < monthAgo ? 0 : (prof.monthly_urgent_count ?? 0);
+          setQuota({ dailyUsed, dailyLimit, dailyExtras, urgentUsed, urgentFreeLimit, isPremium });
         }
+        setWalletBalance(wallet?.balance_kc ?? 0);
       }
 
       if (ghostIco && /^[0-9]{8}$/.test(ghostIco)) {
@@ -225,6 +253,41 @@ function NovaPoptavkaInner() {
       }
     }
 
+    // Pokud free zákazník vyčerpal denní kvótu a nemá zaplacený extra slot,
+    // pre-charge 50 Kč z peněženky — wallet API zavolá grant_extra_request RPC,
+    // takže následný insert už trigger pustí.
+    const needsPaidExtra =
+      !!quota &&
+      !quota.isPremium &&
+      quota.dailyUsed >= quota.dailyLimit &&
+      quota.dailyExtras === 0;
+
+    if (needsPaidExtra) {
+      try {
+        const spendRes = await fetch("/api/wallet/spend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "extra_request" }),
+        });
+        if (!spendRes.ok) {
+          if (spendRes.status === 402) {
+            const j = await spendRes.json().catch(() => ({}));
+            setError(
+              `Vyčerpali jste denní kvótu. Pro extra poptávku potřebujete ${extraRequestPrice} Kč v peněžence (chybí ${j.shortfall ?? extraRequestPrice} Kč). Dobijte si peněženku v Předplatné.`
+            );
+          } else {
+            setError("Platba za extra poptávku selhala. Zkuste to znovu nebo aktivujte Premium.");
+          }
+          setLoading(false);
+          return;
+        }
+      } catch {
+        setError("Platba za extra poptávku selhala (síťová chyba). Zkuste to znovu.");
+        setLoading(false);
+        return;
+      }
+    }
+
     // Vypočítáme datum expirace podle nastavení
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiryDays);
@@ -249,29 +312,31 @@ function NovaPoptavkaInner() {
       .single();
 
     if (insertError) {
-      // Trigger C.F1 vyhodí "Vyčerpali jste X bezplatných poptávek..." s ERRCODE 23514
+      // Trigger vyhodí "Vyčerpali jste denní limit..." s ERRCODE 23514
       setError(insertError.message);
       setLoading(false);
       return;
     }
 
-    // Optimistic increment kvóty (server trigger inkrementuje na backendu)
+    // Optimistic increment denní kvóty (server trigger reálně inkrementuje)
     if (quota && !quota.isPremium) {
-      setQuota({ ...quota, used: quota.used + 1 });
+      setQuota({ ...quota, dailyUsed: quota.dailyUsed + 1 });
     }
 
     // Prioritní poptávka.
-    // Pravidlo: 1 free poptávka / měsíc je BEZ poplatku (i když je urgent).
-    // Pokud zákazník využívá svou bezplatnou kvótu (used < limit), urgent je zdarma.
-    // Pokud má Premium nebo již kvótu vyčerpal a platí navíc, urgent stojí ${urgentPrice} Kč z peněženky.
+    // Pravidlo: urgent_free_per_month/měsíc je zdarma. Dál urgentPrice (100 Kč) z peněženky.
     if (isUrgent) {
-      const isWithinFreeQuota = quota && !quota.isPremium && quota.used < quota.limit;
-      if (isWithinFreeQuota) {
-        // Free urgent v rámci bezplatné kvóty — žádná peněženka, jen flag
+      const urgentIsFree = !!quota && !quota.isPremium && quota.urgentUsed < quota.urgentFreeLimit;
+      if (urgentIsFree || (quota && quota.isPremium)) {
+        // Free urgent (free user v rámci měsíční kvóty NEBO premium/business)
         await supabase
           .from("requests")
           .update({ is_urgent: true, urgent_paid_at: new Date().toISOString() })
           .eq("id", data.id);
+        // Záznam pro free zákazníka, aby další urgent stál peníze
+        if (urgentIsFree) {
+          void supabase.rpc("record_urgent_request", { p_user_id: user.id });
+        }
       } else {
         try {
           const spendRes = await fetch("/api/wallet/spend", {
@@ -284,6 +349,7 @@ function NovaPoptavkaInner() {
               .from("requests")
               .update({ is_urgent: true, urgent_paid_at: new Date().toISOString() })
               .eq("id", data.id);
+            void supabase.rpc("record_urgent_request", { p_user_id: user.id });
           } else if (spendRes.status === 402) {
             alert(
               `Poptávka byla uložena, ale neměli jste dost kreditu na prioritu (${urgentPrice} Kč). Dobijte si peněženku a poté kontaktujte podporu pro aktivaci priority.`,
@@ -355,26 +421,33 @@ function NovaPoptavkaInner() {
           </div>
         )}
 
-        {quota && !quota.isPremium && quota.used >= quota.limit && (
+        {quota && !quota.isPremium && quota.dailyUsed >= quota.dailyLimit && quota.dailyExtras === 0 && (
           <div className="bg-orange-50 border border-orange-200 text-orange-900 p-5 rounded-xl mb-6">
-            <strong className="block mb-1">🚫 Vyčerpali jste limit bezplatných poptávek</strong>
+            <strong className="block mb-1">⚠️ Dnes jste vyčerpali bezplatnou poptávku</strong>
             <p className="text-sm mb-3">
-              Tento měsíc jste využili všech {quota.limit} bezplatných poptávek.
-              Pro neomezené poptávky aktivujte Premium.
+              Free účet má {quota.dailyLimit}× poptávku denně (anti-zneužití). Další poptávku dnes můžete poslat za <strong>{extraRequestPrice} Kč</strong> z peněženky{walletBalance !== null ? ` (zůstatek ${walletBalance} Kč)` : ""}, nebo aktivujte <a href="/predplatne" className="underline font-semibold">Premium</a> pro neomezené poptávky. Limit se resetuje zítra.
             </p>
-            <a href="/predplatne" className="inline-block px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-semibold hover:bg-orange-700">
-              Zobrazit Premium →
-            </a>
+            {walletBalance !== null && walletBalance < extraRequestPrice && (
+              <a href="/predplatne" className="inline-block px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-semibold hover:bg-orange-700">
+                Dobít peněženku →
+              </a>
+            )}
           </div>
         )}
 
-        {quota && !quota.isPremium && quota.used < quota.limit && (
+        {quota && !quota.isPremium && quota.dailyExtras > 0 && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-xl mb-6 text-sm">
+            ✅ Máte zaplacený <strong>{quota.dailyExtras}× extra slot</strong> na dnes — můžete odeslat poptávku navíc.
+          </div>
+        )}
+
+        {quota && !quota.isPremium && quota.dailyUsed < quota.dailyLimit && (
           <div className="bg-blue-50 border border-blue-200 text-blue-900 p-3 rounded-xl mb-6 text-sm">
-            🆓 Zbývá vám <strong>{quota.limit - quota.used} z {quota.limit}</strong> bezplatných poptávek tento měsíc.
+            🆓 Zbývá vám <strong>{quota.dailyLimit - quota.dailyUsed} z {quota.dailyLimit}</strong> bezplatných poptávek dnes. Další pak za {extraRequestPrice} Kč.
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-6 ${quota && !quota.isPremium && quota.used >= quota.limit ? "opacity-40 pointer-events-none" : ""}`}>
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Název poptávky *
@@ -575,7 +648,8 @@ function NovaPoptavkaInner() {
 
           {/* Urgent upsell */}
           {(() => {
-            const urgentFree = !!quota && !quota.isPremium && quota.used < quota.limit;
+            const urgentFree = !!quota && !quota.isPremium && quota.urgentUsed < quota.urgentFreeLimit;
+            const urgentFreeRemaining = quota ? Math.max(0, quota.urgentFreeLimit - quota.urgentUsed) : 0;
             return (
               <label className={`block p-4 rounded-xl border-2 cursor-pointer transition-all ${
                 isUrgent
@@ -593,7 +667,9 @@ function NovaPoptavkaInner() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900">⚡ Prioritní poptávka</span>
                       {urgentFree ? (
-                        <span className="text-emerald-700 text-sm font-bold bg-emerald-100 px-2 py-0.5 rounded-full">Zdarma v rámci kvóty</span>
+                        <span className="text-emerald-700 text-sm font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
+                          Zdarma ({urgentFreeRemaining}× / měsíc)
+                        </span>
                       ) : (
                         <span className="text-amber-700 text-sm font-bold">+{urgentPrice} Kč</span>
                       )}
@@ -601,7 +677,7 @@ function NovaPoptavkaInner() {
                     <p className="text-sm text-gray-600 mt-1">
                       Poptávka se zobrazí na prvních místech v seznamu a fachmani na ni reagují rychleji.
                       {urgentFree
-                        ? " V rámci vaší bezplatné kvóty je prioritní poptávka zdarma."
+                        ? ` Máte ${urgentFreeRemaining}× zdarma za měsíc, dál stojí ${urgentPrice} Kč.`
                         : " Cena se strhne z vaší peněženky po odeslání."}
                     </p>
                   </div>

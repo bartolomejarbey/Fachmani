@@ -11,6 +11,7 @@ type Settings = {
     premium_badge_30d: number;
     extra_offer: number;
     urgent_request: number;
+    extra_request: number;
   };
   subscription_prices: {
     premium_monthly: number;
@@ -24,7 +25,8 @@ type Settings = {
     max_images_per_request: number;
     max_offers_per_request: number;
     refresh_offer_slots: number;
-    free_requests_per_month: number;
+    free_requests_per_day: number;
+    urgent_free_per_month: number;
   };
 };
 
@@ -40,7 +42,8 @@ export default function AdminNastaveni() {
     boost_feed_1d: 49,
     premium_badge_30d: 199,
     extra_offer: 29,
-    urgent_request: 99,
+    urgent_request: 100,
+    extra_request: 50,
   });
 
   const [subscriptions, setSubscriptions] = useState({
@@ -56,7 +59,8 @@ export default function AdminNastaveni() {
     max_images_per_request: 5,
     max_offers_per_request: 5,
     refresh_offer_slots: 10,
-    free_requests_per_month: 1,
+    free_requests_per_day: 1,
+    urgent_free_per_month: 1,
   });
 
   useEffect(() => {
@@ -228,6 +232,23 @@ export default function AdminNastaveni() {
                   />
                   <span className="text-slate-400">Kč</span>
                 </div>
+                <p className="text-slate-500 text-xs mt-1">1× / měsíc free, dál tato cena</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  ➕ Extra poptávka (denní limit)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={pricing.extra_request}
+                    onChange={(e) => setPricing({ ...pricing, extra_request: parseInt(e.target.value) })}
+                    className="flex-1 px-4 py-3 bg-slate-700 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                  <span className="text-slate-400">Kč</span>
+                </div>
+                <p className="text-slate-500 text-xs mt-1">Cena za poptávku navíc po vyčerpání denní free kvóty</p>
               </div>
             </div>
 
@@ -399,15 +420,28 @@ export default function AdminNastaveni() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  🆓 Free poptávek / měsíc
+                  🆓 Free poptávek / DEN
                 </label>
                 <input
                   type="number"
-                  value={platform.free_requests_per_month}
-                  onChange={(e) => setPlatform({ ...platform, free_requests_per_month: parseInt(e.target.value) })}
+                  value={platform.free_requests_per_day}
+                  onChange={(e) => setPlatform({ ...platform, free_requests_per_day: parseInt(e.target.value) })}
                   className="w-full px-4 py-3 bg-slate-700 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
-                <p className="text-slate-500 text-xs mt-1">Limit poptávek pro free zákazníka (default 1)</p>
+                <p className="text-slate-500 text-xs mt-1">Anti-zneužití throttle (default 1/den, dál +50 Kč extra)</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  ⚡ Urgent free / měsíc
+                </label>
+                <input
+                  type="number"
+                  value={platform.urgent_free_per_month}
+                  onChange={(e) => setPlatform({ ...platform, urgent_free_per_month: parseInt(e.target.value) })}
+                  className="w-full px-4 py-3 bg-slate-700 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+                <p className="text-slate-500 text-xs mt-1">Kolik prioritních poptávek/měsíc je zdarma (default 1)</p>
               </div>
             </div>
 
