@@ -85,6 +85,11 @@ export default function FeedPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [reactionsPopup, setReactionsPopup] = useState<{ postId: string; emoji: string; names: string[] } | null>(null);
   const [feedQuota, setFeedQuota] = useState<{ remaining: number | null; limit: number; subscription: string } | null>(null);
+  const [reportingPost, setReportingPost] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState<string>("spam");
+  const [reportComment, setReportComment] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportedPostIds, setReportedPostIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadUser();
@@ -348,6 +353,30 @@ export default function FeedPage() {
     loadPosts(currentPage);
   };
 
+  const handleReportSubmit = async () => {
+    if (!reportingPost || !currentUser) return;
+    setReportSubmitting(true);
+    const { error } = await supabase.from("post_reports").insert({
+      post_id: reportingPost,
+      reporter_id: currentUser.id,
+      reason: reportReason,
+      comment: reportComment.trim() || null,
+    });
+    setReportSubmitting(false);
+    if (error) {
+      if (error.code === "23505") {
+        alert("Tento příspěvek jste již nahlásili.");
+      } else {
+        alert(`Nepodařilo se odeslat hlášení: ${error.message}`);
+        return;
+      }
+    }
+    setReportedPostIds((prev) => new Set([...prev, reportingPost]));
+    setReportingPost(null);
+    setReportReason("spam");
+    setReportComment("");
+  };
+
   const handleReaction = async (postId: string, emoji: string) => {
     if (!currentUser) return;
 
@@ -542,7 +571,7 @@ export default function FeedPage() {
                       </div>
 
                       {/* Own post actions */}
-                      {currentUser?.id === post.user_id && (
+                      {currentUser?.id === post.user_id ? (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => {
@@ -562,7 +591,21 @@ export default function FeedPage() {
                             🗑️
                           </button>
                         </div>
-                      )}
+                      ) : currentUser ? (
+                        <button
+                          onClick={() => !reportedPostIds.has(post.id) && setReportingPost(post.id)}
+                          disabled={reportedPostIds.has(post.id)}
+                          className={`p-2 rounded-lg transition-colors text-sm ${
+                            reportedPostIds.has(post.id)
+                              ? "text-gray-300 cursor-not-allowed"
+                              : "text-gray-400 hover:text-red-600 hover:bg-red-50"
+                          }`}
+                          title={reportedPostIds.has(post.id) ? "Již nahlášeno" : "Nahlásit příspěvek"}
+                          aria-label="Nahlásit příspěvek"
+                        >
+                          🚩
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 
@@ -786,6 +829,87 @@ export default function FeedPage() {
                   <span className="text-gray-900 text-sm font-medium">{name}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report post modal */}
+      {reportingPost && (
+        <div
+          className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4"
+          onClick={() => !reportSubmitting && setReportingPost(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <span>🚩</span> Nahlásit příspěvek
+              </h3>
+              <button
+                onClick={() => setReportingPost(null)}
+                disabled={reportSubmitting}
+                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-gray-600">
+                Vyberte důvod hlášení. Příspěvek prozkoumá náš tým.
+              </p>
+              <div className="space-y-2">
+                {[
+                  { value: "spam", label: "Spam / reklama" },
+                  { value: "inappropriate", label: "Nevhodný obsah / vulgarity" },
+                  { value: "fraud", label: "Podvod / scam" },
+                  { value: "fake", label: "Falešné informace" },
+                  { value: "other", label: "Jiný důvod" },
+                ].map((r) => (
+                  <label key={r.value} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded-lg">
+                    <input
+                      type="radio"
+                      name="report-reason"
+                      value={r.value}
+                      checked={reportReason === r.value}
+                      onChange={(e) => setReportReason(e.target.value)}
+                      className="text-cyan-600"
+                    />
+                    <span className="text-sm text-gray-900">{r.label}</span>
+                  </label>
+                ))}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Doplňující informace (volitelné)
+                </label>
+                <textarea
+                  value={reportComment}
+                  onChange={(e) => setReportComment(e.target.value.slice(0, 500))}
+                  rows={3}
+                  placeholder="Např. konkrétní problém, kontext…"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 resize-none text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">{reportComment.length}/500</p>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-100 flex gap-2 justify-end">
+              <button
+                onClick={() => setReportingPost(null)}
+                disabled={reportSubmitting}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-semibold text-sm disabled:opacity-50"
+              >
+                Zrušit
+              </button>
+              <button
+                onClick={handleReportSubmit}
+                disabled={reportSubmitting}
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg font-semibold text-sm disabled:opacity-50"
+              >
+                {reportSubmitting ? "Odesílám…" : "Odeslat hlášení"}
+              </button>
             </div>
           </div>
         </div>
