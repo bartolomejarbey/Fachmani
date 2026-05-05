@@ -35,6 +35,15 @@ type Profile = {
   ares_verified_name: string | null;
   region_id: string | null;
   district_id: string | null;
+  notify_on_requests: boolean | null;
+  ares_reverify_opt_out: boolean | null;
+  bank_account: string | null;
+  bank_verification_amount: number | null;
+  bank_verification_status: string | null;
+  bank_verification_reference: string | null;
+  bank_verification_initiated_at: string | null;
+  bank_verification_verified_at: string | null;
+  subscription_type: string | null;
 };
 
 type ProviderProfile = {
@@ -55,6 +64,7 @@ export default function FachmanProfil() {
   const [providerProfile, setProviderProfile] = useState<ProviderProfile | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categoriesLimit, setCategoriesLimit] = useState<number | null>(null);
 
   // Formulářová data
   const [fullName, setFullName] = useState("");
@@ -68,6 +78,19 @@ export default function FachmanProfil() {
   const [ico, setIco] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [notifyOnRequests, setNotifyOnRequests] = useState(true);
+  const [aresOptOut, setAresOptOut] = useState(false);
+  const [bankAccount, setBankAccount] = useState("");
+  const [bankInitiating, setBankInitiating] = useState(false);
+  const [bankInfo, setBankInfo] = useState<{
+    amount_kc: string;
+    reference_vs: string;
+    target_account: string;
+    target_iban: string | null;
+    qr_data_url: string | null;
+    instructions: string;
+  } | null>(null);
+  const [bankError, setBankError] = useState<string | null>(null);
   const [avatarCropSrc, setAvatarCropSrc] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -85,7 +108,7 @@ export default function FachmanProfil() {
       // Načteme profil (bez phone — je column-level REVOKED; čte se přes RPC)
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("id, email, full_name, role, description, location, ico, avatar_url, is_verified, subscription_type, created_at, ares_verified_at, ares_verified_name, region_id, district_id")
+        .select("id, email, full_name, role, description, location, ico, avatar_url, is_verified, subscription_type, created_at, ares_verified_at, ares_verified_name, region_id, district_id, notify_on_requests, ares_reverify_opt_out, bank_account, bank_verification_amount, bank_verification_status, bank_verification_reference, bank_verification_initiated_at, bank_verification_verified_at")
         .eq("id", user.id)
         .single();
 
@@ -105,6 +128,9 @@ export default function FachmanProfil() {
       setDistrictId(profileData.district_id || null);
       setIco(profileData.ico || "");
       setAvatarUrl(profileData.avatar_url || null);
+      setNotifyOnRequests(profileData.notify_on_requests ?? true);
+      setAresOptOut(profileData.ares_reverify_opt_out ?? false);
+      setBankAccount(profileData.bank_account ?? "");
 
       if (profileData.role !== "provider") {
         router.push("/dashboard");
@@ -163,6 +189,23 @@ export default function FachmanProfil() {
         setCategories(catsData);
       }
 
+      // C.F2 — limit kategorií podle tarifu
+      const { data: settingsRow } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "platform_settings")
+        .single();
+      const tier = profileData.subscription_type || "free";
+      let limit: number | null = null;
+      if (tier === "business") {
+        limit = null; // neomezeno
+      } else if (tier === "premium") {
+        limit = settingsRow?.value?.premium_categories_limit ?? 3;
+      } else {
+        limit = settingsRow?.value?.free_categories_limit ?? 1;
+      }
+      setCategoriesLimit(limit);
+
       setLoading(false);
     }
 
@@ -170,11 +213,16 @@ export default function FachmanProfil() {
   }, [router]);
 
   const handleCategoryToggle = (categoryId: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(categoryId)
-        ? prev.filter((id) => id !== categoryId)
-        : [...prev, categoryId]
-    );
+    setSelectedCategories((prev) => {
+      const isSelected = prev.includes(categoryId);
+      if (isSelected) return prev.filter((id) => id !== categoryId);
+      // C.F2 — gate select pokud at limit
+      if (categoriesLimit !== null && prev.length >= categoriesLimit) {
+        setMessage(`Limit kategorií vyčerpán (${categoriesLimit}). Pro více kategorií upgradujte tarif.`);
+        return prev;
+      }
+      return [...prev, categoryId];
+    });
   };
 
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -229,6 +277,51 @@ export default function FachmanProfil() {
     setMessage("Profilová fotka byla nahrána!");
   };
 
+  const handleBankInitiate = async () => {
+    setBankError(null);
+    setBankInfo(null);
+    if (!bankAccount.trim()) {
+      setBankError("Zadejte číslo účtu");
+      return;
+    }
+    setBankInitiating(true);
+    try {
+      const res = await fetch("/api/bank-verification/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account: bankAccount.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBankError(data.error || "Chyba při spuštění ověření");
+      } else {
+        setBankInfo({
+          amount_kc: data.amount_kc,
+          reference_vs: data.reference_vs,
+          target_account: data.target_account,
+          target_iban: data.target_iban ?? null,
+          qr_data_url: data.qr_data_url ?? null,
+          instructions: data.instructions,
+        });
+        // Refresh profile aby UI ukázalo "pending" stav
+        if (profile) {
+          setProfile({
+            ...profile,
+            bank_account: bankAccount.trim(),
+            bank_verification_status: "pending",
+            bank_verification_amount: Math.round(parseFloat(data.amount_kc) * 100),
+            bank_verification_reference: data.reference_vs,
+            bank_verification_initiated_at: data.initiated_at,
+          });
+        }
+      }
+    } catch (e) {
+      setBankError(e instanceof Error ? e.message : "Síťová chyba");
+    } finally {
+      setBankInitiating(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -252,6 +345,8 @@ export default function FachmanProfil() {
           region_id: regionId,
           district_id: districtId,
           ico: ico || null,
+          notify_on_requests: notifyOnRequests,
+          ares_reverify_opt_out: aresOptOut,
           updated_at: new Date().toISOString(),
         })
         .eq("id", profile?.id);
@@ -502,6 +597,25 @@ export default function FachmanProfil() {
                     )}
                   </div>
                 )}
+                {ico && (
+                  <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={aresOptOut}
+                        onChange={(e) => setAresOptOut(e.target.checked)}
+                        className="mt-1 w-4 h-4 accent-gray-600"
+                      />
+                      <div>
+                        <div className="text-sm font-semibold text-gray-800">Nepřevěřovat údaje z ARES</div>
+                        <div className="text-xs text-gray-600">
+                          Vypne pravidelnou automatickou kontrolu vašich údajů v rejstříku ARES.
+                          Doporučujeme nechat zapnuté — udržuje váš profil aktuální.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -568,6 +682,24 @@ export default function FachmanProfil() {
                   />
                 </div>
               </div>
+
+              <div className="mt-6 p-4 bg-cyan-50 border border-cyan-200 rounded-xl">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notifyOnRequests}
+                    onChange={(e) => setNotifyOnRequests(e.target.checked)}
+                    className="mt-1 w-5 h-5 accent-cyan-600"
+                  />
+                  <div>
+                    <div className="font-semibold text-gray-900">🎯 Upozorňovat na nové poptávky</div>
+                    <div className="text-sm text-gray-600">
+                      Dostávejte notifikaci pokaždé, když přijde poptávka odpovídající vašim kategoriím a regionu.
+                      Vypnutím přestanete dostávat tyto notifikace, ale stále vás můžeme zobrazit zákazníkům ve vyhledávání.
+                    </div>
+                  </div>
+                </label>
+              </div>
             </div>
           </div>
 
@@ -575,74 +707,115 @@ export default function FachmanProfil() {
 
           {/* Categories section */}
           <div>
-            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
               {Icons.star} Kategorie služeb
+              {categoriesLimit !== null ? (
+                <span
+                  className={`ml-2 text-sm font-medium px-2 py-0.5 rounded-full ${
+                    selectedCategories.length >= categoriesLimit
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-cyan-100 text-cyan-800"
+                  }`}
+                >
+                  {selectedCategories.length}/{categoriesLimit}
+                </span>
+              ) : (
+                <span className="ml-2 text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  {selectedCategories.length} (neomezeno)
+                </span>
+              )}
             </h2>
-            <p className="text-gray-600 text-sm mb-4">Vyberte kategorie, ve kterých nabízíte své služby</p>
+            <p className="text-gray-600 text-sm mb-2">Vyberte kategorie, ve kterých nabízíte své služby</p>
+            {categoriesLimit !== null && selectedCategories.length >= categoriesLimit && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-center justify-between gap-3">
+                <span>
+                  Dosáhli jste limitu {categoriesLimit} {categoriesLimit === 1 ? "kategorie" : "kategorií"} pro váš tarif{" "}
+                  <strong>{profile?.subscription_type || "free"}</strong>. Pro více kategorií přejděte na vyšší tarif.
+                </span>
+                <Link
+                  href="/cenik"
+                  className="bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap hover:bg-amber-700"
+                >
+                  Upgradovat
+                </Link>
+              </div>
+            )}
 
             <div className="space-y-6">
               {categories
                 .filter((c) => c.parent_id === null)
                 .map((main) => {
                   const subs = categories.filter((c) => c.parent_id === main.id);
+                  const mainSelected = selectedCategories.includes(main.id);
+                  const mainAtLimit = !mainSelected && categoriesLimit !== null && selectedCategories.length >= categoriesLimit;
                   return (
                     <div key={main.id}>
                       <label
-                        className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all mb-2 ${
-                          selectedCategories.includes(main.id)
-                            ? "border-cyan-500 bg-cyan-50"
-                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        className={`flex items-center p-4 border-2 rounded-xl transition-all mb-2 ${
+                          mainSelected
+                            ? "border-cyan-500 bg-cyan-50 cursor-pointer"
+                            : mainAtLimit
+                              ? "border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed"
+                              : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer"
                         }`}
                       >
                         <input
                           type="checkbox"
-                          checked={selectedCategories.includes(main.id)}
+                          checked={mainSelected}
+                          disabled={mainAtLimit}
                           onChange={() => handleCategoryToggle(main.id)}
                           className="sr-only"
                         />
                         <span className="text-2xl mr-3">{main.icon}</span>
                         <span
                           className={`font-bold ${
-                            selectedCategories.includes(main.id) ? "text-cyan-700" : "text-gray-900"
+                            mainSelected ? "text-cyan-700" : "text-gray-900"
                           }`}
                         >
                           {main.name}
                         </span>
-                        {selectedCategories.includes(main.id) && (
+                        {mainSelected && (
                           <span className="ml-auto text-cyan-500">{Icons.check}</span>
                         )}
                       </label>
 
                       {subs.length > 0 && (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pl-6">
-                          {subs.map((sub) => (
-                            <label
-                              key={sub.id}
-                              className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all text-sm ${
-                                selectedCategories.includes(sub.id)
-                                  ? "border-cyan-400 bg-cyan-50"
-                                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedCategories.includes(sub.id)}
-                                onChange={() => handleCategoryToggle(sub.id)}
-                                className="sr-only"
-                              />
-                              <span className="text-base mr-2">{sub.icon}</span>
-                              <span
-                                className={`${
-                                  selectedCategories.includes(sub.id) ? "text-cyan-700" : "text-gray-700"
+                          {subs.map((sub) => {
+                            const subSelected = selectedCategories.includes(sub.id);
+                            const subAtLimit = !subSelected && categoriesLimit !== null && selectedCategories.length >= categoriesLimit;
+                            return (
+                              <label
+                                key={sub.id}
+                                className={`flex items-center p-3 border rounded-lg transition-all text-sm ${
+                                  subSelected
+                                    ? "border-cyan-400 bg-cyan-50 cursor-pointer"
+                                    : subAtLimit
+                                      ? "border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed"
+                                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer"
                                 }`}
                               >
-                                {sub.name}
-                              </span>
-                              {selectedCategories.includes(sub.id) && (
-                                <span className="ml-auto text-cyan-500">{Icons.check}</span>
-                              )}
-                            </label>
-                          ))}
+                                <input
+                                  type="checkbox"
+                                  checked={subSelected}
+                                  disabled={subAtLimit}
+                                  onChange={() => handleCategoryToggle(sub.id)}
+                                  className="sr-only"
+                                />
+                                <span className="text-base mr-2">{sub.icon}</span>
+                                <span
+                                  className={`${
+                                    subSelected ? "text-cyan-700" : "text-gray-700"
+                                  }`}
+                                >
+                                  {sub.name}
+                                </span>
+                                {subSelected && (
+                                  <span className="ml-auto text-cyan-500">{Icons.check}</span>
+                                )}
+                              </label>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -671,6 +844,111 @@ export default function FachmanProfil() {
             </button>
           </div>
         </form>
+
+        {/* A.F5 — Bankovní ověření */}
+        <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-xl">💳</div>
+            <div>
+              <h3 className="font-bold text-gray-900">Ověření bankovního účtu (1 Kč)</h3>
+              <p className="text-xs text-gray-500">
+                Pošlete symbolickou částku ze svého účtu — potvrdíme, že majitel účtu opravdu jste vy.
+              </p>
+            </div>
+          </div>
+
+          {profile?.bank_verification_status === "verified" ? (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
+              ✅ <strong>Účet ověřen</strong> ({profile.bank_account}). Ověřeno{" "}
+              {profile.bank_verification_verified_at
+                ? new Date(profile.bank_verification_verified_at).toLocaleDateString("cs-CZ")
+                : ""}.
+            </div>
+          ) : profile?.bank_verification_status === "pending" || bankInfo ? (
+            <div className="space-y-3">
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-900">
+                ⏳ <strong>Čeká na potvrzení adminem</strong>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <div className="text-yellow-700 uppercase">Částka</div>
+                    <div className="font-mono font-bold">
+                      {bankInfo?.amount_kc
+                        ?? (profile?.bank_verification_amount
+                          ? (profile.bank_verification_amount / 100).toFixed(2)
+                          : "—")} Kč
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-yellow-700 uppercase">Variabilní symbol</div>
+                    <div className="font-mono font-bold">
+                      {bankInfo?.reference_vs ?? profile?.bank_verification_reference ?? "—"}
+                    </div>
+                  </div>
+                </div>
+                {bankInfo?.qr_data_url && (
+                  <div className="mt-4 flex flex-col sm:flex-row gap-4 items-start">
+                    <div className="bg-white rounded-lg p-2 border border-yellow-300 shrink-0">
+                      <img
+                        src={bankInfo.qr_data_url}
+                        alt={`QR platba ${bankInfo.amount_kc} Kč, VS ${bankInfo.reference_vs}`}
+                        width={180}
+                        height={180}
+                        className="block"
+                      />
+                      <div className="text-[10px] text-center text-gray-500 mt-1">QR platba</div>
+                    </div>
+                    <div className="flex-1 text-xs space-y-2">
+                      <div>
+                        <div className="text-yellow-700 uppercase">Číslo účtu</div>
+                        <div className="font-mono font-bold break-all">{bankInfo.target_account}</div>
+                      </div>
+                      {bankInfo.target_iban && (
+                        <div>
+                          <div className="text-yellow-700 uppercase">IBAN</div>
+                          <div className="font-mono font-bold break-all">{bankInfo.target_iban}</div>
+                        </div>
+                      )}
+                      <div className="text-yellow-800 leading-relaxed">
+                        Naskenujte QR ve své bankovní aplikaci, nebo zadejte ručně číslo účtu, částku a VS.
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {bankInfo && (
+                  <div className="mt-3 text-xs text-yellow-800">{bankInfo.instructions}</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Číslo bankovního účtu
+                </label>
+                <input
+                  type="text"
+                  value={bankAccount}
+                  onChange={(e) => setBankAccount(e.target.value)}
+                  placeholder="např. 1234567890/0100"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+              {bankError && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {bankError}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleBankInitiate}
+                disabled={bankInitiating || !bankAccount.trim()}
+                className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-green-700 disabled:opacity-50"
+              >
+                {bankInitiating ? "Připravuji..." : "Spustit ověření"}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Preview link */}
         <div className={`mt-6 text-center ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>

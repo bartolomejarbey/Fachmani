@@ -25,6 +25,8 @@ type Request = {
   expires_at: string;
   user_id: string;
   images: string[] | null;
+  extra_offer_slots: number | null;
+  is_urgent: boolean | null;
   categories: { name: string; icon: string } | null;
   profiles: { full_name: string } | null;
 };
@@ -177,9 +179,14 @@ export default function PoptavkaDetail() {
   };
 
   const freeLimit = settings.platform.free_offers_per_month;
+  const baseCap = settings.platform.max_offers_per_request;
+  const extraSlots = request?.extra_offer_slots ?? 0;
+  const maxOffersPerRequest = baseCap + extraSlots;
+  const requestIsFull = offers.length >= maxOffersPerRequest;
 
   const canSendOffer = () => {
     if (!userProfile) return false;
+    if (requestIsFull) return false;
     if (userProfile.subscription_type === "free") {
       return userProfile.monthly_offers_count < freeLimit;
     }
@@ -196,6 +203,12 @@ export default function PoptavkaDetail() {
     e.preventDefault();
     setSubmitting(true);
     setError("");
+
+    if (requestIsFull) {
+      setError(`Tato poptávka už má maximální počet nabídek (${maxOffersPerRequest}). Vyberte si jinou.`);
+      setSubmitting(false);
+      return;
+    }
 
     if (!canSendOffer()) {
       setError("Dosáhli jste měsíčního limitu nabídek. Upgradujte na Premium pro neomezené nabídky.");
@@ -271,6 +284,8 @@ export default function PoptavkaDetail() {
     });
 
     if (insertError) {
+      // Trigger check_offers_per_request_limit může vystřelit při race
+      // (jiný fachman vloží nabídku mezi naším load → submit). Zpráva je česky z DB.
       setError(insertError.message);
       setSubmitting(false);
       return;
@@ -395,9 +410,14 @@ export default function PoptavkaDetail() {
 
             <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
                   <span className="text-3xl">{request.categories?.icon}</span>
                   <span className="text-cyan-600 font-semibold">{request.categories?.name}</span>
+                  {request.is_urgent && (
+                    <span className="bg-amber-500 text-white text-xs px-3 py-1 rounded-full font-bold">
+                      ⚡ PRIORITNÍ
+                    </span>
+                  )}
                 </div>
                 <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
                   {request.title}
@@ -737,9 +757,18 @@ export default function PoptavkaDetail() {
             {/* Offers list */}
             {isLoggedIn && (isOwner || isProvider) && (
               <div className={`${mounted ? 'animate-fade-in-up animation-delay-300' : 'opacity-0'}`}>
-                <h2 className="text-xl font-bold text-gray-900 mb-4">
-                  Nabídky ({offers.length})
-                </h2>
+                <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Nabídky ({offers.length})
+                  </h2>
+                  <span className={`text-sm font-semibold px-3 py-1 rounded-full ${
+                    requestIsFull
+                      ? "bg-orange-100 text-orange-700"
+                      : "bg-cyan-50 text-cyan-700"
+                  }`}>
+                    {offers.length}/{maxOffersPerRequest} {requestIsFull ? "obsazeno" : "přijato"}
+                  </span>
+                </div>
 
                 {offers.length === 0 ? (
                   <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
@@ -947,12 +976,21 @@ export default function PoptavkaDetail() {
 
                 {canOffer && !alreadyOffered && !showOfferForm && (
                   <div className={`${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
-                    {canSendOffer() ? (
+                    {requestIsFull ? (
+                      <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-4">
+                        <p className="text-orange-800 font-semibold mb-1">
+                          Poptávka je plná ({offers.length}/{maxOffersPerRequest})
+                        </p>
+                        <p className="text-orange-700 text-sm">
+                          Maximální počet nabídek byl vyčerpán. Zkuste jinou poptávku.
+                        </p>
+                      </div>
+                    ) : canSendOffer() ? (
                       <button
                         onClick={() => setShowOfferForm(true)}
                         className="w-full bg-gradient-to-r from-cyan-500 to-cyan-600 text-white py-4 rounded-2xl font-bold hover:shadow-xl hover:scale-105 transition-all"
                       >
-                        Poslat nabídku
+                        Poslat nabídku ({offers.length}/{maxOffersPerRequest})
                       </button>
                     ) : (
                       <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-4">

@@ -57,7 +57,6 @@ export default function Navbar() {
 
   const navLinks = [
     { href: "/poptavky", label: "Poptávky", icon: "📋" },
-    { href: "/nabidky", label: "Nabídky", icon: "💼" },
     { href: "/fachmani", label: "Fachmani", icon: "👷" },
     { href: "/kategorie", label: "Kategorie", icon: "📂" },
     { href: "/feed", label: "Feed", icon: "📸", isNew: true },

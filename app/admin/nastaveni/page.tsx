@@ -10,6 +10,7 @@ type Settings = {
     boost_feed_1d: number;
     premium_badge_30d: number;
     extra_offer: number;
+    urgent_request: number;
   };
   subscription_prices: {
     premium_monthly: number;
@@ -21,6 +22,9 @@ type Settings = {
     free_offers_per_month: number;
     request_expiry_days: number;
     max_images_per_request: number;
+    max_offers_per_request: number;
+    refresh_offer_slots: number;
+    free_requests_per_month: number;
   };
 };
 
@@ -36,6 +40,7 @@ export default function AdminNastaveni() {
     boost_feed_1d: 49,
     premium_badge_30d: 199,
     extra_offer: 29,
+    urgent_request: 99,
   });
 
   const [subscriptions, setSubscriptions] = useState({
@@ -49,6 +54,9 @@ export default function AdminNastaveni() {
     free_offers_per_month: 3,
     request_expiry_days: 30,
     max_images_per_request: 5,
+    max_offers_per_request: 5,
+    refresh_offer_slots: 10,
+    free_requests_per_month: 1,
   });
 
   useEffect(() => {
@@ -63,11 +71,13 @@ export default function AdminNastaveni() {
     if (data) {
       data.forEach((setting) => {
         if (setting.key === "pricing") {
-          setPricing(setting.value);
+          // Merge s defaulty pro nové klíče (např. urgent_request)
+          setPricing((prev) => ({ ...prev, ...setting.value }));
         } else if (setting.key === "subscription_prices") {
           setSubscriptions(setting.value);
         } else if (setting.key === "platform_settings") {
-          setPlatform(setting.value);
+          // Merge s defaulty — pokud DB row nemá nový klíč (legacy), zachovat default.
+          setPlatform((prev) => ({ ...prev, ...setting.value }));
         }
       });
     }
@@ -204,6 +214,21 @@ export default function AdminNastaveni() {
                   <span className="text-slate-400">Kč</span>
                 </div>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  ⚡ Prioritní poptávka
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={pricing.urgent_request}
+                    onChange={(e) => setPricing({ ...pricing, urgent_request: parseInt(e.target.value) })}
+                    className="flex-1 px-4 py-3 bg-slate-700 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                  <span className="text-slate-400">Kč</span>
+                </div>
+              </div>
             </div>
 
             <div className="mt-6 pt-6 border-t border-white/10">
@@ -306,7 +331,7 @@ export default function AdminNastaveni() {
           <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-6">
             <h2 className="text-lg font-semibold text-white mb-6">🔧 Nastavení platformy</h2>
             
-            <div className="grid sm:grid-cols-3 gap-6">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   📨 Nabídky zdarma / měsíc
@@ -344,6 +369,45 @@ export default function AdminNastaveni() {
                   className="w-full px-4 py-3 bg-slate-700 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
                 <p className="text-slate-500 text-xs mt-1">Limit obrázků</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  🎯 Max nabídek / poptávka
+                </label>
+                <input
+                  type="number"
+                  value={platform.max_offers_per_request}
+                  onChange={(e) => setPlatform({ ...platform, max_offers_per_request: parseInt(e.target.value) })}
+                  className="w-full px-4 py-3 bg-slate-700 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+                <p className="text-slate-500 text-xs mt-1">Strop reakcí na 1 poptávku (default 5)</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  ♻️ Refresh +N slotů
+                </label>
+                <input
+                  type="number"
+                  value={platform.refresh_offer_slots}
+                  onChange={(e) => setPlatform({ ...platform, refresh_offer_slots: parseInt(e.target.value) })}
+                  className="w-full px-4 py-3 bg-slate-700 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+                <p className="text-slate-500 text-xs mt-1">Kolik přidá admin „Refresh" tlačítko (default 10)</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  🆓 Free poptávek / měsíc
+                </label>
+                <input
+                  type="number"
+                  value={platform.free_requests_per_month}
+                  onChange={(e) => setPlatform({ ...platform, free_requests_per_month: parseInt(e.target.value) })}
+                  className="w-full px-4 py-3 bg-slate-700 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+                <p className="text-slate-500 text-xs mt-1">Limit poptávek pro free zákazníka (default 1)</p>
               </div>
             </div>
 

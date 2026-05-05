@@ -118,7 +118,7 @@ function labelFor(type: Result["entity_type"]): string {
 function hrefFor(r: Result): string {
   if (r.entity_type === "category") return `/kategorie`;
   if (r.entity_type === "demand") return `/poptavka/${r.entity_id}`;
-  if (r.entity_type === "offer") return `/nabidky#offer-${r.entity_id}`;
+  if (r.entity_type === "offer") return `/poptavky`;
   // seed_provider dostane prefix "seed_", aby existující /fachman/[id] routa fungovala.
   if (r.entity_type === "seed_provider") return `/fachman/seed_${r.entity_id}`;
   return `/fachman/${r.entity_id}`;

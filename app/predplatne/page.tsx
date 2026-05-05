@@ -13,6 +13,8 @@ type Profile = {
   subscription_expires_at: string | null;
   monthly_offers_count: number;
   monthly_offers_reset_at: string;
+  cancel_at_period_end: boolean | null;
+  cancellation_reason: string | null;
 };
 
 export default function Predplatne() {
@@ -22,6 +24,9 @@ export default function Predplatne() {
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
   const [message, setMessage] = useState("");
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     async function loadProfile() {
@@ -88,22 +93,55 @@ export default function Predplatne() {
     setUpgrading(false);
   };
 
-  const handleDowngrade = async () => {
+  const handleCancelAtPeriodEnd = async () => {
     if (!profile) return;
-    
-    setUpgrading(true);
+    setCancelling(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/subscription/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: cancelReason }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(`Chyba: ${data.error ?? "Zrušení se nezdařilo"}`);
+      } else {
+        setProfile({
+          ...profile,
+          cancel_at_period_end: true,
+          cancellation_reason: cancelReason || null,
+          subscription_expires_at: data.expiresAt ?? profile.subscription_expires_at,
+        });
+        setShowCancelModal(false);
+        setCancelReason("");
+        setMessage("Předplatné bude ukončeno na konci aktuálního období.");
+      }
+    } catch {
+      setMessage("Chyba: nelze se připojit k serveru.");
+    } finally {
+      setCancelling(false);
+    }
+  };
 
-    await supabase
-      .from("profiles")
-      .update({
-        subscription_type: "free",
-        subscription_expires_at: null,
-      })
-      .eq("id", profile.id);
-
-    setMessage("Přešli jste na bezplatný plán.");
-    setProfile({ ...profile, subscription_type: "free", subscription_expires_at: null });
-    setUpgrading(false);
+  const handleReactivate = async () => {
+    if (!profile) return;
+    setCancelling(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/subscription/cancel", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(`Chyba: ${data.error ?? "Obnovení selhalo"}`);
+      } else {
+        setProfile({ ...profile, cancel_at_period_end: false, cancellation_reason: null });
+        setMessage("Předplatné bylo obnoveno — bude pokračovat dál.");
+      }
+    } catch {
+      setMessage("Chyba: nelze se připojit k serveru.");
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const freeLimit = settings.platform.free_offers_per_month;
@@ -141,6 +179,31 @@ export default function Predplatne() {
         {message && (
           <div className={`p-4 rounded-lg mb-6 ${message.includes("Chyba") ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
             {message}
+          </div>
+        )}
+
+        {/* Banner: naplánované zrušení */}
+        {profile?.cancel_at_period_end && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start justify-between gap-4">
+            <div>
+              <p className="font-semibold text-amber-900">⏳ Předplatné bude ukončeno</p>
+              <p className="text-sm text-amber-800 mt-1">
+                Vaše Premium zůstává aktivní do{" "}
+                <strong>
+                  {profile.subscription_expires_at
+                    ? new Date(profile.subscription_expires_at).toLocaleDateString("cs-CZ")
+                    : "konce zaplaceného období"}
+                </strong>
+                . Pak vás převedeme na Free.
+              </p>
+            </div>
+            <button
+              onClick={handleReactivate}
+              disabled={cancelling}
+              className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-semibold whitespace-nowrap disabled:opacity-50"
+            >
+              {cancelling ? "..." : "Obnovit"}
+            </button>
           </div>
         )}
 
@@ -200,13 +263,15 @@ export default function Predplatne() {
             </ul>
             {profile?.subscription_type === "free" ? (
               <span className="block text-center text-gray-500 py-2">Aktuální plán</span>
+            ) : profile?.cancel_at_period_end ? (
+              <span className="block text-center text-amber-600 text-sm py-2">Naplánováno zrušení</span>
             ) : (
               <button
-                onClick={handleDowngrade}
-                disabled={upgrading}
+                onClick={() => setShowCancelModal(true)}
+                disabled={upgrading || cancelling}
                 className="w-full py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
-                Přejít na Free
+                Zrušit předplatné
               </button>
             )}
           </div>
@@ -266,6 +331,51 @@ export default function Predplatne() {
           Poznámka: Toto je demo verze. V produkci by byla napojena platební brána.
         </p>
       </div>
+
+      {/* Cancel Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Zrušit předplatné</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Vaše Premium zůstane aktivní do{" "}
+              <strong>
+                {profile?.subscription_expires_at
+                  ? new Date(profile.subscription_expires_at).toLocaleDateString("cs-CZ")
+                  : "konce zaplaceného období"}
+              </strong>
+              . Pak vás převedeme na Free. Můžete kdykoli obnovit.
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Důvod zrušení (volitelné)
+            </label>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              placeholder="Pomůžete nám zlepšit službu — co bylo důvodem?"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-sm"
+            />
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => { setShowCancelModal(false); setCancelReason(""); }}
+                disabled={cancelling}
+                className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold disabled:opacity-50"
+              >
+                Nechat aktivní
+              </button>
+              <button
+                onClick={handleCancelAtPeriodEnd}
+                disabled={cancelling}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold disabled:opacity-50"
+              >
+                {cancelling ? "Ruším..." : "Zrušit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

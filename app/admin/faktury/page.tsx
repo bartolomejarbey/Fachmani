@@ -99,9 +99,11 @@ export default function AdminFaktury() {
             <p className="text-slate-400">Správa fakturace</p>
           </div>
           <button
-            className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl hover:opacity-90 transition-all"
+            disabled
+            title="Faktury se generují automaticky z odeslaných platebních dokladů — manuální vytváření zatím není napojené."
+            className="inline-flex items-center gap-2 px-5 py-3 bg-slate-700 text-slate-400 font-semibold rounded-xl cursor-not-allowed opacity-60"
           >
-            + Vytvořit fakturu
+            + Vytvořit fakturu (brzy)
           </button>
         </div>
 

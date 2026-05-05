@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { supabase } from "@/lib/supabase";
 
 export default function Footer() {
   const [email, setEmail] = useState("");
@@ -17,17 +16,24 @@ export default function Footer() {
     setSubscribing(true);
     setSubscribeError("");
 
-    const { error } = await supabase.from("newsletter_subscribers").insert({ email });
-
-    if (error) {
-      setSubscribeError(error.code === "23505" ? "Tento email je již přihlášen." : "Něco se pokazilo, zkuste to znovu.");
+    try {
+      const res = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, source: "footer" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSubscribeError(data.error || "Něco se pokazilo, zkuste to znovu.");
+      } else {
+        setSubscribed(true);
+        setEmail("");
+      }
+    } catch {
+      setSubscribeError("Síťová chyba, zkuste to znovu.");
+    } finally {
       setSubscribing(false);
-      return;
     }
-
-    setSubscribed(true);
-    setEmail("");
-    setSubscribing(false);
   };
 
   return (

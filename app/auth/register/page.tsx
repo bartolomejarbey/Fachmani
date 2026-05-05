@@ -1,24 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 
 export default function Register() {
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState("customer");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [outcome, setOutcome] = useState<"" | "created" | "exists">("");
 
   useEffect(() => {
     setMounted(true);
@@ -34,34 +31,21 @@ export default function Register() {
     setError("");
 
     try {
-      // 1. Registrace uživatele
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            full_name: fullName,
-            role: role,
-          },
-        },
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, fullName, role }),
       });
 
-      if (signUpError) {
-        const msg = signUpError.message;
-        if (msg.includes("Password should be at least 6 characters")) {
-          setError("Heslo musí mít alespoň 6 znaků");
-        } else if (msg.includes("Unable to validate email address")) {
-          setError("Neplatná emailová adresa");
-        } else {
-          // Generic message — don't reveal whether email is already registered
-          setError("Registrace se nezdařila. Zkontrolujte údaje nebo zkuste jiný email.");
-        }
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; exists?: boolean; error?: string };
+
+      if (!res.ok || !data.ok) {
+        setError(data.error || "Registrace se nezdařila. Zkontrolujte údaje nebo zkuste jiný email.");
         setLoading(false);
         return;
       }
 
-      setSuccess(true);
+      setOutcome(data.exists ? "exists" : "created");
     } catch {
       setError("Něco se pokazilo. Zkuste to prosím znovu.");
     }
@@ -69,7 +53,7 @@ export default function Register() {
     setLoading(false);
   };
 
-  if (success) {
+  if (outcome === "created") {
     return (
       <div className="min-h-screen bg-white">
         <Navbar />
@@ -92,6 +76,46 @@ export default function Register() {
               Přejít na přihlášení
               {Icons.arrowRight}
             </Link>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (outcome === "exists") {
+    return (
+      <div className="min-h-screen bg-white">
+        <Navbar />
+        <div className="min-h-[80vh] flex items-center justify-center px-4">
+          <div className={`max-w-md w-full text-center ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Účet už existuje</h2>
+            <p className="text-gray-600 mb-2">
+              Email <span className="font-semibold text-gray-900">{email}</span> je už zaregistrovaný na Fachmani.
+            </p>
+            <p className="text-gray-600 mb-8">
+              Poslali jsme ti email s odkazy pro přihlášení a obnovení hesla. Pokud sis registraci nepamatuješ, použij &bdquo;Zapomenuté heslo&ldquo; pro obnovení přístupu.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                href="/auth/login"
+                className="inline-flex items-center justify-center gap-2 gradient-bg text-white px-6 py-3 rounded-2xl font-semibold hover:shadow-xl transition-all"
+              >
+                Přejít na přihlášení
+                {Icons.arrowRight}
+              </Link>
+              <Link
+                href="/auth/forgot-password"
+                className="inline-flex items-center justify-center gap-2 bg-white border-2 border-gray-200 text-gray-700 px-6 py-3 rounded-2xl font-semibold hover:border-gray-300 hover:bg-gray-50 transition-all"
+              >
+                Zapomněl/a jsem heslo
+              </Link>
+            </div>
           </div>
         </div>
         <Footer />

@@ -2,16 +2,20 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+// TODO: Tyto ceny duplikují system_settings.pricing — admin změna v UI nezasáhne
+// API. Prozatím držet v sync ručně, nebo přepnout na fetch ze system_settings.
 const PRICES: Record<string, number> = {
   offer_publish: 29,
   profile_boost_7d: 99,
   feed_boost_1d: 49,
+  urgent_request: 99,
 }
 
 const DESCRIPTIONS: Record<string, string> = {
   offer_publish: 'Publikace nabídky',
   profile_boost_7d: 'Topování profilu (7 dní)',
   feed_boost_1d: 'Boost na feedu (1 den)',
+  urgent_request: 'Prioritní poptávka',
 }
 
 export async function POST(request: Request) {
