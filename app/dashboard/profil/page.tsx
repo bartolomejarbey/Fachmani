@@ -10,6 +10,7 @@ import { Icons } from "@/app/components/Icons";
 import ImageCropper from "@/app/components/ImageCropper";
 import IcoInput from "@/app/components/IcoInput";
 import VerifiedBadge from "@/app/components/VerifiedBadge";
+import PushOptIn from "@/app/components/PushOptIn";
 import LocationSelect from "@/app/components/LocationSelect";
 
 type Category = {
@@ -704,6 +705,14 @@ export default function FachmanProfil() {
                     </div>
                   </div>
                 </label>
+              </div>
+
+              <div className="mt-3 p-4 bg-purple-50 border border-purple-200 rounded-xl">
+                <div className="font-semibold text-gray-900 mb-1">🔔 Push notifikace v prohlížeči</div>
+                <p className="text-sm text-gray-600 mb-2">
+                  Okamžitá notifikace v prohlížeči nebo na mobilu (po přidání na plochu) když přijde nová poptávka.
+                </p>
+                <PushOptIn />
               </div>
 
               <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
