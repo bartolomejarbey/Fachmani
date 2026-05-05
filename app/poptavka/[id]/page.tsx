@@ -63,6 +63,19 @@ type RecommendedProvider = {
   is_verified: boolean;
 };
 
+type JobCompletion = {
+  id: string;
+  offer_id: string;
+  customer_id: string;
+  provider_id: string;
+  status: "pending" | "confirmed" | "denied";
+  requested_at: string;
+  resolved_at: string | null;
+  denied_reason: string | null;
+};
+
+const COMPLETION_CAP_MS = 3 * 30 * 24 * 60 * 60 * 1000; // ~3 měsíce
+
 export default function PoptavkaDetail() {
   const params = useParams();
   const router = useRouter();
@@ -86,6 +99,12 @@ export default function PoptavkaDetail() {
   const [recommendedProviders, setRecommendedProviders] = useState<RecommendedProvider[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [recommendationLoaded, setRecommendationLoaded] = useState(false);
+
+  // job_completions keyed by offer_id (1 per offer max — UNIQUE)
+  const [completions, setCompletions] = useState<Record<string, JobCompletion>>({});
+  const [completionBusy, setCompletionBusy] = useState<string | null>(null);
+  const [denyReasonOpenFor, setDenyReasonOpenFor] = useState<string | null>(null);
+  const [denyReasonText, setDenyReasonText] = useState("");
 
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
@@ -180,6 +199,17 @@ export default function PoptavkaDetail() {
         if (offersData) {
           setOffers(offersData as Offer[]);
         }
+
+        const { data: completionsData } = await supabase
+          .from("job_completions")
+          .select("*")
+          .eq("request_id", params.id);
+
+        if (completionsData) {
+          const map: Record<string, JobCompletion> = {};
+          for (const c of completionsData as JobCompletion[]) map[c.offer_id] = c;
+          setCompletions(map);
+        }
       }
 
       setLoading(false);
@@ -187,6 +217,65 @@ export default function PoptavkaDetail() {
 
     loadData();
   }, [params.id]);
+
+  const reloadCompletions = async () => {
+    const { data } = await supabase
+      .from("job_completions")
+      .select("*")
+      .eq("request_id", params.id);
+    if (data) {
+      const map: Record<string, JobCompletion> = {};
+      for (const c of data as JobCompletion[]) map[c.offer_id] = c;
+      setCompletions(map);
+    }
+  };
+
+  const offerWithinCompletionWindow = (offer: Offer): boolean => {
+    return Date.now() - new Date(offer.created_at).getTime() < COMPLETION_CAP_MS;
+  };
+
+  const handleRequestCompletion = async (offer: Offer) => {
+    if (!currentUser || !request) return;
+    if (!offerWithinCompletionWindow(offer)) {
+      alert("Žádost o potvrzení dokončení lze odeslat max 3 měsíce po vytvoření nabídky.");
+      return;
+    }
+    setCompletionBusy(offer.id);
+    const { error: insertError } = await supabase.from("job_completions").insert({
+      request_id: request.id,
+      offer_id: offer.id,
+      customer_id: currentUser,
+      provider_id: offer.provider_id,
+    });
+    if (insertError) {
+      alert(insertError.message);
+    } else {
+      await reloadCompletions();
+    }
+    setCompletionBusy(null);
+  };
+
+  const handleResolveCompletion = async (
+    completion: JobCompletion,
+    status: "confirmed" | "denied",
+    deniedReason?: string,
+  ) => {
+    setCompletionBusy(completion.offer_id);
+    const updates: Partial<JobCompletion> = { status };
+    if (status === "denied") updates.denied_reason = deniedReason || null;
+    const { error: updateError } = await supabase
+      .from("job_completions")
+      .update(updates)
+      .eq("id", completion.id);
+    if (updateError) {
+      alert(updateError.message);
+    } else {
+      await reloadCompletions();
+      setDenyReasonOpenFor(null);
+      setDenyReasonText("");
+    }
+    setCompletionBusy(null);
+  };
 
   const loadRecommendations = async (req: Request) => {
     if (recommendationLoaded || req.status !== "active") return;
@@ -441,6 +530,10 @@ export default function PoptavkaDetail() {
   const canOffer = isProvider && isVerified && !isOwner && request.status === "active";
   const alreadyOffered = offers.some((o) => o.provider_id === currentUser);
   const acceptedOffer = offers.find((o) => o.status === "accepted");
+  // Customer review gating: vyžaduje confirmed job_completion (DB trigger to vynucuje).
+  const myConfirmedCompletion = currentUser
+    ? Object.values(completions).find((c) => c.provider_id === currentUser && c.status === "confirmed")
+    : undefined;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -677,8 +770,8 @@ export default function PoptavkaDetail() {
               </div>
             )}
 
-            {/* Customer review form — fachman s accepted offer hodnotí zákazníka */}
-            {isProvider && acceptedOffer && acceptedOffer.provider_id === currentUser && !existingCustomerReview && (
+            {/* Customer review form — fachman s confirmed job_completion hodnotí zákazníka */}
+            {isProvider && myConfirmedCompletion && !existingCustomerReview && (
               <div className={`${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
                 <CustomerReviewForm
                   requestId={request.id}
@@ -689,7 +782,7 @@ export default function PoptavkaDetail() {
               </div>
             )}
 
-            {isProvider && acceptedOffer && acceptedOffer.provider_id === currentUser && existingCustomerReview && (
+            {isProvider && myConfirmedCompletion && existingCustomerReview && (
               <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-4">
                 <p className="text-purple-800 font-semibold flex items-center gap-2">
                   {Icons.check} Hodnocení zákazníka odesláno.
@@ -857,12 +950,16 @@ export default function PoptavkaDetail() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {offers.map((offer, i) => (
-                      <div 
-                        key={offer.id} 
+                    {offers.map((offer) => {
+                      const completion = completions[offer.id];
+                      const inWindow = offerWithinCompletionWindow(offer);
+                      const isMyOffer = offer.provider_id === currentUser;
+                      return (
+                      <div
+                        key={offer.id}
                         className={`bg-white rounded-2xl shadow-sm p-6 border-2 transition-all ${
-                          offer.status === "accepted" 
-                            ? "border-emerald-300 bg-emerald-50" 
+                          offer.status === "accepted"
+                            ? "border-emerald-300 bg-emerald-50"
                             : "border-transparent hover:shadow-lg"
                         }`}
                       >
@@ -935,9 +1032,99 @@ export default function PoptavkaDetail() {
                               {Icons.check} Přijmout nabídku
                             </button>
                           )}
+
+                          {/* Job completion: customer žádá o potvrzení dokončení */}
+                          {isOwner && !completion && inWindow && (
+                            <button
+                              onClick={() => handleRequestCompletion(offer)}
+                              disabled={completionBusy === offer.id}
+                              className="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-purple-700 disabled:opacity-50 transition-all"
+                            >
+                              ✓ Požádat o potvrzení dokončení
+                            </button>
+                          )}
+
+                          {/* Status badge — viditelný oběma stranám */}
+                          {completion?.status === "pending" && (
+                            <span className="inline-flex items-center gap-2 bg-amber-100 text-amber-800 px-4 py-2 rounded-xl font-semibold">
+                              ⏳ Žádost o potvrzení čeká na fachmana
+                            </span>
+                          )}
+                          {completion?.status === "confirmed" && (
+                            <span className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-800 px-4 py-2 rounded-xl font-semibold">
+                              ✓ Dokončení potvrzeno
+                            </span>
+                          )}
+                          {completion?.status === "denied" && (
+                            <span
+                              className="inline-flex items-center gap-2 bg-rose-100 text-rose-800 px-4 py-2 rounded-xl font-semibold"
+                              title={completion.denied_reason || "Bez uvedení důvodu"}
+                            >
+                              ✕ Fachman zamítl potvrzení
+                            </span>
+                          )}
+
+                          {/* Provider: confirm/deny pending request */}
+                          {isMyOffer && completion?.status === "pending" && (
+                            <>
+                              <button
+                                onClick={() => handleResolveCompletion(completion, "confirmed")}
+                                disabled={completionBusy === offer.id}
+                                className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-all"
+                              >
+                                ✓ Potvrdit dokončení
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setDenyReasonOpenFor(offer.id);
+                                  setDenyReasonText("");
+                                }}
+                                disabled={completionBusy === offer.id}
+                                className="inline-flex items-center gap-2 bg-rose-100 text-rose-700 px-4 py-2 rounded-xl font-semibold hover:bg-rose-200 disabled:opacity-50 transition-all"
+                              >
+                                ✕ Zamítnout
+                              </button>
+                            </>
+                          )}
                         </div>
+
+                        {/* Deny reason inline form */}
+                        {isMyOffer && completion?.status === "pending" && denyReasonOpenFor === offer.id && (
+                          <div className="mt-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                            <label className="block text-sm font-semibold text-rose-900 mb-2">
+                              Důvod zamítnutí (volitelné)
+                            </label>
+                            <textarea
+                              value={denyReasonText}
+                              onChange={(e) => setDenyReasonText(e.target.value)}
+                              rows={2}
+                              maxLength={500}
+                              placeholder="Např.: Zakázka nebyla zatím dokončená, dokončíme ji do konce měsíce."
+                              className="w-full px-3 py-2 border border-rose-200 rounded-lg focus:ring-2 focus:ring-rose-400 focus:border-transparent text-sm"
+                            />
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={() => handleResolveCompletion(completion, "denied", denyReasonText.trim() || undefined)}
+                                disabled={completionBusy === offer.id}
+                                className="bg-rose-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-rose-700 disabled:opacity-50 transition-all text-sm"
+                              >
+                                Potvrdit zamítnutí
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setDenyReasonOpenFor(null);
+                                  setDenyReasonText("");
+                                }}
+                                className="text-rose-700 px-4 py-2 font-semibold hover:underline text-sm"
+                              >
+                                Zrušit
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
