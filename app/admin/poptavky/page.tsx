@@ -198,13 +198,26 @@ export default function AdminPoptavky() {
       return;
     }
 
+    // Re-match: oslov fachmany, kteří se přidali po vytvoření poptávky.
+    // RPC vkládá notifikace s NOT EXISTS check, takže existujícím fachmanům
+    // duplikát nedonotifikuje — zasáhne jen newcomery.
+    const { data: matchedCount, error: matchErr } = await supabase
+      .rpc("auto_match_request_to_fachmani_for", { p_request_id: requestId });
+    if (matchErr) {
+      console.warn("[refresh] rematch RPC failed", matchErr.message);
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("admin_activity_log").insert({
       admin_id: user?.id,
       action: "refresh_request",
       target_type: "request",
       target_id: requestId,
-      details: { added_slots: refreshSlots, new_extra_total: newExtra },
+      details: {
+        added_slots: refreshSlots,
+        new_extra_total: newExtra,
+        new_fachmani_notified: matchedCount ?? 0,
+      },
     });
 
     loadRequests();

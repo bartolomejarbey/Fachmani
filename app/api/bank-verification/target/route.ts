@@ -10,7 +10,11 @@ export const runtime = "nodejs";
 // firmu na reálný účet"). Skutečné ověření párujeme přes VS, takže
 // preview QR bez VS nelze zneužít k podvržení ověření.
 
-const TARGET_ACCOUNT = process.env.BANK_VERIFICATION_TARGET_ACCOUNT || "TODO/0000";
+const RAW_TARGET = process.env.BANK_VERIFICATION_TARGET_ACCOUNT || "TODO/0000";
+// Strip placeholder cruft (úhlové závorky, mezery, uvozovky) — některé Vercel
+// env vars přes UI končí jako "<8208230004>/<5500>" pokud admin zkopíruje
+// placeholder ze spec dokumentu.
+const TARGET_ACCOUNT = RAW_TARGET.replace(/[^0-9/-]/g, "");
 
 export async function GET() {
   const targetIban = czAccountToIban(TARGET_ACCOUNT);

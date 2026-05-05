@@ -10,7 +10,9 @@ export const runtime = "nodejs";
 // Vrací { amount_haler, reference_vs, initiated_at, target_account }
 // Side-effect: notifikuje všechny adminy (NotificationBell + admin queue badge).
 
-const TARGET_ACCOUNT = process.env.BANK_VERIFICATION_TARGET_ACCOUNT || "TODO/0000";
+const RAW_TARGET = process.env.BANK_VERIFICATION_TARGET_ACCOUNT || "TODO/0000";
+// Strip placeholder cruft (úhlové závorky, mezery) — viz target/route.ts.
+const TARGET_ACCOUNT = RAW_TARGET.replace(/[^0-9/-]/g, "");
 
 function isValidCzAccount(s: string): boolean {
   // Velmi přibližná validace: prefix-?číslo/kód, 4 cifry kód banky

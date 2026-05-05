@@ -11,7 +11,9 @@ type ParsedCzAccount = {
 };
 
 export function parseCzAccount(input: string): ParsedCzAccount | null {
-  const cleaned = input.replace(/\s/g, "");
+  // Striktně odstranit cokoliv kromě digit/dash/slash — toleruje běžné placeholder
+  // formáty jako "<1234567890>/<5500>" nebo s mezerami/uvozovkami z env var.
+  const cleaned = input.replace(/[^0-9/-]/g, "");
   // Format: [prefix-]account/bankCode  (prefix je optional 1-6 cifer)
   const m = /^(?:(\d{1,6})-)?(\d{2,10})\/(\d{4})$/.exec(cleaned);
   if (!m) return null;
