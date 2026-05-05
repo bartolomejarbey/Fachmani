@@ -29,8 +29,13 @@ type ContentRow = {
   prompt_tokens: number | null;
   completion_tokens: number | null;
   knowledge_sections: string[] | string | null;
-  rejection_reason: string | null;
+  rejected_reason: string | null; // sloupec v DB se jmenuje rejected_reason (NE rejection_reason)
   group_label: string | null;
+  // Status-specific timestamps + audit refs (z migrace fachmani-bot):
+  approved_at: string | null;
+  approved_by: string | null;
+  published_action_id: string | null;
+  target_url: string | null;
 };
 
 type Conversation = {
@@ -55,7 +60,37 @@ type Classification = {
 
 type Account = { id: string; label: string | null; account_kind: string | null };
 
+type BotAction = {
+  id: string;
+  action_type: string | null;
+  status: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  actor_id: string | null;
+  generated_content_id: string | null;
+  target_url: string | null;
+  payload: Record<string, unknown> | null;
+  result: Record<string, unknown> | null;
+};
+
 const OWNER_ROLES = new Set(["master_admin", "admin"]);
+
+type StatusKey = "pending_review" | "approved" | "published" | "rejected" | "all";
+
+const STATUS_OPTIONS: { value: StatusKey; label: string }[] = [
+  { value: "pending_review", label: "Čekající (pending_review)" },
+  { value: "approved", label: "Schválené (approved)" },
+  { value: "published", label: "Publikované (published)" },
+  { value: "rejected", label: "Odmítnuté (rejected)" },
+  { value: "all", label: "Všechny stavy" },
+];
+
+const STATUS_COLOR: Record<string, { dot: string; bg: string; text: string; border: string; label: string }> = {
+  pending_review: { dot: "bg-yellow-400", bg: "bg-yellow-500/15", text: "text-yellow-300", border: "border-yellow-500/40", label: "pending_review" },
+  approved:       { dot: "bg-blue-400",   bg: "bg-blue-500/15",   text: "text-blue-300",   border: "border-blue-500/40",   label: "approved" },
+  published:      { dot: "bg-emerald-400",bg: "bg-emerald-500/15",text: "text-emerald-300",border: "border-emerald-500/40",label: "published" },
+  rejected:       { dot: "bg-red-400",    bg: "bg-red-500/15",    text: "text-red-300",    border: "border-red-500/40",    label: "rejected" },
+};
 
 function fmt(iso: string | null): string {
   if (!iso) return "—";
@@ -96,6 +131,11 @@ function knowledgeAsArray(k: ContentRow["knowledge_sections"]): string[] {
   return [];
 }
 
+function shortActor(actor: string | null | undefined): string {
+  if (!actor) return "—";
+  return actor.replace(/^admin:/, "").slice(0, 8) + "…";
+}
+
 type Action = "approve" | "edit" | "reject";
 
 export default function AdminBotContentPage() {
@@ -116,7 +156,21 @@ export default function AdminBotContentPage() {
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
 
+  // Audit logy (per content_id, ASC podle started_at) + publish action lookup
+  const [auditLogs, setAuditLogs] = useState<Record<string, BotAction[]>>({});
+  const [publishActions, setPublishActions] = useState<Record<string, BotAction>>({});
+
+  // Globální status counts (přes celou tabulku, nezávislé na ostatních filtrech)
+  const [statusCounts, setStatusCounts] = useState<Record<StatusKey, number>>({
+    pending_review: 0,
+    approved: 0,
+    published: 0,
+    rejected: 0,
+    all: 0,
+  });
+
   // Filtry
+  const [filterStatus, setFilterStatus] = useState<StatusKey>("pending_review");
   const [filterAccount, setFilterAccount] = useState<string>("");
   const [filterTurn, setFilterTurn] = useState<string>("");
   const [filterGroup, setFilterGroup] = useState<string>("");
@@ -131,12 +185,45 @@ export default function AdminBotContentPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  // Status counts načítáme paralelně přes head:true count, separátně od list query.
+  // To zachová "5 pending · 12 published · …" i když uživatel filtruje na konkrétní status.
+  const loadStatusCounts = useCallback(async () => {
+    const statuses: StatusKey[] = ["pending_review", "approved", "published", "rejected"];
+    const results = await Promise.all(
+      statuses.map((s) =>
+        supabase
+          .from("bot_generated_content")
+          .select("id", { count: "exact", head: true })
+          .eq("status", s),
+      ),
+    );
+    const next: Record<StatusKey, number> = {
+      pending_review: 0,
+      approved: 0,
+      published: 0,
+      rejected: 0,
+      all: 0,
+    };
+    statuses.forEach((s, i) => {
+      next[s] = results[i].count ?? 0;
+    });
+    next.all = next.pending_review + next.approved + next.published + next.rejected;
+    setStatusCounts(next);
+  }, []);
+
   const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("bot_generated_content")
-      .select("*")
-      .eq("status", "pending_review")
-      .order("generated_at", { ascending: true })
+    // Sort: pending_review = FIFO (created_at ASC), ostatní = nejnovější první
+    // (DESC by approved_at — sloupec se nastavuje při approve i reject; pro published
+    // používáme bot_actions.completed_at, ale řazení listu je stále podle moderation timestamp).
+    const sortColumn = filterStatus === "pending_review" ? "generated_at" : "approved_at";
+    const sortAsc = filterStatus === "pending_review";
+
+    let q = supabase.from("bot_generated_content").select("*");
+    if (filterStatus !== "all") {
+      q = q.eq("status", filterStatus);
+    }
+    const { data, error } = await q
+      .order(sortColumn, { ascending: sortAsc, nullsFirst: false })
       .limit(200);
 
     if (error) {
@@ -189,10 +276,37 @@ export default function AdminBotContentPage() {
       } else {
         setClassifications({});
       }
+
+      // Audit log + publish actions — jednou v batchi pro všechny visible řádky.
+      const { data: actions } = await supabase
+        .from("bot_actions")
+        .select("id, action_type, status, started_at, completed_at, actor_id, generated_content_id, target_url, payload, result")
+        .in("generated_content_id", contentIds)
+        .order("started_at", { ascending: true });
+
+      const auditMap: Record<string, BotAction[]> = {};
+      const publishMap: Record<string, BotAction> = {};
+      for (const a of (actions as BotAction[]) || []) {
+        if (!a.generated_content_id) continue;
+        if (!auditMap[a.generated_content_id]) auditMap[a.generated_content_id] = [];
+        auditMap[a.generated_content_id].push(a);
+      }
+      // publish action = ten, jehož id se shoduje s row.published_action_id
+      // (alternativně poslední success comment/post action s result.published === true).
+      for (const r of rows) {
+        if (r.published_action_id) {
+          const found = ((actions as BotAction[]) || []).find((a) => a.id === r.published_action_id);
+          if (found) publishMap[r.id] = found;
+        }
+      }
+      setAuditLogs(auditMap);
+      setPublishActions(publishMap);
     } else {
       setConversations({});
       setContentToConv({});
       setClassifications({});
+      setAuditLogs({});
+      setPublishActions({});
     }
 
     const accountIds = Array.from(
@@ -207,7 +321,7 @@ export default function AdminBotContentPage() {
       for (const a of (accs as Account[]) || []) amap[a.id] = a;
       setAccounts(amap);
     }
-  }, []);
+  }, [filterStatus]);
 
   // Načti všechny accounty pro dropdown filter (jednorázově)
   const loadAccountsAll = useCallback(async () => {
@@ -239,13 +353,13 @@ export default function AdminBotContentPage() {
         return;
       }
       setAuthorized(true);
-      await Promise.all([load(), loadAccountsAll()]);
+      await Promise.all([load(), loadAccountsAll(), loadStatusCounts()]);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [load, loadAccountsAll, router]);
+  }, [load, loadAccountsAll, loadStatusCounts, router]);
 
   // Realtime subscription
   useEffect(() => {
@@ -257,13 +371,14 @@ export default function AdminBotContentPage() {
         { event: "*", schema: "public", table: "bot_generated_content" },
         () => {
           load();
+          loadStatusCounts();
         },
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [authorized, load]);
+  }, [authorized, load, loadStatusCounts]);
 
   // Filtrace + odvozené turn labels
   const visible = useMemo(() => {
@@ -291,7 +406,8 @@ export default function AdminBotContentPage() {
     setBusy((b) => ({ ...b, [item.id]: true }));
     try {
       if (action === "approve") {
-        const { error } = await supabase.rpc("approve_content", { p_content_id: item.id });
+        // RPC param je `content_id` (NE `p_content_id` — historický bug ve volání).
+        const { error } = await supabase.rpc("approve_content", { content_id: item.id });
         if (error) throw error;
         flashToast("ok", "Obsah schválen.");
       } else if (action === "edit") {
@@ -302,8 +418,8 @@ export default function AdminBotContentPage() {
           return;
         }
         const { error } = await supabase.rpc("edit_and_approve_content", {
-          p_content_id: item.id,
-          p_new_body: text,
+          content_id: item.id,
+          new_text: text,
         });
         if (error) throw error;
         flashToast("ok", "Obsah editován a schválen.");
@@ -315,13 +431,13 @@ export default function AdminBotContentPage() {
           return;
         }
         const { error } = await supabase.rpc("reject_content", {
-          p_content_id: item.id,
-          p_reason: reason,
+          content_id: item.id,
+          reason,
         });
         if (error) throw error;
         flashToast("ok", "Obsah odmítnut.");
       }
-      await load();
+      await Promise.all([load(), loadStatusCounts()]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Neznámá chyba";
       flashToast("err", `Akce selhala: ${msg}`);
@@ -354,23 +470,48 @@ export default function AdminBotContentPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">📝 Bot content — schvalování</h1>
             <p className="text-slate-400 text-sm mt-1">
-              Vygenerovaný obsah ve stavu <code className="text-cyan-300">pending_review</code> čeká na ruční schválení.
-              Default sort FIFO (nejstarší první).
+              {filterStatus === "pending_review"
+                ? <>Čekající obsah (<code className="text-cyan-300">pending_review</code>) — FIFO, nejstarší první.</>
+                : filterStatus === "all"
+                  ? <>Všechny stavy — řazeno podle posledního moderation kroku (DESC).</>
+                  : <>Stav <code className="text-cyan-300">{filterStatus}</code> — nejnovější první.</>}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="px-3 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-slate-300 text-sm">
-              <strong className="text-white">{visible.length}</strong>
-              {visible.length !== items.length && (
-                <span className="text-slate-500"> / {items.length}</span>
-              )}
-              {" "}pending
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-2 py-1 rounded-md bg-yellow-500/15 border border-yellow-500/40 text-yellow-300 text-xs font-medium">
+              {statusCounts.pending_review} pending
+            </span>
+            <span className="text-slate-600">·</span>
+            <span className="px-2 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-medium">
+              {statusCounts.published} published
+            </span>
+            <span className="text-slate-600">·</span>
+            <span className="px-2 py-1 rounded-md bg-blue-500/15 border border-blue-500/40 text-blue-300 text-xs font-medium">
+              {statusCounts.approved} approved
+            </span>
+            <span className="text-slate-600">·</span>
+            <span className="px-2 py-1 rounded-md bg-red-500/15 border border-red-500/40 text-red-300 text-xs font-medium">
+              {statusCounts.rejected} rejected
             </span>
           </div>
         </header>
 
         {/* Filtry */}
-        <section className="bg-slate-800/50 border border-white/10 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <section className="bg-slate-800/50 border border-white/10 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <label className="space-y-1 block">
+            <span className="text-xs uppercase tracking-wider text-slate-500">Status</span>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as StatusKey)}
+              className="w-full rounded-lg bg-slate-900/60 border border-white/10 px-3 py-2 text-sm text-white"
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="space-y-1 block">
             <span className="text-xs uppercase tracking-wider text-slate-500">Account</span>
             <select
@@ -432,7 +573,9 @@ export default function AdminBotContentPage() {
 
         {visible.length === 0 ? (
           <div className="bg-slate-800/50 border border-white/10 rounded-2xl p-10 text-center text-slate-400">
-            🎉 Žádný obsah nečeká na schválení.
+            {filterStatus === "pending_review"
+              ? "🎉 Žádný obsah nečeká na schválení."
+              : `Žádný obsah ve stavu ${filterStatus}.`}
           </div>
         ) : (
           <div className="space-y-4">
@@ -448,6 +591,18 @@ export default function AdminBotContentPage() {
               const isRejecting = !!rejecting[c.id];
               const isBusy = !!busy[c.id];
               const knowledge = knowledgeAsArray(c.knowledge_sections);
+              const statusStyle = STATUS_COLOR[c.status] || STATUS_COLOR.pending_review;
+              const audit = auditLogs[c.id] || [];
+              const publishAction = publishActions[c.id] || null;
+              const publishedAt = publishAction?.completed_at || null;
+              const publishedFbUrl =
+                (publishAction?.result &&
+                  typeof publishAction.result === "object" &&
+                  ((publishAction.result as { fb_post_url?: string }).fb_post_url ||
+                    publishAction.target_url)) ||
+                publishAction?.target_url ||
+                c.target_url ||
+                null;
 
               return (
                 <article key={c.id} className="bg-slate-800/50 border border-white/10 rounded-2xl p-5 space-y-4">
@@ -455,6 +610,10 @@ export default function AdminBotContentPage() {
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border inline-flex items-center gap-1.5 ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}></span>
+                          {statusStyle.label}
+                        </span>
                         <span className="px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-xs font-medium">
                           {turnLabel}
                         </span>
@@ -558,8 +717,83 @@ export default function AdminBotContentPage() {
                     </section>
                   )}
 
-                  {/* Edit body */}
-                  {isEditing && (
+                  {/* Per-status info panel */}
+                  {c.status === "approved" && (
+                    <section className="rounded-lg bg-blue-500/10 border border-blue-500/30 px-3 py-2 text-sm text-blue-200 space-y-1">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        <span>✅ Schváleno: <strong className="text-white">{fmt(c.approved_at)}</strong></span>
+                        {c.approved_by && (
+                          <span>kým: <code className="text-blue-100">{c.approved_by.replace(/^admin:/, "")}</code></span>
+                        )}
+                      </div>
+                      <div className="text-xs text-blue-300/80">⏳ Čeká na publikaci botem</div>
+                    </section>
+                  )}
+
+                  {c.status === "published" && (
+                    <section className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-sm text-emerald-200 space-y-2">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        <span>🚀 Publikováno: <strong className="text-white">{fmt(publishedAt || c.approved_at)}</strong></span>
+                        {c.approved_by && (
+                          <span>schválil: <code className="text-emerald-100">{c.approved_by.replace(/^admin:/, "")}</code></span>
+                        )}
+                      </div>
+                      {publishedFbUrl && (
+                        <div>
+                          <a
+                            href={publishedFbUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-emerald-300 hover:text-emerald-200 underline text-sm"
+                          >
+                            🔗 LIVE FB komentář
+                            <span className="text-xs opacity-70">(otevřít v novém okně)</span>
+                          </a>
+                        </div>
+                      )}
+                      {audit.length > 0 && (
+                        <details className="text-xs text-emerald-200/90">
+                          <summary className="cursor-pointer hover:text-emerald-100">
+                            📜 Audit log akcí ({audit.length})
+                          </summary>
+                          <ul className="mt-2 space-y-1 ml-2 border-l border-emerald-500/30 pl-3">
+                            {audit.map((a) => (
+                              <li key={a.id} className="flex flex-wrap gap-x-3 gap-y-0.5">
+                                <span className="text-emerald-300/80">{fmt(a.completed_at || a.started_at)}</span>
+                                <code className="text-emerald-100">{a.action_type || "—"}</code>
+                                <span className={`text-xs ${a.status === "success" ? "text-emerald-300" : "text-red-300"}`}>
+                                  {a.status || "—"}
+                                </span>
+                                {a.actor_id && (
+                                  <span className="text-emerald-300/70">by {shortActor(a.actor_id)}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </section>
+                  )}
+
+                  {c.status === "rejected" && (
+                    <section className="rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-200 space-y-1">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        <span>❌ Odmítnuto: <strong className="text-white">{fmt(c.approved_at)}</strong></span>
+                        {c.approved_by && (
+                          <span>kým: <code className="text-red-100">{c.approved_by.replace(/^admin:/, "")}</code></span>
+                        )}
+                      </div>
+                      {c.rejected_reason && (
+                        <div className="rounded bg-red-500/10 border border-red-500/20 px-2 py-1.5 mt-1">
+                          <span className="text-xs uppercase tracking-wider text-red-300/80">Důvod:</span>{" "}
+                          <span className="text-red-100">{c.rejected_reason}</span>
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  {/* Edit body (jen pending_review) */}
+                  {c.status === "pending_review" && isEditing && (
                     <div className="space-y-1">
                       <label className="text-xs uppercase tracking-wider text-slate-500">
                         Upravený obsah
@@ -575,8 +809,8 @@ export default function AdminBotContentPage() {
                     </div>
                   )}
 
-                  {/* Reject reason */}
-                  {isRejecting && (
+                  {/* Reject reason (jen pending_review) */}
+                  {c.status === "pending_review" && isRejecting && (
                     <div className="space-y-1">
                       <label className="text-xs uppercase tracking-wider text-slate-500">
                         Důvod odmítnutí
@@ -593,78 +827,80 @@ export default function AdminBotContentPage() {
                     </div>
                   )}
 
-                  {/* Akce */}
-                  <div className="flex flex-wrap gap-2 justify-end pt-1 border-t border-white/5">
-                    {!isEditing && !isRejecting && (
-                      <>
-                        <button
-                          onClick={() => runAction(c, "approve")}
-                          disabled={isBusy}
-                          className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold"
-                        >
-                          ✅ Approve
-                        </button>
-                        <button
-                          onClick={() =>
-                            setEditing((e) => ({ ...e, [c.id]: true }))
-                          }
-                          disabled={isBusy}
-                          className="px-4 py-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-sm font-medium"
-                        >
-                          ✏️ Edit + Approve
-                        </button>
-                        <button
-                          onClick={() =>
-                            setRejecting((r) => ({ ...r, [c.id]: true }))
-                          }
-                          disabled={isBusy}
-                          className="px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 text-sm font-medium"
-                        >
-                          ❌ Reject
-                        </button>
-                      </>
-                    )}
-                    {isEditing && (
-                      <>
-                        <button
-                          onClick={() =>
-                            setEditing((e) => ({ ...e, [c.id]: false }))
-                          }
-                          disabled={isBusy}
-                          className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium"
-                        >
-                          Zrušit edit
-                        </button>
-                        <button
-                          onClick={() => runAction(c, "edit")}
-                          disabled={isBusy || !draft.trim()}
-                          className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-white text-sm font-semibold"
-                        >
-                          Uložit + Approve
-                        </button>
-                      </>
-                    )}
-                    {isRejecting && (
-                      <>
-                        <button
-                          onClick={() =>
-                            setRejecting((r) => ({ ...r, [c.id]: false }))
-                          }
-                          disabled={isBusy}
-                          className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium"
-                        >
-                          Zrušit
-                        </button>
-                        <button
-                          onClick={() => runAction(c, "reject")}
-                          disabled={isBusy || !reason.trim()}
-                          className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white text-sm font-semibold"
-                        >
-                          Potvrdit reject
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  {/* Akce — jen pro pending_review */}
+                  {c.status === "pending_review" && (
+                    <div className="flex flex-wrap gap-2 justify-end pt-1 border-t border-white/5">
+                      {!isEditing && !isRejecting && (
+                        <>
+                          <button
+                            onClick={() => runAction(c, "approve")}
+                            disabled={isBusy}
+                            className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold"
+                          >
+                            ✅ Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              setEditing((e) => ({ ...e, [c.id]: true }))
+                            }
+                            disabled={isBusy}
+                            className="px-4 py-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-sm font-medium"
+                          >
+                            ✏️ Edit + Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              setRejecting((r) => ({ ...r, [c.id]: true }))
+                            }
+                            disabled={isBusy}
+                            className="px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 text-sm font-medium"
+                          >
+                            ❌ Reject
+                          </button>
+                        </>
+                      )}
+                      {isEditing && (
+                        <>
+                          <button
+                            onClick={() =>
+                              setEditing((e) => ({ ...e, [c.id]: false }))
+                            }
+                            disabled={isBusy}
+                            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium"
+                          >
+                            Zrušit edit
+                          </button>
+                          <button
+                            onClick={() => runAction(c, "edit")}
+                            disabled={isBusy || !draft.trim()}
+                            className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-white text-sm font-semibold"
+                          >
+                            Uložit + Approve
+                          </button>
+                        </>
+                      )}
+                      {isRejecting && (
+                        <>
+                          <button
+                            onClick={() =>
+                              setRejecting((r) => ({ ...r, [c.id]: false }))
+                            }
+                            disabled={isBusy}
+                            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium"
+                          >
+                            Zrušit
+                          </button>
+                          <button
+                            onClick={() => runAction(c, "reject")}
+                            disabled={isBusy || !reason.trim()}
+                            className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white text-sm font-semibold"
+                          >
+                            Potvrdit reject
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   <div className="text-right">
                     {convId && (
