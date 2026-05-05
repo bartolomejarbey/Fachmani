@@ -131,7 +131,7 @@ export default function AdminBotContentPage() {
       .from("bot_generated_content")
       .select("*")
       .eq("status", "pending_review")
-      .order("created_at", { ascending: true })
+      .order("generated_at", { ascending: true })
       .limit(200);
 
     if (error) {

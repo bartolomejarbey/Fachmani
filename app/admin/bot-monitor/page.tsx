@@ -10,26 +10,28 @@ import AdminLayout from "../components/AdminLayout";
 // bot_controls (toggle is_paused / mandatory_approval / beta_mode / active_phase).
 
 type Heartbeat = {
-  id: string;
+  id: number | string;
   bot_id: string | null;
   account_id: string | null;
-  status: string | null;
-  last_seen_at: string | null;
-  message: string | null;
-  // Schéma se může lišit — defensivně typované volitelné pole
-  cpu: number | null;
+  current_action: string | null;
+  beat_at: string | null;
+  notes: string | null;
+  cpu_percent: number | null;
   memory_mb: number | null;
-  active_browsers: number | null;
+  uptime_seconds: number | null;
+  in_window: boolean | null;
+  last_action_at: string | null;
 };
 
 type ActionRow = {
   id: string;
   bot_id: string | null;
   account_id: string | null;
-  action: string | null;
+  action_type: string | null;
   status: string | null;
-  message: string | null;
-  created_at: string | null;
+  target_url: string | null;
+  started_at: string | null;
+  completed_at: string | null;
 };
 
 type ConvRow = {
@@ -45,7 +47,7 @@ type ConvRow = {
 type Account = { id: string; label: string | null; account_kind: string | null };
 
 type ControlsRow = {
-  id?: string | number | null;
+  bot_id: string;
   is_paused: boolean | null;
   mandatory_approval: boolean | null;
   beta_mode: boolean | null;
@@ -84,10 +86,11 @@ function relAge(iso: string | null): string {
 }
 
 function heartbeatColor(hb: Heartbeat, now: number): string {
-  if (hb.status === "error") return "bg-red-500/20 text-red-300 border-red-500/30";
-  if (hb.status === "paused") return "bg-amber-500/20 text-amber-300 border-amber-500/30";
-  if (!hb.last_seen_at) return "bg-slate-500/20 text-slate-400 border-slate-500/30";
-  const ageMin = (now - new Date(hb.last_seen_at).getTime()) / 60_000;
+  const action = (hb.current_action || "").toLowerCase();
+  if (action === "error" || action.startsWith("err")) return "bg-red-500/20 text-red-300 border-red-500/30";
+  if (action === "paused") return "bg-amber-500/20 text-amber-300 border-amber-500/30";
+  if (!hb.beat_at) return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+  const ageMin = (now - new Date(hb.beat_at).getTime()) / 60_000;
   if (ageMin > 10) return "bg-red-500/20 text-red-300 border-red-500/30";
   if (ageMin > 3) return "bg-amber-500/20 text-amber-300 border-amber-500/30";
   return "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
@@ -116,12 +119,12 @@ export default function AdminBotMonitorPage() {
       supabase
         .from("bot_heartbeats")
         .select("*")
-        .order("last_seen_at", { ascending: false })
+        .order("beat_at", { ascending: false })
         .limit(20),
       supabase
         .from("bot_actions")
-        .select("id, bot_id, account_id, action, status, message, created_at")
-        .order("created_at", { ascending: false })
+        .select("id, bot_id, account_id, action_type, status, target_url, started_at, completed_at")
+        .order("started_at", { ascending: false })
         .limit(50),
       supabase
         .from("bot_conversations")
@@ -215,21 +218,13 @@ export default function AdminBotMonitorPage() {
     setSavingControl(field);
     try {
       const update: Record<string, boolean | string> = { [field]: value };
-      let q = supabase.from("bot_controls").update(update);
-      // Cílit na konkrétní row pokud je k dispozici primary key, jinak update všech řádků
-      // (předpokládáme, že tabulka má 1 singleton row).
-      if (controls.id !== null && controls.id !== undefined) {
-        q = q.eq("id", controls.id);
-      } else {
-        q = q.not("active_phase", "is", null).is("active_phase", controls.active_phase);
-        if (!controls.active_phase) {
-          // Fallback — bez ID a bez phase: bezpečnější selhat než updatovat náhodný row
-          throw new Error(
-            "bot_controls nemá id ani active_phase — toggle nelze adresovat. Doplň PK v migraci.",
-          );
-        }
+      if (!controls.bot_id) {
+        throw new Error("bot_controls.bot_id chybí — singleton row nemá PK.");
       }
-      const { error } = await q;
+      const { error } = await supabase
+        .from("bot_controls")
+        .update(update)
+        .eq("bot_id", controls.bot_id);
       if (error) throw error;
       flashToast("ok", `Uloženo: ${field} = ${value}.`);
       await load();
@@ -372,21 +367,22 @@ export default function AdminBotMonitorPage() {
                   >
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <strong className="text-sm">
-                        {acc?.label || hb.bot_id?.slice(0, 8) || "neznámý"}
+                        {acc?.label || hb.bot_id?.slice(0, 12) || "neznámý"}
                       </strong>
-                      <span className="text-xs">{hb.status || "—"}</span>
+                      <span className="text-xs">{hb.current_action || "—"}</span>
                     </div>
                     <div className="text-xs opacity-90">
-                      last seen: {fmt(hb.last_seen_at)} ({relAge(hb.last_seen_at)})
+                      beat: {fmt(hb.beat_at)} ({relAge(hb.beat_at)})
                     </div>
-                    {hb.message && (
-                      <div className="text-xs mt-1 opacity-80 break-words">{hb.message}</div>
+                    {hb.notes && (
+                      <div className="text-xs mt-1 opacity-80 break-words">{hb.notes}</div>
                     )}
-                    {(typeof hb.cpu === "number" || typeof hb.memory_mb === "number") && (
-                      <div className="text-xs mt-1 opacity-80">
-                        {typeof hb.cpu === "number" && <>CPU {hb.cpu.toFixed(1)}%</>}
-                        {typeof hb.cpu === "number" && typeof hb.memory_mb === "number" && " · "}
-                        {typeof hb.memory_mb === "number" && <>RAM {hb.memory_mb} MB</>}
+                    {(typeof hb.cpu_percent === "number" || typeof hb.memory_mb === "number" || typeof hb.uptime_seconds === "number") && (
+                      <div className="text-xs mt-1 opacity-80 flex flex-wrap gap-x-2">
+                        {typeof hb.cpu_percent === "number" && <span>CPU {hb.cpu_percent.toFixed(1)}%</span>}
+                        {typeof hb.memory_mb === "number" && <span>RAM {hb.memory_mb} MB</span>}
+                        {typeof hb.uptime_seconds === "number" && <span>up {Math.floor(hb.uptime_seconds / 60)} min</span>}
+                        {hb.in_window === false && <span className="opacity-70">(out of window)</span>}
                       </div>
                     )}
                   </li>
@@ -475,7 +471,7 @@ export default function AdminBotMonitorPage() {
                     <th className="py-2 pr-4">Akce</th>
                     <th className="py-2 pr-4">Stav</th>
                     <th className="py-2 pr-4">Account</th>
-                    <th className="py-2 pr-4">Zpráva</th>
+                    <th className="py-2 pr-4">Target URL</th>
                   </tr>
                 </thead>
                 <tbody className="text-slate-200">
@@ -485,9 +481,9 @@ export default function AdminBotMonitorPage() {
                     return (
                       <tr key={a.id} className="border-t border-white/5">
                         <td className="py-2 pr-4 whitespace-nowrap text-slate-400">
-                          {fmt(a.created_at)}
+                          {fmt(a.started_at)}
                         </td>
-                        <td className="py-2 pr-4 font-mono text-cyan-300">{a.action || "—"}</td>
+                        <td className="py-2 pr-4 font-mono text-cyan-300">{a.action_type || "—"}</td>
                         <td className="py-2 pr-4">
                           <span
                             className={`px-2 py-0.5 rounded-md border text-xs ${
@@ -500,8 +496,8 @@ export default function AdminBotMonitorPage() {
                           </span>
                         </td>
                         <td className="py-2 pr-4">{acc?.label || "—"}</td>
-                        <td className="py-2 pr-4 max-w-md truncate" title={a.message ?? ""}>
-                          {a.message || "—"}
+                        <td className="py-2 pr-4 max-w-md truncate" title={a.target_url ?? ""}>
+                          {a.target_url || "—"}
                         </td>
                       </tr>
                     );
