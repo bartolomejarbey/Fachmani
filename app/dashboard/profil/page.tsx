@@ -36,6 +36,8 @@ type Profile = {
   region_id: string | null;
   district_id: string | null;
   notify_on_requests: boolean | null;
+  sms_opt_in: boolean | null;
+  sms_phone_verified: boolean | null;
   ares_reverify_opt_out: boolean | null;
   bank_account: string | null;
   bank_verification_amount: number | null;
@@ -79,6 +81,7 @@ export default function FachmanProfil() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notifyOnRequests, setNotifyOnRequests] = useState(true);
+  const [smsOptIn, setSmsOptIn] = useState(false);
   const [aresOptOut, setAresOptOut] = useState(false);
   const [bankAccount, setBankAccount] = useState("");
   const [bankInitiating, setBankInitiating] = useState(false);
@@ -108,7 +111,7 @@ export default function FachmanProfil() {
       // Načteme profil (bez phone — je column-level REVOKED; čte se přes RPC)
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("id, email, full_name, role, description, location, ico, avatar_url, is_verified, subscription_type, created_at, ares_verified_at, ares_verified_name, region_id, district_id, notify_on_requests, ares_reverify_opt_out, bank_account, bank_verification_amount, bank_verification_status, bank_verification_reference, bank_verification_initiated_at, bank_verification_verified_at")
+        .select("id, email, full_name, role, description, location, ico, avatar_url, is_verified, subscription_type, created_at, ares_verified_at, ares_verified_name, region_id, district_id, notify_on_requests, sms_opt_in, sms_phone_verified, ares_reverify_opt_out, bank_account, bank_verification_amount, bank_verification_status, bank_verification_reference, bank_verification_initiated_at, bank_verification_verified_at")
         .eq("id", user.id)
         .single();
 
@@ -129,6 +132,7 @@ export default function FachmanProfil() {
       setIco(profileData.ico || "");
       setAvatarUrl(profileData.avatar_url || null);
       setNotifyOnRequests(profileData.notify_on_requests ?? true);
+      setSmsOptIn(profileData.sms_opt_in ?? false);
       setAresOptOut(profileData.ares_reverify_opt_out ?? false);
       setBankAccount(profileData.bank_account ?? "");
 
@@ -346,6 +350,7 @@ export default function FachmanProfil() {
           district_id: districtId,
           ico: ico || null,
           notify_on_requests: notifyOnRequests,
+          sms_opt_in: smsOptIn,
           ares_reverify_opt_out: aresOptOut,
           updated_at: new Date().toISOString(),
         })
@@ -696,6 +701,35 @@ export default function FachmanProfil() {
                     <div className="text-sm text-gray-600">
                       Dostávejte notifikaci pokaždé, když přijde poptávka odpovídající vašim kategoriím a regionu.
                       Vypnutím přestanete dostávat tyto notifikace, ale stále vás můžeme zobrazit zákazníkům ve vyhledávání.
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={smsOptIn}
+                    onChange={(e) => setSmsOptIn(e.target.checked)}
+                    disabled={profile?.subscription_type !== "premium"}
+                    className="mt-1 w-5 h-5 accent-amber-600 disabled:opacity-50"
+                  />
+                  <div>
+                    <div className="font-semibold text-gray-900 flex items-center gap-2">
+                      ⚡ SMS na PRIORITNÍ poptávky
+                      {profile?.subscription_type !== "premium" && (
+                        <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-800 rounded-full">Premium</span>
+                      )}
+                      {profile?.sms_phone_verified === false && smsOptIn && (
+                        <span className="text-xs px-2 py-0.5 bg-orange-200 text-orange-800 rounded-full">
+                          telefon neověřen
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Dostanete SMS, když přijde PRIORITNÍ poptávka — můžete být první kdo nabídne.
+                      {profile?.subscription_type !== "premium" && " Funkce je pro Premium uživatele."}
                     </div>
                   </div>
                 </label>
