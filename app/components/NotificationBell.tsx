@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
@@ -14,21 +14,52 @@ type Notification = {
   created_at: string;
 };
 
+const POLL_INTERVAL_MS = 90_000; // backup pro případ selhání realtime
+
 export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const userIdRef = useRef<string | null>(null);
+
+  const loadNotifications = useCallback(async (silent = false) => {
+    const userId = userIdRef.current;
+    if (!userId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      userIdRef.current = user.id;
+    }
+    const uid = userIdRef.current!;
+    if (!silent) setIsRefreshing(true);
+
+    const { data } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", uid)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (data) {
+      setNotifications(data);
+      setUnreadCount(data.filter((n) => !n.is_read).length);
+    }
+    if (!silent) setIsRefreshing(false);
+  }, []);
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let visibilityHandler: (() => void) | null = null;
 
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      userIdRef.current = user.id;
 
-      await loadNotifications();
+      await loadNotifications(true);
 
-      // Real-time subscription s filtrem na aktuálního uživatele
+      // Realtime: INSERT (nová notifikace) + UPDATE (read sync z jiné záložky/zařízení)
       channel = supabase
         .channel("notifications")
         .on(
@@ -40,38 +71,60 @@ export default function NotificationBell() {
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
-            setNotifications((prev) => [payload.new as Notification, ...prev]);
-            setUnreadCount((prev) => prev + 1);
-          }
+            const next = payload.new as Notification;
+            setNotifications((prev) => {
+              if (prev.some((n) => n.id === next.id)) return prev;
+              return [next, ...prev].slice(0, 10);
+            });
+            if (!next.is_read) setUnreadCount((prev) => prev + 1);
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const updated = payload.new as Notification;
+            setNotifications((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+            // Recompute unread z aktuálního stavu (consistent count)
+            setUnreadCount((_) => {
+              // Nemůžeme spoléhat na předchozí count; přepočítáme z aktualizovaného notifications.
+              // Jednodušší: refetch silently.
+              loadNotifications(true);
+              return _;
+            });
+          },
         )
         .subscribe();
+
+      // Periodic poll fallback — kdyby realtime spadl (síť, sleep tab apod.)
+      pollTimer = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          loadNotifications(true);
+        }
+      }, POLL_INTERVAL_MS);
+
+      // Když user vrátí tab z background → okamžitý refresh
+      visibilityHandler = () => {
+        if (document.visibilityState === "visible") {
+          loadNotifications(true);
+        }
+      };
+      document.addEventListener("visibilitychange", visibilityHandler);
     }
 
     init();
 
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      if (channel) supabase.removeChannel(channel);
+      if (pollTimer) clearInterval(pollTimer);
+      if (visibilityHandler) document.removeEventListener("visibilitychange", visibilityHandler);
     };
-  }, []);
-
-  const loadNotifications = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    if (data) {
-      setNotifications(data);
-      setUnreadCount(data.filter((n) => !n.is_read).length);
-    }
-  };
+  }, [loadNotifications]);
 
   const markAsRead = async (notificationId: string) => {
     await supabase
@@ -118,6 +171,8 @@ export default function NotificationBell() {
       case "offer_accepted": return "✅";
       case "new_message": return "💬";
       case "new_review": return "⭐";
+      case "new_candidate_request": return "🎯";
+      case "bank_verification_pending": return "💳";
       default: return "🔔";
     }
   };
@@ -125,7 +180,11 @@ export default function NotificationBell() {
   return (
     <div className="relative">
       <button
-        onClick={() => setShowDropdown(!showDropdown)}
+        onClick={() => {
+          const next = !showDropdown;
+          setShowDropdown(next);
+          if (next) loadNotifications(true);
+        }}
         aria-label="Notifikace"
         className="relative p-2 text-gray-600 hover:text-gray-900"
       >
@@ -147,16 +206,29 @@ export default function NotificationBell() {
 
           {/* Dropdown */}
           <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border z-20">
-            <div className="p-3 border-b flex justify-between items-center">
+            <div className="p-3 border-b flex justify-between items-center gap-2">
               <h3 className="font-semibold">Notifikace</h3>
-              {unreadCount > 0 && (
+              <div className="flex items-center gap-3">
                 <button
-                  onClick={markAllAsRead}
-                  className="text-sm text-blue-600 hover:underline"
+                  onClick={() => loadNotifications(false)}
+                  disabled={isRefreshing}
+                  aria-label="Obnovit notifikace"
+                  className="text-gray-500 hover:text-gray-900 disabled:opacity-50"
+                  title="Obnovit"
                 >
-                  Označit vše jako přečtené
+                  <span className={isRefreshing ? "inline-block animate-spin" : "inline-block"}>
+                    ↻
+                  </span>
                 </button>
-              )}
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    Označit vše
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="max-h-96 overflow-y-auto">
