@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminLayout from "../components/AdminLayout";
 import Link from "next/link";
+import { iconAsTextPrefix } from "@/app/components/CategoryIcon";
+import CategoryIcon from "@/app/components/CategoryIcon";
 
 type SeedProvider = {
   id: string;
@@ -65,8 +67,11 @@ export default function SeedFachmani() {
 
   const getCategoryName = (categoryId: string) => {
     const cat = categories.find(c => c.id === categoryId);
-    return cat ? `${cat.icon} ${cat.name}` : categoryId;
+    if (!cat) return categoryId;
+    return `${iconAsTextPrefix(cat.icon)}${cat.name}`;
   };
+
+  const getCategory = (categoryId: string) => categories.find(c => c.id === categoryId);
 
   const filteredProviders = providers.filter(p =>
     p.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -152,11 +157,17 @@ export default function SeedFachmani() {
                 )}
 
                 <div className="flex flex-wrap gap-2 mb-4">
-                  {provider.category_ids?.slice(0, 3).map((catId) => (
-                    <span key={catId} className="px-2 py-1 bg-white/5 text-slate-300 rounded-lg text-xs">
-                      {getCategoryName(catId)}
-                    </span>
-                  ))}
+                  {provider.category_ids?.slice(0, 3).map((catId) => {
+                    const cat = getCategory(catId);
+                    return (
+                      <span key={catId} className="px-2 py-1 bg-white/5 text-slate-300 rounded-lg text-xs inline-flex items-center gap-1">
+                        {cat?.icon?.startsWith("iconify:") ? (
+                          <CategoryIcon icon={cat.icon} size={12} />
+                        ) : null}
+                        {cat ? `${iconAsTextPrefix(cat.icon)}${cat.name}` : catId}
+                      </span>
+                    );
+                  })}
                   {(provider.category_ids?.length || 0) > 3 && (
                     <span className="px-2 py-1 bg-white/5 text-slate-500 rounded-lg text-xs">
                       +{(provider.category_ids?.length || 0) - 3}

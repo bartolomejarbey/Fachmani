@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import CategoryIcon, { iconAsTextPrefix } from "@/app/components/CategoryIcon";
 
 type Category = {
   id: string;
@@ -264,7 +265,7 @@ export default function MojeNabidkyPage() {
                     <option value="">Vyberte kategorii</option>
                     {categories.map((cat) => (
                       <option key={cat.id} value={cat.id}>
-                        {cat.icon} {cat.name}
+                        {iconAsTextPrefix(cat.icon)}{cat.name}
                       </option>
                     ))}
                   </select>
@@ -364,7 +365,7 @@ export default function MojeNabidkyPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-4 flex-1">
                     <div className="w-12 h-12 bg-gradient-to-br from-emerald-50 to-cyan-50 border border-emerald-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">
-                      {offer.categories?.icon || "🔧"}
+                      <CategoryIcon icon={offer.categories?.icon || "🔧"} size={24} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">

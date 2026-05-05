@@ -7,6 +7,7 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import Pagination from "@/app/components/Pagination";
 import { useSettings } from "@/lib/useSettings";
+import CategoryIcon, { iconAsTextPrefix } from "@/app/components/CategoryIcon";
 
 type Category = {
   id: string;
@@ -25,6 +26,7 @@ type Request = {
   budget_max: number | null;
   created_at: string;
   expires_at: string;
+  is_urgent: boolean;
   categories: { id: string; name: string; icon: string } | null;
   offers_count?: number;
 };
@@ -64,9 +66,11 @@ export default function PoptavkyPage() {
     const now = new Date().toISOString();
     const { data: requestsData } = await supabase
       .from("requests")
-      .select("id, title, description, location, budget_min, budget_max, created_at, expires_at, categories:category_id(id, name, icon)")
+      .select("id, title, description, location, budget_min, budget_max, created_at, expires_at, is_urgent, categories:category_id(id, name, icon)")
       .eq("status", "active")
+      .eq("moderation_status", "approved")
       .or(`expires_at.gt.${now},expires_at.is.null`)
+      .order("is_urgent", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (requestsData) {
@@ -118,13 +122,17 @@ export default function PoptavkyPage() {
       );
     }
 
-    if (sortBy === "newest") {
-      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    } else if (sortBy === "expiring") {
-      result.sort((a, b) => new Date(a.expires_at).getTime() - new Date(b.expires_at).getTime());
-    } else if (sortBy === "budget") {
-      result.sort((a, b) => (b.budget_max || 0) - (a.budget_max || 0));
-    }
+    // Urgent vždy první, pak druhotně podle zvoleného režimu
+    const secondarySort = (a: Request, b: Request) => {
+      if (sortBy === "newest") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (sortBy === "expiring") return new Date(a.expires_at).getTime() - new Date(b.expires_at).getTime();
+      if (sortBy === "budget") return (b.budget_max || 0) - (a.budget_max || 0);
+      return 0;
+    };
+    result.sort((a, b) => {
+      if (a.is_urgent !== b.is_urgent) return a.is_urgent ? -1 : 1;
+      return secondarySort(a, b);
+    });
 
     setFilteredRequests(result);
     setCurrentPage(1);
@@ -218,7 +226,7 @@ export default function PoptavkyPage() {
                   <option value="">Všechny kategorie</option>
                   {mainCategories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
-                      {cat.icon} {cat.name}
+                      {iconAsTextPrefix(cat.icon)}{cat.name}
                     </option>
                   ))}
                 </select>
@@ -235,7 +243,7 @@ export default function PoptavkyPage() {
                   <option value="">Všechny podkategorie</option>
                   {subsOfSelectedMain.map((cat) => (
                     <option key={cat.id} value={cat.id}>
-                      {cat.icon} {cat.name}
+                      {iconAsTextPrefix(cat.icon)}{cat.name}
                     </option>
                   ))}
                 </select>
@@ -308,18 +316,20 @@ export default function PoptavkyPage() {
           ) : (
             <div className="space-y-4">
               {filteredRequests.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((request, i) => (
-                <div 
-                  key={request.id} 
-                  className={`bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg hover:border-cyan-300 transition-all ${
-                    mounted ? 'animate-fade-in-up' : 'opacity-0'
-                  }`}
+                <div
+                  key={request.id}
+                  className={`bg-white border-2 rounded-2xl p-6 hover:shadow-lg transition-all ${
+                    request.is_urgent
+                      ? "border-amber-300 bg-amber-50/30 hover:border-amber-400"
+                      : "border-gray-200 hover:border-cyan-300"
+                  } ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}
                   style={{ animationDelay: `${i * 50}ms` }}
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center gap-5">
                     {/* Left - Icon & Category */}
                     <div className="flex items-center gap-4 lg:w-52 flex-shrink-0">
                       <div className="w-14 h-14 bg-gradient-to-br from-cyan-50 to-blue-50 border border-cyan-100 rounded-2xl flex items-center justify-center text-2xl">
-                        {request.categories?.icon || "📋"}
+                        <CategoryIcon icon={request.categories?.icon || "📋"} size={28} />
                       </div>
                       <div>
                         <span className="text-sm font-semibold text-cyan-600">{request.categories?.name || "Ostatní"}</span>
@@ -329,8 +339,13 @@ export default function PoptavkyPage() {
 
                     {/* Middle - Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-3 mb-2">
+                      <div className="flex items-start gap-3 mb-2 flex-wrap">
                         <h2 className="text-lg font-bold text-gray-900">{request.title}</h2>
+                        {request.is_urgent && (
+                          <span className="bg-amber-500 text-white text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap">
+                            ⚡ PRIORITNÍ
+                          </span>
+                        )}
                         {daysLeft(request.expires_at) <= 3 && (
                           <span className="bg-red-100 text-red-700 text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap">
                             🔥 Končí brzy

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminLayout from "../components/AdminLayout";
 import { useRouter } from "next/navigation";
+import IconPicker from "@/app/components/IconPicker";
+import CategoryIcon from "@/app/components/CategoryIcon";
 
 type Category = {
   id: string;
@@ -20,6 +22,8 @@ export default function AdminKategorie() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [providerCounts, setProviderCounts] = useState<Record<string, number>>({});
+  const [requestCounts, setRequestCounts] = useState<Record<string, number>>({});
 
   // Formulář
   const [showForm, setShowForm] = useState(false);
@@ -61,15 +65,31 @@ export default function AdminKategorie() {
 
   const loadCategories = async () => {
     // Admin vidí VŠECHNY kategorie včetně deaktivovaných (is_active filter NEPOUŽÍVAT)
-    const { data } = await supabase
-      .from("categories")
-      .select("*")
-      .order("sort_order", { ascending: true, nullsFirst: false })
-      .order("name");
+    const [catsRes, pcRes, reqRes] = await Promise.all([
+      supabase
+        .from("categories")
+        .select("*")
+        .order("sort_order", { ascending: true, nullsFirst: false })
+        .order("name"),
+      supabase.from("provider_categories").select("category_id"),
+      supabase.from("requests").select("category_id"),
+    ]);
 
-    if (data) {
-      setCategories(data);
+    if (catsRes.data) {
+      setCategories(catsRes.data);
     }
+
+    const pCounts: Record<string, number> = {};
+    (pcRes.data || []).forEach((row: { category_id: string }) => {
+      pCounts[row.category_id] = (pCounts[row.category_id] || 0) + 1;
+    });
+    setProviderCounts(pCounts);
+
+    const rCounts: Record<string, number> = {};
+    (reqRes.data || []).forEach((row: { category_id: string }) => {
+      rCounts[row.category_id] = (rCounts[row.category_id] || 0) + 1;
+    });
+    setRequestCounts(rCounts);
   };
 
   const generateSlug = (text: string) => {
@@ -131,7 +151,14 @@ export default function AdminKategorie() {
   const handleToggleActive = async (category: Category) => {
     const nextState = !category.is_active;
     const verb = nextState ? "reaktivovat" : "deaktivovat";
-    if (!confirm(`Opravdu chcete ${verb} kategorii "${category.name}"?`)) {
+    const isMain = category.parent_id === null;
+    const childCount = isMain
+      ? categories.filter((c) => c.parent_id === category.id).length
+      : 0;
+    const cascadeMsg = isMain && childCount > 0
+      ? ` Tím se ${verb === "deaktivovat" ? "deaktivuje" : "reaktivuje"} i ${childCount} podkategorií.`
+      : "";
+    if (!confirm(`Opravdu chcete ${verb} kategorii "${category.name}"?${cascadeMsg}`)) {
       return;
     }
     await supabase
@@ -139,7 +166,20 @@ export default function AdminKategorie() {
       .update({ is_active: nextState })
       .eq("id", category.id);
 
+    if (isMain && childCount > 0) {
+      await supabase
+        .from("categories")
+        .update({ is_active: nextState })
+        .eq("parent_id", category.id);
+    }
+
     await loadCategories();
+  };
+
+  const handleAddSub = (parent: Category) => {
+    resetForm();
+    setParentId(parent.id);
+    setShowForm(true);
   };
 
   const resetForm = () => {
@@ -152,8 +192,6 @@ export default function AdminKategorie() {
     setParentId("");
     setSortOrder("");
   };
-
-  const commonIcons = ["🔧", "⚡", "🔨", "🎨", "🏠", "🚗", "💻", "📱", "🌿", "🧹", "📦", "🔒", "💡", "🚿", "❄️", "🔥", "📸", "✂️", "🧰", "🛠️"];
 
   if (loading) {
     return (
@@ -173,7 +211,9 @@ export default function AdminKategorie() {
           <div>
             <h1 className="text-2xl font-bold text-white">📂 Kategorie</h1>
             <p className="text-slate-400">
-              Celkem {categories.length} kategorií
+              <span className="text-cyan-400">{categories.filter((c) => c.parent_id === null).length} hlavních</span>
+              {" · "}
+              <span className="text-slate-300">{categories.filter((c) => c.parent_id !== null).length} podkategorií</span>
               {" · "}
               <span className="text-emerald-400">{categories.filter((c) => c.is_active).length} aktivních</span>
               {" · "}
@@ -181,7 +221,7 @@ export default function AdminKategorie() {
             </p>
           </div>
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => { resetForm(); setShowForm(true); }}
             className="px-4 py-2 bg-cyan-500 text-white rounded-xl font-medium hover:bg-cyan-600 transition-colors"
           >
             + Přidat kategorii
@@ -229,31 +269,7 @@ export default function AdminKategorie() {
                 <label className="block text-sm font-medium text-slate-400 mb-1">
                   Ikona *
                 </label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={icon}
-                    onChange={(e) => setIcon(e.target.value)}
-                    required
-                    placeholder="např. ⚡"
-                    className="w-24 px-3 py-3 bg-slate-800 border border-white/10 rounded-xl text-white text-center text-2xl focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  />
-                  <span className="text-slate-500 self-center">nebo vyberte:</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {commonIcons.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => setIcon(emoji)}
-                      className={`w-10 h-10 text-xl rounded-lg border border-white/10 hover:bg-white/10 transition-colors ${
-                        icon === emoji ? "bg-cyan-500/20 border-cyan-500" : ""
-                      }`}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
+                <IconPicker value={icon} onChange={setIcon} />
               </div>
 
               <div>
@@ -346,6 +362,12 @@ export default function AdminKategorie() {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       Typ / Parent
                     </th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider" title="Počet fachmanů (přes provider_categories)">
+                      👷 Fachmani
+                    </th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider" title="Počet poptávek v této kategorii">
+                      📋 Poptávky
+                    </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       Stav
                     </th>
@@ -355,68 +377,215 @@ export default function AdminKategorie() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {categories.map((category) => {
-                    const parent = category.parent_id
-                      ? categories.find((c) => c.id === category.parent_id)
-                      : null;
-                    return (
-                      <tr
-                        key={category.id}
-                        className={`hover:bg-white/5 transition-colors ${
-                          !category.is_active ? "opacity-60" : ""
-                        }`}
-                      >
-                        <td className="px-6 py-4 text-2xl">{category.icon}</td>
-                        <td className="px-6 py-4 text-white font-medium">
-                          {category.name}
-                          {category.sort_order !== null && (
-                            <span className="ml-2 text-xs text-slate-500">#{category.sort_order}</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-400">{category.slug}</td>
-                        <td className="px-6 py-4 text-sm">
-                          {parent ? (
-                            <span className="text-slate-400">
-                              sub → <span className="text-slate-200">{parent.icon} {parent.name}</span>
-                            </span>
-                          ) : (
-                            <span className="text-cyan-400 font-semibold">HLAVNÍ</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          {category.is_active ? (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400">
-                              ● Aktivní
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-500/20 text-slate-400">
-                              ○ Deaktivováno
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => handleEdit(category)}
-                              className="px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded-lg text-sm font-medium hover:bg-cyan-500/30 transition-colors"
-                            >
-                              Upravit
-                            </button>
-                            <button
-                              onClick={() => handleToggleActive(category)}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                category.is_active
-                                  ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
-                                  : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
-                              }`}
-                            >
-                              {category.is_active ? "Deaktivovat" : "Reaktivovat"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                  {(() => {
+                    // Seskupit: každá hlavní kategorie hned následovaná svými podkategoriemi.
+                    const mains = categories
+                      .filter((c) => c.parent_id === null)
+                      .sort((a, b) => {
+                        const ao = a.sort_order ?? 9999;
+                        const bo = b.sort_order ?? 9999;
+                        if (ao !== bo) return ao - bo;
+                        return a.name.localeCompare(b.name, "cs");
+                      });
+                    const orphans = categories.filter(
+                      (c) => c.parent_id !== null && !categories.find((m) => m.id === c.parent_id)
                     );
-                  })}
+                    const rows: ReactElement[] = [];
+                    mains.forEach((main) => {
+                      const subs = categories
+                        .filter((c) => c.parent_id === main.id)
+                        .sort((a, b) => {
+                          const ao = a.sort_order ?? 9999;
+                          const bo = b.sort_order ?? 9999;
+                          if (ao !== bo) return ao - bo;
+                          return a.name.localeCompare(b.name, "cs");
+                        });
+                      rows.push(
+                        <tr
+                          key={main.id}
+                          className={`hover:bg-white/5 transition-colors bg-slate-800/40 ${
+                            !main.is_active ? "opacity-60" : ""
+                          }`}
+                        >
+                          <td className="px-6 py-4">
+                            <CategoryIcon icon={main.icon} size={28} className="text-2xl text-white" />
+                          </td>
+                          <td className="px-6 py-4 text-white font-semibold">
+                            {main.name}
+                            {main.sort_order !== null && (
+                              <span className="ml-2 text-xs text-slate-500">#{main.sort_order}</span>
+                            )}
+                            {subs.length > 0 && (
+                              <span className="ml-2 text-xs text-slate-400">({subs.length} podkat.)</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-400">{main.slug}</td>
+                          <td className="px-6 py-4 text-sm">
+                            <span className="text-cyan-400 font-semibold">HLAVNÍ</span>
+                          </td>
+                          <td className="px-6 py-4 text-center text-sm">
+                            {(() => {
+                              const direct = providerCounts[main.id] || 0;
+                              const fromSubs = subs.reduce((s, x) => s + (providerCounts[x.id] || 0), 0);
+                              const total = direct + fromSubs;
+                              return (
+                                <span className={total > 0 ? "text-white font-medium" : "text-slate-600"}>
+                                  {total}
+                                  {fromSubs > 0 && <span className="text-slate-500 text-xs"> ({direct}+{fromSubs})</span>}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-6 py-4 text-center text-sm">
+                            {(() => {
+                              const direct = requestCounts[main.id] || 0;
+                              const fromSubs = subs.reduce((s, x) => s + (requestCounts[x.id] || 0), 0);
+                              const total = direct + fromSubs;
+                              return (
+                                <span className={total > 0 ? "text-white font-medium" : "text-slate-600"}>
+                                  {total}
+                                  {fromSubs > 0 && <span className="text-slate-500 text-xs"> ({direct}+{fromSubs})</span>}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            {main.is_active ? (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400">
+                                ● Aktivní
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-500/20 text-slate-400">
+                                ○ Deaktivováno
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2 flex-wrap">
+                              <button
+                                onClick={() => handleAddSub(main)}
+                                className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg text-sm font-medium hover:bg-emerald-500/30 transition-colors"
+                                title="Přidat podkategorii pod tuto hlavní"
+                              >
+                                + sub
+                              </button>
+                              <button
+                                onClick={() => handleEdit(main)}
+                                className="px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded-lg text-sm font-medium hover:bg-cyan-500/30 transition-colors"
+                              >
+                                Upravit
+                              </button>
+                              <button
+                                onClick={() => handleToggleActive(main)}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                  main.is_active
+                                    ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
+                                    : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                                }`}
+                              >
+                                {main.is_active ? "Deaktivovat" : "Reaktivovat"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                      subs.forEach((sub) => {
+                        rows.push(
+                          <tr
+                            key={sub.id}
+                            className={`hover:bg-white/5 transition-colors ${
+                              !sub.is_active ? "opacity-60" : ""
+                            }`}
+                          >
+                            <td className="px-6 py-3 pl-12">
+                              <CategoryIcon icon={sub.icon} size={20} className="text-lg text-slate-300" />
+                            </td>
+                            <td className="px-6 py-3 text-slate-200 text-sm">
+                              <span className="text-slate-500 mr-2">└─</span>
+                              {sub.name}
+                              {sub.sort_order !== null && (
+                                <span className="ml-2 text-xs text-slate-500">#{sub.sort_order}</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-3 text-xs text-slate-500">{sub.slug}</td>
+                            <td className="px-6 py-3 text-xs text-slate-500">podkategorie</td>
+                            <td className="px-6 py-3 text-center text-sm">
+                              <span className={(providerCounts[sub.id] || 0) > 0 ? "text-slate-200" : "text-slate-600"}>
+                                {providerCounts[sub.id] || 0}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3 text-center text-sm">
+                              <span className={(requestCounts[sub.id] || 0) > 0 ? "text-slate-200" : "text-slate-600"}>
+                                {requestCounts[sub.id] || 0}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3 text-sm">
+                              {sub.is_active ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400">
+                                  ● Aktivní
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-500/10 text-slate-400">
+                                  ○
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-3 text-right">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => handleEdit(sub)}
+                                  className="px-3 py-1 bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-medium hover:bg-cyan-500/30 transition-colors"
+                                >
+                                  Upravit
+                                </button>
+                                <button
+                                  onClick={() => handleToggleActive(sub)}
+                                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                    sub.is_active
+                                      ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
+                                      : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                                  }`}
+                                >
+                                  {sub.is_active ? "Deaktivovat" : "Reaktivovat"}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    });
+                    if (orphans.length > 0) {
+                      rows.push(
+                        <tr key="orphan-header" className="bg-red-900/30">
+                          <td colSpan={8} className="px-6 py-2 text-xs text-red-400 font-semibold uppercase">
+                            ⚠ Osiřelé podkategorie (parent neexistuje)
+                          </td>
+                        </tr>
+                      );
+                      orphans.forEach((o) => {
+                        rows.push(
+                          <tr key={o.id} className="bg-red-900/10">
+                            <td className="px-6 py-3"><CategoryIcon icon={o.icon} size={20} className="text-slate-300" /></td>
+                            <td className="px-6 py-3 text-slate-300 text-sm">{o.name}</td>
+                            <td className="px-6 py-3 text-xs text-slate-500">{o.slug}</td>
+                            <td className="px-6 py-3 text-xs text-red-400">parent_id: {o.parent_id}</td>
+                            <td className="px-6 py-3 text-center text-sm text-slate-500">{providerCounts[o.id] || 0}</td>
+                            <td className="px-6 py-3 text-center text-sm text-slate-500">{requestCounts[o.id] || 0}</td>
+                            <td className="px-6 py-3"></td>
+                            <td className="px-6 py-3 text-right">
+                              <button
+                                onClick={() => handleEdit(o)}
+                                className="px-3 py-1 bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-medium hover:bg-cyan-500/30 transition-colors"
+                              >
+                                Opravit
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    }
+                    return rows;
+                  })()}
                 </tbody>
               </table>
             </div>

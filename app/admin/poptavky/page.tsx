@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminLayout from "../components/AdminLayout";
 import Link from "next/link";
+import CategoryIcon from "@/app/components/CategoryIcon";
 
 type Request = {
   id: string;
@@ -17,6 +18,9 @@ type Request = {
   expires_at: string;
   user_id: string;
   category_id: string;
+  extra_offer_slots: number;
+  moderation_status: string;
+  moderation_flags: Record<string, boolean> | null;
   customer_name?: string;
   customer_email?: string;
   category_name?: string;
@@ -24,26 +28,67 @@ type Request = {
   offers_count?: number;
 };
 
+const PAGE_SIZE = 50;
+
 export default function AdminPoptavky() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  // Per-request cap pro indikátor "X/Y" (default 5 + global setting)
+  const [capPerRequest, setCapPerRequest] = useState(5);
+  // Refresh +N (default 10), čte se z system_settings.platform_settings.refresh_offer_slots
+  const [refreshSlots, setRefreshSlots] = useState(10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, debouncedSearch]);
 
   useEffect(() => {
     loadRequests();
-  }, [filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, debouncedSearch, page]);
+
+  // Debounce search → server (300 ms) — title a location se filtrují server-side přes ILIKE.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "platform_settings")
+        .maybeSingle();
+      const v = (data?.value as Record<string, number> | null) ?? null;
+      if (v) {
+        if (typeof v.max_offers_per_request === "number") setCapPerRequest(v.max_offers_per_request);
+        if (typeof v.refresh_offer_slots === "number") setRefreshSlots(v.refresh_offer_slots);
+      }
+    })();
+  }, []);
 
   const loadRequests = async () => {
     setLoading(true);
-    
+
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
     let query = supabase
       .from("requests")
-      .select(`
+      .select(
+        `
         *,
         profiles:user_id (full_name, email),
         categories:category_id (name, icon)
-      `)
+      `,
+        { count: "exact" }
+      )
       .order("created_at", { ascending: false });
 
     if (filter === "active") {
@@ -54,24 +99,34 @@ export default function AdminPoptavky() {
       query = query.eq("status", "expired");
     } else if (filter === "cancelled") {
       query = query.eq("status", "cancelled");
+    } else if (filter === "moderation") {
+      query = query.in("moderation_status", ["pending", "flagged"]);
     }
 
-    const { data } = await query;
+    if (debouncedSearch) {
+      // Server-side hledání v title/location/description (ILIKE bez case-sensitivity).
+      // customer_name nelze takto filtrovat (je to JOIN), takže fallback je ruční post-filter.
+      const escaped = debouncedSearch.replace(/[%_]/g, "");
+      query = query.or(`title.ilike.%${escaped}%,location.ilike.%${escaped}%,description.ilike.%${escaped}%`);
+    }
+
+    const { data, count } = await query.range(from, to);
+
+    setTotalCount(count || 0);
 
     if (data) {
       // Načteme počty nabídek
-      const requestIds = data.map(r => r.id);
-      const { data: offersData } = await supabase
-        .from("offers")
-        .select("request_id")
-        .in("request_id", requestIds);
+      const requestIds = data.map((r) => r.id);
+      const { data: offersData } = requestIds.length
+        ? await supabase.from("offers").select("request_id").in("request_id", requestIds)
+        : { data: [] };
 
       const offersCounts: Record<string, number> = {};
-      offersData?.forEach(o => {
+      offersData?.forEach((o) => {
         offersCounts[o.request_id] = (offersCounts[o.request_id] || 0) + 1;
       });
 
-      const enrichedData = data.map(r => ({
+      const enrichedData = data.map((r) => ({
         ...r,
         customer_name: (r.profiles as { full_name?: string; email?: string } | null)?.full_name,
         customer_email: (r.profiles as { full_name?: string; email?: string } | null)?.email,
@@ -104,6 +159,57 @@ export default function AdminPoptavky() {
     loadRequests();
   };
 
+  const handleModeration = async (requestId: string, decision: "approved" | "flagged") => {
+    const verb = decision === "approved" ? "schválit" : "skrýt jako flagged";
+    if (!confirm(`Opravdu ${verb} tuto poptávku?`)) return;
+    const { error: updErr } = await supabase
+      .from("requests")
+      .update({
+        moderation_status: decision,
+        moderation_checked_at: new Date().toISOString(),
+      })
+      .eq("id", requestId);
+    if (updErr) {
+      alert("Chyba: " + updErr.message);
+      return;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("admin_activity_log").insert({
+      admin_id: user?.id,
+      action: "moderate_request",
+      target_type: "request",
+      target_id: requestId,
+      details: { decision },
+    });
+    loadRequests();
+  };
+
+  const handleRefresh = async (requestId: string, currentExtra: number) => {
+    if (!confirm(`Refresh této poptávky o +${refreshSlots} slotů?`)) return;
+
+    const newExtra = (currentExtra || 0) + refreshSlots;
+    const { error: updErr } = await supabase
+      .from("requests")
+      .update({ extra_offer_slots: newExtra })
+      .eq("id", requestId);
+
+    if (updErr) {
+      alert("Chyba při refresh: " + updErr.message);
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("admin_activity_log").insert({
+      admin_id: user?.id,
+      action: "refresh_request",
+      target_type: "request",
+      target_id: requestId,
+      details: { added_slots: refreshSlots, new_extra_total: newExtra },
+    });
+
+    loadRequests();
+  };
+
   const handleDelete = async (requestId: string) => {
     if (!confirm("Opravdu smazat tuto poptávku? Tato akce je nevratná.")) return;
 
@@ -120,11 +226,21 @@ export default function AdminPoptavky() {
     loadRequests();
   };
 
-  const filteredRequests = requests.filter(r =>
-    r.title.toLowerCase().includes(search.toLowerCase()) ||
-    r.location.toLowerCase().includes(search.toLowerCase()) ||
-    r.customer_name?.toLowerCase().includes(search.toLowerCase())
-  );
+  // Server-side filtruje title/location/description; customer_name doplníme client-side.
+  const filteredRequests = debouncedSearch
+    ? requests.filter((r) => {
+        const q = debouncedSearch.toLowerCase();
+        return (
+          r.title.toLowerCase().includes(q) ||
+          r.location.toLowerCase().includes(q) ||
+          r.customer_name?.toLowerCase().includes(q) ||
+          r.customer_email?.toLowerCase().includes(q) ||
+          r.description?.toLowerCase().includes(q)
+        );
+      })
+    : requests;
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -155,7 +271,12 @@ export default function AdminPoptavky() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white">📋 Správa poptávek</h1>
-            <p className="text-slate-400">Celkem {requests.length} poptávek</p>
+            <p className="text-slate-400">
+              Celkem {totalCount} poptávek
+              {totalPages > 1 && (
+                <span className="text-slate-500"> · stránka {page} / {totalPages}</span>
+              )}
+            </p>
           </div>
         </div>
 
@@ -177,6 +298,7 @@ export default function AdminPoptavky() {
               { key: "completed", label: "✅ Dokončené" },
               { key: "expired", label: "⏰ Vypršelé" },
               { key: "cancelled", label: "❌ Zrušené" },
+              { key: "moderation", label: "🛡️ Moderace" },
             ].map((f) => (
               <button
                 key={f.key}
@@ -193,13 +315,13 @@ export default function AdminPoptavky() {
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats — počty pouze pro aktuální stránku (totalCount je z DB) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: "Aktivní", value: requests.filter(r => r.status === "active").length, color: "text-emerald-400" },
-            { label: "Dokončené", value: requests.filter(r => r.status === "completed").length, color: "text-blue-400" },
-            { label: "Vypršelé", value: requests.filter(r => r.status === "expired").length, color: "text-orange-400" },
-            { label: "S nabídkami", value: requests.filter(r => (r.offers_count || 0) > 0).length, color: "text-purple-400" },
+            { label: "Aktivní (str.)", value: requests.filter((r) => r.status === "active").length, color: "text-emerald-400" },
+            { label: "Dokončené (str.)", value: requests.filter((r) => r.status === "completed").length, color: "text-blue-400" },
+            { label: "Vypršelé (str.)", value: requests.filter((r) => r.status === "expired").length, color: "text-orange-400" },
+            { label: "S nabídkami (str.)", value: requests.filter((r) => (r.offers_count || 0) > 0).length, color: "text-purple-400" },
           ].map((stat, i) => (
             <div key={i} className="bg-slate-800/50 border border-white/5 rounded-xl p-4 text-center">
               <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
@@ -258,8 +380,9 @@ export default function AdminPoptavky() {
                           <p className="text-slate-500 text-xs">{request.customer_email}</p>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-sm">
-                            {request.category_icon} {request.category_name}
+                          <span className="text-sm inline-flex items-center gap-1.5">
+                            <CategoryIcon icon={request.category_icon} size={16} />
+                            {request.category_name}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-300">
@@ -279,9 +402,21 @@ export default function AdminPoptavky() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`text-sm font-medium ${(request.offers_count || 0) > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
-                            {request.offers_count || 0}
-                          </span>
+                          {(() => {
+                            const cap = capPerRequest + (request.extra_offer_slots || 0);
+                            const count = request.offers_count || 0;
+                            const isFull = count >= cap;
+                            return (
+                              <div>
+                                <span className={`text-sm font-medium ${count > 0 ? (isFull ? 'text-orange-400' : 'text-cyan-400') : 'text-slate-500'}`}>
+                                  {count}/{cap}
+                                </span>
+                                {(request.extra_offer_slots || 0) > 0 && (
+                                  <p className="text-xs text-purple-400 mt-0.5">+{request.extra_offer_slots} refresh</p>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-2">
@@ -292,6 +427,33 @@ export default function AdminPoptavky() {
                             >
                               👁️
                             </Link>
+                            {request.status === "active" && (
+                              <button
+                                onClick={() => handleRefresh(request.id, request.extra_offer_slots || 0)}
+                                title={`Přidat +${refreshSlots} slotů pro nabídky`}
+                                className="px-3 py-1.5 bg-purple-500/20 text-purple-300 rounded-lg text-sm hover:bg-purple-500/30 transition-colors"
+                              >
+                                ♻️ +{refreshSlots}
+                              </button>
+                            )}
+                            {(request.moderation_status === "pending" || request.moderation_status === "flagged") && (
+                              <>
+                                <button
+                                  onClick={() => handleModeration(request.id, "approved")}
+                                  title="Schválit poptávku"
+                                  className="px-3 py-1.5 bg-emerald-500/20 text-emerald-300 rounded-lg text-sm hover:bg-emerald-500/30 transition-colors"
+                                >
+                                  ✅
+                                </button>
+                                <button
+                                  onClick={() => handleModeration(request.id, "flagged")}
+                                  title="Skrýt jako nevhodné"
+                                  className="px-3 py-1.5 bg-orange-500/20 text-orange-300 rounded-lg text-sm hover:bg-orange-500/30 transition-colors"
+                                >
+                                  🚫
+                                </button>
+                              </>
+                            )}
                             <select
                               value={request.status}
                               onChange={(e) => handleStatusChange(request.id, e.target.value)}
@@ -318,6 +480,47 @@ export default function AdminPoptavky() {
             </div>
           )}
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <p className="text-sm text-slate-500">
+              Zobrazeno {requests.length} z {totalCount} poptávek
+            </p>
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={() => setPage(1)}
+                disabled={page === 1 || loading}
+                className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-lg text-sm disabled:opacity-30 hover:bg-slate-700"
+              >
+                ◀◀
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || loading}
+                className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-lg text-sm disabled:opacity-30 hover:bg-slate-700"
+              >
+                ◀
+              </button>
+              <span className="text-slate-300 text-sm px-2">
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || loading}
+                className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-lg text-sm disabled:opacity-30 hover:bg-slate-700"
+              >
+                ▶
+              </button>
+              <button
+                onClick={() => setPage(totalPages)}
+                disabled={page >= totalPages || loading}
+                className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-lg text-sm disabled:opacity-30 hover:bg-slate-700"
+              >
+                ▶▶
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
