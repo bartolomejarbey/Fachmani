@@ -1,14 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 import { useSettings } from "@/lib/useSettings";
+import { supabase } from "@/lib/supabase";
 
 export default function Cenik() {
   const { settings, loaded: settingsLoaded } = useSettings();
+  const [providerHref, setProviderHref] = useState<string>("/auth/register?role=provider");
+  const [premiumHref, setPremiumHref] = useState<string>("/auth/register?role=provider&plan=premium");
+  const [businessHref, setBusinessHref] = useState<string>("/auth/register?role=provider&plan=business");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (profile?.role === "provider") {
+        // Přihlášený fachman → rovnou do správy předplatného
+        setProviderHref("/predplatne");
+        setPremiumHref("/predplatne?plan=premium");
+        setBusinessHref("/predplatne?plan=business");
+      } else if (profile?.role === "customer") {
+        // Přihlášený zákazník → vysvětlit, že tarify jsou pro fachmany
+        setProviderHref("/dashboard");
+        setPremiumHref("/dashboard");
+        setBusinessHref("/dashboard");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const pricing = settings?.pricing ?? { top_profile_7d: 99, boost_feed_1d: 49, premium_badge_30d: 199, extra_offer: 29 };
   const subscriptions = settings?.subscriptions ?? { premium_monthly: 499, premium_quarterly: 399, business_monthly: 1299, business_quarterly: 1039 };
   const platform = settings?.platform ?? { free_offers_per_month: 3, request_expiry_days: 30, max_images_per_request: 5 };
@@ -223,7 +253,7 @@ export default function Cenik() {
                   </ul>
 
                   <Link
-                    href="/auth/register?role=provider"
+                    href={providerHref}
                     className="block w-full py-3 text-center border-2 border-gray-200 text-gray-700 rounded-xl font-semibold hover:border-gray-300 transition-all"
                   >
                     Začít zdarma
@@ -269,7 +299,7 @@ export default function Cenik() {
                   </ul>
 
                   <Link
-                    href="/auth/register?role=provider&plan=premium"
+                    href={premiumHref}
                     className="block w-full py-3 text-center bg-white text-cyan-600 rounded-xl font-semibold hover:bg-cyan-50 transition-all"
                   >
                     Vybrat Premium
@@ -310,7 +340,7 @@ export default function Cenik() {
                   </ul>
 
                   <Link
-                    href="/auth/register?role=provider&plan=business"
+                    href={businessHref}
                     className="block w-full py-3 text-center border-2 border-gray-200 text-gray-700 rounded-xl font-semibold hover:border-gray-300 transition-all"
                   >
                     Vybrat Business

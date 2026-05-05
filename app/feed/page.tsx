@@ -274,7 +274,9 @@ export default function FeedPage() {
       }
     }
 
-    // C.F3 — AI moderace před publikací
+    // C.F3 — AI moderace před publikací (CZ blocklist + OpenAI)
+    let moderationStatus: "approved" | "pending" = "approved";
+    let moderationFlags: unknown = null;
     try {
       const modRes = await fetch("/api/moderation/check", {
         method: "POST",
@@ -288,15 +290,27 @@ export default function FeedPage() {
           setPosting(false);
           return;
         }
+        if (mod.failOpen) {
+          // OpenAI nedostupné → do admin fronty místo přímé publikace
+          moderationStatus = "pending";
+          moderationFlags = { failOpen: true, reason: mod.error || "moderation_unavailable" };
+        }
+      } else {
+        moderationStatus = "pending";
+        moderationFlags = { failOpen: true, http: modRes.status };
       }
     } catch {
-      // fail-open
+      moderationStatus = "pending";
+      moderationFlags = { failOpen: true, reason: "network_error" };
     }
 
     const { error } = await supabase.from("posts").insert({
       user_id: currentUser.id,
       content: newPostContent.trim(),
       image_url: imageUrl,
+      moderation_status: moderationStatus,
+      moderation_flags: moderationFlags,
+      moderation_checked_at: new Date().toISOString(),
     });
 
     if (error) {

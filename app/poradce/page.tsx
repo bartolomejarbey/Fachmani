@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
+import Navbar from "@/app/components/Navbar";
 
 type Message = {
   id: string;
@@ -158,20 +159,19 @@ export default function PoradcePage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      {/* Fixed header */}
-      <div className="bg-white border-b flex-shrink-0">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-purple-50 via-white to-cyan-50">
+      <Navbar />
+
+      {/* AI Poradce sub-header */}
+      <div className="bg-white/70 backdrop-blur border-b border-gray-100 flex-shrink-0">
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-gray-400 hover:text-gray-600 transition-colors mr-1">
-              ←
-            </Link>
-            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-xl flex items-center justify-center text-xl">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-xl flex items-center justify-center text-xl shadow-md">
               🤖
             </div>
             <div>
-              <h1 className="font-bold text-gray-900 text-sm">Najdi fachmana</h1>
-              <p className="text-xs text-gray-500">AI asistent pro hledání profesionálů</p>
+              <h1 className="font-bold text-gray-900 text-sm">AI Poradce</h1>
+              <p className="text-xs text-gray-500">Pomůžu ti vybrat správného fachmana</p>
             </div>
             <div className="ml-auto flex items-center gap-1">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />

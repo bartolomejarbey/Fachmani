@@ -260,28 +260,38 @@ function NovaPoptavkaInner() {
       setQuota({ ...quota, used: quota.used + 1 });
     }
 
-    // Prioritní poptávka — strhneme kredit a teprve pak nastavíme is_urgent.
-    // Když peněženka selže (insufficient credit), poptávka zůstane standardní
-    // a uživatel uvidí informaci na detailu.
+    // Prioritní poptávka.
+    // Pravidlo: 1 free poptávka / měsíc je BEZ poplatku (i když je urgent).
+    // Pokud zákazník využívá svou bezplatnou kvótu (used < limit), urgent je zdarma.
+    // Pokud má Premium nebo již kvótu vyčerpal a platí navíc, urgent stojí ${urgentPrice} Kč z peněženky.
     if (isUrgent) {
-      try {
-        const spendRes = await fetch("/api/wallet/spend", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "urgent_request", relatedEntityId: data.id }),
-        });
-        if (spendRes.ok) {
-          await supabase
-            .from("requests")
-            .update({ is_urgent: true, urgent_paid_at: new Date().toISOString() })
-            .eq("id", data.id);
-        } else if (spendRes.status === 402) {
-          alert(
-            `Poptávka byla uložena, ale neměli jste dost kreditu na prioritu (${urgentPrice} Kč). Dobijte si peněženku a poté kontaktujte podporu pro aktivaci priority.`,
-          );
+      const isWithinFreeQuota = quota && !quota.isPremium && quota.used < quota.limit;
+      if (isWithinFreeQuota) {
+        // Free urgent v rámci bezplatné kvóty — žádná peněženka, jen flag
+        await supabase
+          .from("requests")
+          .update({ is_urgent: true, urgent_paid_at: new Date().toISOString() })
+          .eq("id", data.id);
+      } else {
+        try {
+          const spendRes = await fetch("/api/wallet/spend", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "urgent_request", relatedEntityId: data.id }),
+          });
+          if (spendRes.ok) {
+            await supabase
+              .from("requests")
+              .update({ is_urgent: true, urgent_paid_at: new Date().toISOString() })
+              .eq("id", data.id);
+          } else if (spendRes.status === 402) {
+            alert(
+              `Poptávka byla uložena, ale neměli jste dost kreditu na prioritu (${urgentPrice} Kč). Dobijte si peněženku a poté kontaktujte podporu pro aktivaci priority.`,
+            );
+          }
+        } catch {
+          // Wallet API nedostupné — degraduje na standardní poptávku.
         }
-      } catch {
-        // Wallet API nedostupné — degraduje na standardní poptávku.
       }
     }
 
@@ -564,30 +574,41 @@ function NovaPoptavkaInner() {
           </div>
 
           {/* Urgent upsell */}
-          <label className={`block p-4 rounded-xl border-2 cursor-pointer transition-all ${
-            isUrgent
-              ? "border-amber-400 bg-amber-50"
-              : "border-gray-200 bg-white hover:border-amber-300"
-          }`}>
-            <div className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                checked={isUrgent}
-                onChange={(e) => setIsUrgent(e.target.checked)}
-                className="mt-1 w-5 h-5 accent-amber-500"
-              />
-              <div className="flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-gray-900">⚡ Prioritní poptávka</span>
-                  <span className="text-amber-700 text-sm font-bold">+{urgentPrice} Kč</span>
+          {(() => {
+            const urgentFree = !!quota && !quota.isPremium && quota.used < quota.limit;
+            return (
+              <label className={`block p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                isUrgent
+                  ? "border-amber-400 bg-amber-50"
+                  : "border-gray-200 bg-white hover:border-amber-300"
+              }`}>
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={isUrgent}
+                    onChange={(e) => setIsUrgent(e.target.checked)}
+                    className="mt-1 w-5 h-5 accent-amber-500"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900">⚡ Prioritní poptávka</span>
+                      {urgentFree ? (
+                        <span className="text-emerald-700 text-sm font-bold bg-emerald-100 px-2 py-0.5 rounded-full">Zdarma v rámci kvóty</span>
+                      ) : (
+                        <span className="text-amber-700 text-sm font-bold">+{urgentPrice} Kč</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Poptávka se zobrazí na prvních místech v seznamu a fachmani na ni reagují rychleji.
+                      {urgentFree
+                        ? " V rámci vaší bezplatné kvóty je prioritní poptávka zdarma."
+                        : " Cena se strhne z vaší peněženky po odeslání."}
+                    </p>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600 mt-1">
-                  Poptávka se bude zobrazovat na prvních místech v seznamu a fachmani na ni typicky reagují rychleji.
-                  Cena se strhne z vaší peněženky po odeslání.
-                </p>
-              </div>
-            </div>
-          </label>
+              </label>
+            );
+          })()}
 
           <div className="bg-cyan-50 border border-cyan-100 p-4 rounded-xl">
             <p className="text-sm text-cyan-800">

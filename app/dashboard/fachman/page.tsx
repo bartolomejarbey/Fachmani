@@ -15,6 +15,9 @@ type Profile = {
   subscription_type: string;
   trial_until: string | null;
   trial_offers_used: number | null;
+  bank_verification_status: string | null;
+  ares_verified_at: string | null;
+  ico: string | null;
 };
 
 type Request = {
@@ -256,6 +259,35 @@ export default function FachmanDashboard() {
             )}
           </div>
         </div>
+
+        {/* Unverified-account banner — pushes provider to complete bank verification */}
+        {profile && profile.bank_verification_status !== "verified" && (
+          <div className="mb-6 rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-5 shadow-sm ring-4 ring-amber-100">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl shrink-0">
+                ⚠️
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-amber-900 text-lg">Dokončete ověření účtu</h3>
+                <p className="text-sm text-amber-800 mt-1">
+                  {profile.bank_verification_status === "pending"
+                    ? <>Krok 1 (ARES) hotov. Čekáme na potvrzení vaší 1 Kč platby — admin to obvykle stihne do 24 h. Do té doby u vašeho profilu zůstane badge „Neověřeno".</>
+                    : profile.ares_verified_at
+                      ? <>Máte hotový krok 1 (ARES) — chybí <strong>krok 2: symbolická 1 Kč platba</strong> z vašeho podnikatelského účtu. Bez něj nemůžete posílat nabídky a u profilu se zobrazí badge „Neověřeno".</>
+                      : profile.ico
+                        ? <>Vyplnili jste IČO, ale ještě jsme neověřili profil v ARES. <strong>Dokončete oba kroky ověření</strong> ve svém profilu — bez nich nemůžete posílat nabídky.</>
+                        : <>Pro odesílání nabídek je nutné <strong>2-krokové ověření identity</strong> (ARES + symbolická 1 Kč platba). Bez ověření u vašeho profilu uvidí poptávající badge „Neověřeno".</>}
+                </p>
+              </div>
+              <Link
+                href="/dashboard/profil"
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition shrink-0 text-center"
+              >
+                Dokončit ověření →
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

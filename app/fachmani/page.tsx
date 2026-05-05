@@ -151,16 +151,27 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
   if (profilesData && profilesData.length > 0) {
     const providerIds = profilesData.map((p) => p.id);
 
-    const [{ data: providerProfilesData }, { data: providerCategoriesData }, { data: reviewsData }, { data: promosData }] = await Promise.all([
+    // provider_profiles + reviews + promotions can run in parallel (filtered by providerIds).
+    // provider_categories must wait for provider_profile.id list — without the filter
+    // PostgREST returns the entire join table (was the visible "subcategory selector lag").
+    const [{ data: providerProfilesData }, { data: reviewsData }, { data: promosData }] = await Promise.all([
       supabase.from("provider_profiles").select("id, user_id, bio, hourly_rate, locations").in("user_id", providerIds),
-      supabase.from("provider_categories").select("provider_id, categories(id, name, icon)"),
       supabase.from("reviews").select("provider_id, rating").in("provider_id", providerIds),
       supabase
         .from("promotions")
         .select("provider_id, type")
         .eq("status", "active")
-        .gte("ends_at", new Date().toISOString()),
+        .gte("ends_at", new Date().toISOString())
+        .in("provider_id", providerIds),
     ]);
+
+    const providerProfileIds = (providerProfilesData ?? []).map((pp) => pp.id);
+    const { data: providerCategoriesData } = providerProfileIds.length
+      ? await supabase
+          .from("provider_categories")
+          .select("provider_id, categories(id, name, icon)")
+          .in("provider_id", providerProfileIds)
+      : { data: [] as { provider_id: string; categories: { id: string; name: string; icon: string } | null }[] };
 
     profilesData.forEach((profile) => {
       const providerProfile = providerProfilesData?.find((pp) => pp.user_id === profile.id);

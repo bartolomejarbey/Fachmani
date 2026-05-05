@@ -50,6 +50,8 @@ type UserProfile = {
   subscription_type: string;
   monthly_offers_count: number;
   full_name: string;
+  trial_until: string | null;
+  trial_offers_used: number | null;
 };
 
 type RecommendedProvider = {
@@ -113,7 +115,7 @@ export default function PoptavkaDetail() {
         
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role, is_verified, subscription_type, monthly_offers_count, full_name")
+          .select("role, is_verified, subscription_type, monthly_offers_count, full_name, trial_until, trial_offers_used")
           .eq("id", user.id)
           .single();
           
@@ -209,16 +211,32 @@ export default function PoptavkaDetail() {
   };
 
   const freeLimit = settings.platform.free_offers_per_month;
+  const trialOffersLimit = 10; // C.F1: 10 reakcí během 2-měsíčního trialu
   const baseCap = settings.platform.max_offers_per_request;
   const extraSlots = request?.extra_offer_slots ?? 0;
   const maxOffersPerRequest = baseCap + extraSlots;
   const requestIsFull = offers.length >= maxOffersPerRequest;
 
+  // C.F1: trial vyprší → fachman musí na Premium
+  const isTrialExpired = (): boolean => {
+    if (!userProfile) return false;
+    if (userProfile.subscription_type !== "free") return false;
+    if (!userProfile.trial_until) return false;
+    return new Date(userProfile.trial_until) < new Date();
+  };
+
+  const isTrialExhausted = (): boolean => {
+    if (!userProfile) return false;
+    if (userProfile.subscription_type !== "free") return false;
+    return (userProfile.trial_offers_used ?? 0) >= trialOffersLimit;
+  };
+
   const canSendOffer = () => {
     if (!userProfile) return false;
     if (requestIsFull) return false;
     if (userProfile.subscription_type === "free") {
-      return userProfile.monthly_offers_count < freeLimit;
+      if (isTrialExpired() || isTrialExhausted()) return false;
+      return true;
     }
     return true;
   };
@@ -226,7 +244,8 @@ export default function PoptavkaDetail() {
   const getRemainingOffers = () => {
     if (!userProfile) return 0;
     if (userProfile.subscription_type !== "free") return "∞";
-    return freeLimit - userProfile.monthly_offers_count;
+    if (isTrialExpired()) return 0;
+    return Math.max(0, trialOffersLimit - (userProfile.trial_offers_used ?? 0));
   };
 
   const handleSubmitOffer = async (e: React.FormEvent) => {
@@ -992,17 +1011,54 @@ export default function PoptavkaDetail() {
             {isProvider && !isOwner && (
               <>
                 {userProfile?.subscription_type === "free" && (
-                  <div className={`bg-cyan-50 border-2 border-cyan-200 rounded-2xl p-4 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
-                    <p className="text-cyan-800 font-semibold mb-1">
-                      Zbývající nabídky: {getRemainingOffers()}/{freeLimit}
-                    </p>
-                    <Link
-                      href="/dashboard/fachman/predplatne"
-                      className="text-cyan-600 text-sm hover:underline"
-                    >
-                      Upgradovat na Premium →
-                    </Link>
-                  </div>
+                  isTrialExpired() ? (
+                    <div className={`bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
+                      <p className="text-orange-800 font-semibold mb-1">
+                        Trial vypršel
+                      </p>
+                      <p className="text-orange-700 text-sm mb-2">
+                        Vaše bezplatné období skončilo. Pro pokračování v posílání nabídek si pořiďte Premium.
+                      </p>
+                      <Link
+                        href="/predplatne"
+                        className="inline-block bg-gradient-to-r from-purple-500 to-cyan-500 text-white text-sm font-bold px-4 py-2 rounded-xl hover:shadow-lg transition-all"
+                      >
+                        Pořídit Premium →
+                      </Link>
+                    </div>
+                  ) : isTrialExhausted() ? (
+                    <div className={`bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
+                      <p className="text-orange-800 font-semibold mb-1">
+                        Bezplatné nabídky vyčerpány
+                      </p>
+                      <p className="text-orange-700 text-sm mb-2">
+                        Využili jste všech {trialOffersLimit} bezplatných nabídek během trialu. Pokračujte s Premium.
+                      </p>
+                      <Link
+                        href="/predplatne"
+                        className="inline-block bg-gradient-to-r from-purple-500 to-cyan-500 text-white text-sm font-bold px-4 py-2 rounded-xl hover:shadow-lg transition-all"
+                      >
+                        Pořídit Premium →
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className={`bg-cyan-50 border-2 border-cyan-200 rounded-2xl p-4 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
+                      <p className="text-cyan-800 font-semibold mb-1">
+                        Zbývající nabídky během trialu: {getRemainingOffers()}/{trialOffersLimit}
+                      </p>
+                      {userProfile.trial_until && (
+                        <p className="text-cyan-700 text-xs mb-1">
+                          Trial do: {new Date(userProfile.trial_until).toLocaleDateString("cs-CZ")}
+                        </p>
+                      )}
+                      <Link
+                        href="/predplatne"
+                        className="text-cyan-700 text-sm hover:underline font-semibold"
+                      >
+                        Upgradovat na Premium →
+                      </Link>
+                    </div>
+                  )
                 )}
 
                 {!isVerified && (
@@ -1057,7 +1113,7 @@ export default function PoptavkaDetail() {
                           Limit nabídek vyčerpán
                         </p>
                         <Link
-                          href="/dashboard/fachman/predplatne"
+                          href="/predplatne"
                           className="inline-block bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all"
                         >
                           Upgradovat na Premium

@@ -168,10 +168,6 @@ export default function Navbar() {
                             <span className="text-lg">👤</span>
                             <span className="text-sm font-medium">Můj profil</span>
                           </Link>
-                          <Link href="/dashboard/fachman/nabidky" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
-                            <span className="text-lg">💼</span>
-                            <span className="text-sm font-medium">Moje nabídky</span>
-                          </Link>
                           <Link href="/dashboard/fachman/penezenka" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
                             <span className="text-lg">💰</span>
                             <span className="text-sm font-medium">Peněženka</span>
@@ -305,14 +301,6 @@ export default function Navbar() {
                       >
                         <span className="text-xl">👤</span>
                         <span className="font-semibold">Můj profil</span>
-                      </Link>
-                      <Link
-                        href="/dashboard/fachman/nabidky"
-                        onClick={() => setIsOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3.5 text-gray-700 hover:bg-gray-50 rounded-2xl transition-all"
-                      >
-                        <span className="text-xl">💼</span>
-                        <span className="font-semibold">Moje nabídky</span>
                       </Link>
                       <Link
                         href="/dashboard/fachman/penezenka"

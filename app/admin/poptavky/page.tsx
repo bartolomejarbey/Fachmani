@@ -213,7 +213,11 @@ export default function AdminPoptavky() {
   const handleDelete = async (requestId: string) => {
     if (!confirm("Opravdu smazat tuto poptávku? Tato akce je nevratná.")) return;
 
-    await supabase.from("requests").delete().eq("id", requestId);
+    const { error: delErr } = await supabase.from("requests").delete().eq("id", requestId);
+    if (delErr) {
+      alert(`Smazání selhalo: ${delErr.message}`);
+      return;
+    }
 
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("admin_activity_log").insert({

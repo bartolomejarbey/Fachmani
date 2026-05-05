@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSettings } from "@/lib/useSettings";
+import Navbar from "@/app/components/Navbar";
+import Footer from "@/app/components/Footer";
 
 type Profile = {
   id: string;
@@ -159,22 +161,19 @@ export default function Predplatne() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-blue-600">
-            Fachmani
-          </Link>
-          <div className="flex items-center space-x-4">
-            <Link href="/dashboard/fachman" className="text-gray-600 hover:text-gray-900">
-              ← Zpět na dashboard
-            </Link>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-cyan-50">
+      <Navbar />
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Moje předplatné</h1>
+      <div className="max-w-5xl mx-auto px-4 py-10">
+        <div className="mb-8">
+          <Link href="/dashboard/fachman" className="text-sm text-gray-500 hover:text-gray-900 inline-flex items-center gap-1">
+            ← Zpět na dashboard
+          </Link>
+          <h1 className="mt-2 text-4xl font-extrabold bg-gradient-to-r from-purple-600 to-cyan-600 bg-clip-text text-transparent">
+            Moje předplatné
+          </h1>
+          <p className="text-gray-600 mt-2">Spravujte si plán a sledujte zbývající nabídky.</p>
+        </div>
 
         {message && (
           <div className={`p-4 rounded-lg mb-6 ${message.includes("Chyba") ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
@@ -208,30 +207,30 @@ export default function Predplatne() {
         )}
 
         {/* Aktuální plán */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">Aktuální plán</h2>
-          
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-10">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Aktuální plán</h2>
+
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-3">
-                <span className={`text-2xl font-bold ${
-                  profile?.subscription_type === "premium" ? "text-blue-600" :
-                  profile?.subscription_type === "business" ? "text-purple-600" :
-                  "text-gray-600"
+                <span className={`text-2xl font-extrabold ${
+                  profile?.subscription_type === "premium" ? "bg-gradient-to-r from-purple-600 to-cyan-600 bg-clip-text text-transparent" :
+                  profile?.subscription_type === "business" ? "text-purple-700" :
+                  "text-gray-700"
                 }`}>
                   {profile?.subscription_type === "premium" ? "Premium" :
                    profile?.subscription_type === "business" ? "Business" :
                    "Start (zdarma)"}
                 </span>
                 {profile?.subscription_type !== "free" && (
-                  <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-sm">
+                  <span className="bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-semibold">
                     Aktivní
                   </span>
                 )}
               </div>
-              
+
               {profile?.subscription_expires_at && (
-                <p className="text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 mt-1">
                   Platí do: {new Date(profile.subscription_expires_at).toLocaleDateString("cs-CZ")}
                 </p>
               )}
@@ -239,7 +238,7 @@ export default function Predplatne() {
 
             <div className="text-right">
               <p className="text-sm text-gray-500">Zbývající nabídky tento měsíc</p>
-              <p className="text-2xl font-bold">{getOffersRemaining()}</p>
+              <p className="text-2xl font-bold text-gray-900">{getOffersRemaining()}</p>
             </div>
           </div>
         </div>
@@ -251,86 +250,101 @@ export default function Predplatne() {
 
         <div className="grid md:grid-cols-3 gap-6">
           {/* Free */}
-          <div className={`bg-white rounded-xl shadow-sm p-6 border-2 ${
-            profile?.subscription_type === "free" ? "border-blue-600" : "border-transparent"
+          <div className={`bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-6 border-2 ${
+            profile?.subscription_type === "free" ? "border-purple-500" : "border-gray-100"
           }`}>
-            <h3 className="font-semibold text-lg mb-2">Start</h3>
-            <p className="text-3xl font-bold mb-4">Zdarma</p>
-            <ul className="text-sm text-gray-600 space-y-2 mb-6">
-              <li>✓ {freeLimit} nabídky měsíčně</li>
+            <h3 className="font-bold text-xl mb-1 text-gray-900">Start</h3>
+            <p className="text-3xl font-extrabold mb-1 text-gray-900">Zdarma</p>
+            <p className="text-xs text-gray-500 mb-4">Pro začátek či jednorázové projekty</p>
+            <ul className="text-sm text-gray-700 space-y-2 mb-6">
+              <li>✓ {freeLimit} nabídek měsíčně</li>
               <li>✓ Základní profil</li>
               <li>✓ Interní chat</li>
             </ul>
             {profile?.subscription_type === "free" ? (
-              <span className="block text-center text-gray-500 py-2">Aktuální plán</span>
+              <span className="block text-center text-gray-500 py-2.5 font-semibold">Aktuální plán</span>
             ) : profile?.cancel_at_period_end ? (
-              <span className="block text-center text-amber-600 text-sm py-2">Naplánováno zrušení</span>
+              <span className="block text-center text-amber-600 text-sm py-2.5">Naplánováno zrušení</span>
             ) : (
               <button
                 onClick={() => setShowCancelModal(true)}
                 disabled={upgrading || cancelling}
-                className="w-full py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                className="w-full py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold disabled:opacity-50"
               >
                 Zrušit předplatné
               </button>
             )}
           </div>
 
-          {/* Premium */}
-          <div className={`bg-white rounded-xl shadow-sm p-6 border-2 ${
-            profile?.subscription_type === "premium" ? "border-blue-600" : "border-transparent"
+          {/* Premium — vyzdviženo */}
+          <div className={`relative bg-white rounded-2xl shadow-xl p-6 border-2 ${
+            profile?.subscription_type === "premium" ? "border-purple-500" : "border-purple-200"
           }`}>
-            <h3 className="font-semibold text-lg mb-2">Premium</h3>
-            <p className="text-3xl font-bold mb-4">{settings.subscriptions.premium_monthly} Kč<span className="text-sm font-normal text-gray-500">/měsíc</span></p>
-            <ul className="text-sm text-gray-600 space-y-2 mb-6">
+            <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-purple-500 to-cyan-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+              Doporučeno
+            </span>
+            <h3 className="font-bold text-xl mb-1 bg-gradient-to-r from-purple-600 to-cyan-600 bg-clip-text text-transparent">Premium</h3>
+            <p className="text-3xl font-extrabold mb-1 text-gray-900">
+              {settings.subscriptions.premium_monthly} Kč
+              <span className="text-sm font-normal text-gray-500">/měsíc</span>
+            </p>
+            <p className="text-xs text-gray-500 mb-4">Pro aktivní fachmany s pravidelnou poptávkou</p>
+            <ul className="text-sm text-gray-700 space-y-2 mb-6">
               <li>✓ Neomezené nabídky</li>
-              <li>✓ Zvýrazněný profil</li>
-              <li>✓ Prioritní zobrazení</li>
-              <li>✓ Statistiky</li>
+              <li>✓ Až 3 kategorie</li>
+              <li>✓ Publikování ve feedu</li>
+              <li>✓ Premium badge na profilu</li>
+              <li>✓ SMS notifikace urgentních poptávek</li>
             </ul>
             {profile?.subscription_type === "premium" ? (
-              <span className="block text-center text-gray-500 py-2">Aktuální plán</span>
+              <span className="block text-center text-gray-500 py-2.5 font-semibold">Aktuální plán</span>
             ) : (
               <button
                 onClick={() => handleUpgrade("premium")}
                 disabled={upgrading}
-                className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="w-full py-2.5 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-xl font-bold hover:shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50"
               >
-                {upgrading ? "Zpracovávám..." : "Upgradovat"}
+                {upgrading ? "Zpracovávám..." : "Pořídit Premium"}
               </button>
             )}
           </div>
 
           {/* Business */}
-          <div className={`bg-white rounded-xl shadow-sm p-6 border-2 ${
-            profile?.subscription_type === "business" ? "border-blue-600" : "border-transparent"
+          <div className={`bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-6 border-2 ${
+            profile?.subscription_type === "business" ? "border-purple-500" : "border-gray-100"
           }`}>
-            <h3 className="font-semibold text-lg mb-2">Business</h3>
-            <p className="text-3xl font-bold mb-4">{settings.subscriptions.business_monthly.toLocaleString()} Kč<span className="text-sm font-normal text-gray-500">/měsíc</span></p>
-            <ul className="text-sm text-gray-600 space-y-2 mb-6">
+            <h3 className="font-bold text-xl mb-1 text-gray-900">Business</h3>
+            <p className="text-3xl font-extrabold mb-1 text-gray-900">
+              {settings.subscriptions.business_monthly.toLocaleString()} Kč
+              <span className="text-sm font-normal text-gray-500">/měsíc</span>
+            </p>
+            <p className="text-xs text-gray-500 mb-4">Pro firmy a větší týmy</p>
+            <ul className="text-sm text-gray-700 space-y-2 mb-6">
               <li>✓ Vše z Premium</li>
               <li>✓ Firemní profil</li>
               <li>✓ Až 5 uživatelů</li>
               <li>✓ API přístup</li>
             </ul>
             {profile?.subscription_type === "business" ? (
-              <span className="block text-center text-gray-500 py-2">Aktuální plán</span>
+              <span className="block text-center text-gray-500 py-2.5 font-semibold">Aktuální plán</span>
             ) : (
               <button
                 onClick={() => handleUpgrade("business")}
                 disabled={upgrading}
-                className="w-full py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
+                className="w-full py-2.5 bg-gray-900 text-white rounded-xl font-bold hover:bg-gray-800 disabled:opacity-50"
               >
-                {upgrading ? "Zpracovávám..." : "Upgradovat"}
+                {upgrading ? "Zpracovávám..." : "Pořídit Business"}
               </button>
             )}
           </div>
         </div>
 
         <p className="text-sm text-gray-500 mt-6 text-center">
-          Poznámka: Toto je demo verze. V produkci by byla napojena platební brána.
+          Platby jsou v testovacím režimu — produkční platební brána (ComGate) bude napojena po doručení API klíčů.
         </p>
       </div>
+
+      <Footer />
 
       {/* Cancel Modal */}
       {showCancelModal && (

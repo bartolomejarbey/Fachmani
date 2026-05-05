@@ -118,18 +118,32 @@ export default function AdminKategorie() {
       icon,
       description: description || null,
       parent_id: parentId || null,
-      sort_order: sortOrder ? parseInt(sortOrder, 10) : null,
+      sort_order: sortOrder ? parseInt(sortOrder, 10) : 0,
     };
 
+    let opError: { message: string } | null = null;
     if (editingId) {
-      await supabase
+      const { error } = await supabase
         .from("categories")
         .update(categoryData)
         .eq("id", editingId);
+      opError = error;
     } else {
-      await supabase
+      const { error } = await supabase
         .from("categories")
         .insert(categoryData);
+      opError = error;
+    }
+
+    if (opError) {
+      const friendly = opError.message.includes("duplicate key")
+        ? "Tento slug už existuje. Zvolte jiný."
+        : opError.message.includes("two_levels") || opError.message.includes("2 úrovně")
+          ? "Hierarchie je omezena na 2 úrovně — nelze vnořit pod podkategorii."
+          : opError.message;
+      alert(`Uložení selhalo: ${friendly}`);
+      setSaving(false);
+      return;
     }
 
     await loadCategories();

@@ -552,6 +552,18 @@ export default function FachmanProfil() {
                   placeholder="+420 xxx xxx xxx"
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                 />
+                {profile?.role === "provider" && profile?.subscription_type !== "premium" && profile?.subscription_type !== "business" && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg mt-2">
+                    🔒 Vaše telefonní číslo se poptávajícím <strong>nezobrazuje</strong>.
+                    Veřejně viditelné je pouze u Premium / Business účtů. Zákazníci vám napíší přes interní chat;
+                    telefon uvidí jen na poptávkách, kam jste poslal nabídku.
+                  </p>
+                )}
+                {profile?.role === "provider" && (profile?.subscription_type === "premium" || profile?.subscription_type === "business") && (
+                  <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg mt-2">
+                    ✓ Vaše telefonní číslo je <strong>veřejně viditelné</strong> ve vašem profilu (Premium).
+                  </p>
+                )}
               </div>
             </div>
 
@@ -889,14 +901,53 @@ export default function FachmanProfil() {
         </form>
 
         {/* A.F5 — Bankovní ověření */}
-        <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-xl">💳</div>
-            <div>
-              <h3 className="font-bold text-gray-900">Ověření bankovního účtu (1 Kč)</h3>
-              <p className="text-xs text-gray-500">
-                Pošlete symbolickou částku ze svého účtu — potvrdíme, že majitel účtu opravdu jste vy.
-              </p>
+        <div className={`mt-6 bg-white rounded-2xl shadow-lg p-8 border-2 ${
+          profile?.bank_verification_status === "verified" ? "border-green-200" :
+          profile?.bank_verification_status === "pending" ? "border-yellow-300" :
+          "border-amber-300 ring-4 ring-amber-100"
+        }`}>
+          <div className="flex items-start gap-3 mb-4">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
+              profile?.bank_verification_status === "verified" ? "bg-green-100" :
+              profile?.bank_verification_status === "pending" ? "bg-yellow-100" :
+              "bg-amber-100"
+            }`}>
+              {profile?.bank_verification_status === "verified" ? "✅" : "💳"}
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-gray-900 text-lg">Ověření identity (2 kroky)</h3>
+              {profile?.bank_verification_status !== "verified" && (
+                <p className="text-sm text-amber-800 mt-1 font-semibold">
+                  Bez ověření nemůžete posílat nabídky a u vašeho profilu se zobrazí badge „Neověřeno".
+                </p>
+              )}
+              <ol className="text-xs text-gray-600 mt-2 space-y-1">
+                <li className="flex items-center gap-2">
+                  <span className={`inline-flex w-5 h-5 rounded-full text-white text-[10px] font-bold items-center justify-center ${
+                    profile?.ares_verified_at ? "bg-green-500" : "bg-gray-300"
+                  }`}>1</span>
+                  ARES kontrola IČO
+                  {profile?.ares_verified_at ? <span className="text-green-700 font-semibold">✓ Hotovo</span> : <span className="text-gray-500">— vyplněním IČO výše</span>}
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className={`inline-flex w-5 h-5 rounded-full text-white text-[10px] font-bold items-center justify-center ${
+                    profile?.bank_verification_status === "verified" ? "bg-green-500" :
+                    profile?.bank_verification_status === "pending" ? "bg-yellow-500" :
+                    "bg-gray-300"
+                  }`}>2</span>
+                  Symbolická 1 Kč platba z vašeho podnikatelského účtu
+                  {profile?.bank_verification_status === "verified" ? <span className="text-green-700 font-semibold">✓ Ověřeno</span> :
+                   profile?.bank_verification_status === "pending" ? <span className="text-yellow-700 font-semibold">⏳ Čeká</span> :
+                   null}
+                </li>
+              </ol>
+              {profile?.bank_verification_status !== "verified" && (
+                <p className="text-xs text-gray-500 mt-3 leading-relaxed bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  <strong>Proč 1 Kč platba?</strong> Tímto si ověříte, že podnikatelský účet, který uvádíte, opravdu patří vám.
+                  Číslo účtu zadáte níž — vygenerujeme variabilní symbol a QR kód. Pošlete přesně 1 Kč
+                  ze svého firemního účtu a admin platbu potvrdí (typicky do 24 h).
+                </p>
+              )}
             </div>
           </div>
 
