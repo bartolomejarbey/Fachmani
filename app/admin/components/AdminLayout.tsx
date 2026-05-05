@@ -30,6 +30,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [stats, setStats] = useState({
     pendingVerifications: 0,
+    pendingBankVerifications: 0,
+    pendingBotFlags: 0,
     activeRequests: 0,
     newToday: 0,
   });
@@ -41,8 +43,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Verifikace", href: "/admin/verifikace", icon: "🛡️", roles: ["master_admin", "admin"] },
     { name: "Fiktivní fachmani", href: "/admin/seed-fachmani", icon: "🎭", roles: ["master_admin", "admin", "sales"] },
     { name: "Poptávky", href: "/admin/poptavky", icon: "📋", roles: ["master_admin", "admin", "sales"] },
+    { name: "Zaseklé poptávky", href: "/admin/zaseknute-poptavky", icon: "⏰", roles: ["master_admin", "admin", "sales"] },
+    { name: "Moderace feedu", href: "/admin/moderace-feed", icon: "🛡️", roles: ["master_admin", "admin"] },
     { name: "Ghost leady", href: "/admin/ghost-leady", icon: "👻", roles: ["master_admin", "admin", "sales"] },
     { name: "Kategorie", href: "/admin/kategorie", icon: "📁", roles: ["master_admin", "admin"] },
+    { name: "Recenze", href: "/admin/recenze", icon: "⭐", roles: ["master_admin", "admin"] },
     { name: "Topování & Promo", href: "/admin/promo", icon: "🚀", roles: ["master_admin", "admin", "sales"] },
     { name: "Platby & Penezenky", href: "/admin/payments", icon: "💰", roles: ["master_admin", "admin"] },
     { name: "Transakce", href: "/admin/transakce", icon: "💳", roles: ["master_admin", "admin"] },
@@ -50,6 +55,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Tým", href: "/admin/tym", icon: "🏢", roles: ["master_admin"] },
     { name: "AI Spotřeba", href: "/admin/ai-usage", icon: "🤖", roles: ["master_admin", "admin"] },
     { name: "Vyhledávání", href: "/admin/vyhledavani", icon: "🔎", roles: ["master_admin", "admin"] },
+    { name: "Newsletter", href: "/admin/newsletter", icon: "📧", roles: ["master_admin", "admin"] },
+    { name: "Bot flag-y", href: "/admin/bot-flags", icon: "🤖", roles: ["master_admin", "admin"] },
     { name: "Activity Log", href: "/admin/activity", icon: "📜", roles: ["master_admin"] },
     { name: "Nastavení", href: "/admin/nastaveni", icon: "⚙️", roles: ["master_admin"] },
   ];
@@ -79,16 +86,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       // Načteme statistiky pro badges
       const [
         { count: pendingVerifications },
+        { count: pendingBankVerifications },
         { count: activeRequests },
+        { count: pendingBotFlags },
       ] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true })
           .eq("role", "provider").eq("is_verified", false),
+        supabase.from("profiles").select("id", { count: "exact", head: true })
+          .eq("bank_verification_status", "pending"),
         supabase.from("requests").select("*", { count: "exact", head: true })
           .eq("status", "active"),
+        supabase.from("bot_flagged_replies").select("id", { count: "exact", head: true })
+          .eq("status", "pending"),
       ]);
 
       setStats({
         pendingVerifications: pendingVerifications || 0,
+        pendingBankVerifications: pendingBankVerifications || 0,
+        pendingBotFlags: pendingBotFlags || 0,
         activeRequests: activeRequests || 0,
         newToday: 0,
       });
@@ -98,6 +113,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     checkAuth();
   }, [router]);
+
+  // Realtime refresh of bot-flag pending count, so badge stays live across the admin panel.
+  useEffect(() => {
+    if (!admin) return;
+    const refresh = async () => {
+      const { count } = await supabase
+        .from("bot_flagged_replies")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      setStats((s) => ({ ...s, pendingBotFlags: count || 0 }));
+    };
+    const channel = supabase
+      .channel("bot_flagged_replies_badge")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "bot_flagged_replies" },
+        () => {
+          refresh();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [admin]);
 
   const handleLogout = async () => {
     if (admin) {
@@ -182,6 +222,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     {item.name === "Uživatelé" && stats.pendingVerifications > 0 && (
                       <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
                         {stats.pendingVerifications}
+                      </span>
+                    )}
+                    {item.name === "Verifikace" && stats.pendingBankVerifications > 0 && (
+                      <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full" title="Pending bank ověření">
+                        💳 {stats.pendingBankVerifications}
+                      </span>
+                    )}
+                    {item.name === "Bot flag-y" && stats.pendingBotFlags > 0 && (
+                      <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full" title="Nevyřešené bot flag-y">
+                        {stats.pendingBotFlags}
                       </span>
                     )}
                   </>

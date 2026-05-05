@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/ares-reverify?max_age_days=30&limit=50",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/bot-flag-notifications",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
