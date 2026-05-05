@@ -263,6 +263,29 @@ export default async function FachmanDetailPage({ params }: { params: Params }) 
   const isPremium = fachman.subscription_type === "premium" || fachman.subscription_type === "business";
   const isTopProfile = fachman.has_promo && fachman.promo_type === "top_profile";
 
+  // B.F2 — direct chat tlačítko jen když je přihlášený provider a kouká na jiného (nesedového) providera
+  let canDirectMessage = false;
+  if (!fachman.is_seed) {
+    const supabase = await createSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && user.id !== fachman.id) {
+      const { data: meProfile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      const myRole = (meProfile as { role: string | null } | null)?.role ?? null;
+      // Druhý uživatel musí mít taky role='provider' — kouknu rovnou v profilu
+      const { data: otherProfile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", fachman.id)
+        .maybeSingle();
+      const otherRole = (otherProfile as { role: string | null } | null)?.role ?? null;
+      canDirectMessage = myRole === "provider" && otherRole === "provider";
+    }
+  }
+
   const locationPrimary = formatLocation(fachman.region_name, fachman.district_name);
   const locationFallback = locationPrimary
     || fachman.location
@@ -544,6 +567,15 @@ export default async function FachmanDetailPage({ params }: { params: Params }) 
                 >
                   📝 Zadat poptávku
                 </Link>
+
+                {canDirectMessage && (
+                  <Link
+                    href={`/zpravy/direct/${fachman.id}`}
+                    className="block w-full text-center bg-white border-2 border-cyan-500 text-cyan-600 py-3 rounded-xl font-semibold hover:bg-cyan-50 transition-all mb-3"
+                  >
+                    💬 Napsat zprávu
+                  </Link>
+                )}
 
                 {fachman.phone && (
                   <a
