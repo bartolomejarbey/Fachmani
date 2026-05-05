@@ -10,7 +10,6 @@ type Fachman = {
   id: string;
   full_name: string;
   email: string;
-  phone: string | null;
   location: string | null;
   description: string | null;
   is_verified: boolean;
@@ -35,7 +34,7 @@ export default function AdminFachmani() {
     setLoading(true);
     const { data } = await supabase
       .from("profiles")
-      .select("id, full_name, email, phone, location, description, is_verified, subscription_type, avg_rating, review_count, created_at")
+      .select("id, full_name, email, location, description, is_verified, subscription_type, avg_rating, review_count, created_at")
       .eq("role", "provider")
       .order("created_at", { ascending: false });
 

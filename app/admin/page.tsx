@@ -60,18 +60,25 @@ export default function AdminDashboard() {
         { count: totalReviews },
         { count: totalCategories },
         { count: activePromos },
+        { data: paidInvoices },
       ] = await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "provider"),
-        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "customer"),
-        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "provider").eq("is_verified", true),
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "provider"),
+        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "customer"),
+        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "provider").eq("is_verified", true),
         supabase.from("requests").select("*", { count: "exact", head: true }),
         supabase.from("requests").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("offers").select("*", { count: "exact", head: true }),
         supabase.from("reviews").select("*", { count: "exact", head: true }),
         supabase.from("categories").select("*", { count: "exact", head: true }),
         supabase.from("promotions").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("invoices").select("total").eq("status", "paid"),
       ]);
+
+      const revenueSum = (paidInvoices || []).reduce(
+        (sum: number, inv: { total: number | null }) => sum + (inv.total || 0),
+        0
+      );
 
       setStats({
         totalUsers: totalUsers || 0,
@@ -85,7 +92,7 @@ export default function AdminDashboard() {
         totalReviews: totalReviews || 0,
         totalCategories: totalCategories || 0,
         activePromos: activePromos || 0,
-        revenue: 0,
+        revenue: revenueSum,
       });
 
       // Načteme poslední aktivitu
@@ -122,6 +129,7 @@ export default function AdminDashboard() {
     { label: "Nabídky", value: stats.totalOffers, icon: "💼", color: "from-purple-500 to-purple-600", subtext: `${stats.totalReviews} recenzí` },
     { label: "Kategorie", value: stats.totalCategories, icon: "📁", color: "from-amber-500 to-amber-600", subtext: "aktivních kategorií" },
     { label: "Aktivní promo", value: stats.activePromos, icon: "🚀", color: "from-pink-500 to-pink-600", subtext: "běžících kampaní" },
+    { label: "Tržby (zaplacené)", value: stats.revenue, icon: "💰", color: "from-green-500 to-green-600", subtext: "součet zaplacených faktur (Kč)" },
   ];
 
   const quickActions = [

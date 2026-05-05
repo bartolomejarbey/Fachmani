@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import AdminLayout from "../components/AdminLayout";
 import { useSearchParams } from "next/navigation";
@@ -18,6 +19,49 @@ type User = {
   phone: string | null;
 };
 
+type ActivityOffer = {
+  id: string;
+  price: number;
+  created_at: string;
+  request_id: string;
+  request_title?: string;
+  request_status?: string;
+};
+
+type ActivityRequest = {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  category_name?: string;
+};
+
+type ActivityReview = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  provider_id: string;
+  provider_name?: string;
+};
+
+type Activity = {
+  loaded: boolean;
+  // Provider
+  recent_offers?: ActivityOffer[];
+  offers_total?: number;
+  total_promo_spend?: number;
+  avg_rating?: number | null;
+  review_count?: number;
+  // Customer
+  recent_requests?: ActivityRequest[];
+  requests_total?: number;
+  recent_reviews_given?: ActivityReview[];
+  reviews_given_total?: number;
+  // Common (paid invoices billed to this user_id)
+  total_invoice_spend?: number;
+};
+
 function UzivateleContent() {
   const searchParams = useSearchParams();
   const initialFilter = searchParams.get("filter") || "all";
@@ -29,16 +73,163 @@ function UzivateleContent() {
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [activity, setActivity] = useState<Activity | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   useEffect(() => {
     loadUsers();
   }, [filter]);
 
+  // Lazy-load activity when modal opens — vyhne se zbytečným dotazům na řádkové akce.
+  useEffect(() => {
+    if (!showModal || !selectedUser) {
+      setActivity(null);
+      return;
+    }
+    const userId = selectedUser.id;
+    const role = selectedUser.role;
+    let cancelled = false;
+    setActivityLoading(true);
+
+    (async () => {
+      const result: Activity = { loaded: true };
+      const queries: PromiseLike<unknown>[] = [];
+
+      if (role === "provider") {
+        queries.push(
+          supabase
+            .from("offers")
+            .select(
+              "id, price, created_at, request_id, request:request_id(title, status)",
+              { count: "exact" }
+            )
+            .eq("provider_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(3)
+            .then((res) => {
+              type OfferRow = Omit<ActivityOffer, "request_title" | "request_status"> & {
+                request: { title: string | null; status: string | null } | null;
+              };
+              result.recent_offers = ((res.data as OfferRow[] | null) ?? []).map((o) => ({
+                id: o.id,
+                price: o.price,
+                created_at: o.created_at,
+                request_id: o.request_id,
+                request_title: o.request?.title ?? undefined,
+                request_status: o.request?.status ?? undefined,
+              }));
+              result.offers_total = res.count ?? 0;
+            })
+        );
+        queries.push(
+          supabase
+            .from("promotions")
+            .select("price")
+            .eq("provider_id", userId)
+            .eq("status", "active")
+            .then((res) => {
+              result.total_promo_spend = (res.data ?? []).reduce(
+                (sum: number, p: { price: number | null }) => sum + (p.price || 0),
+                0
+              );
+            })
+        );
+        queries.push(
+          supabase
+            .from("profiles")
+            .select("avg_rating, review_count")
+            .eq("id", userId)
+            .single()
+            .then((res) => {
+              const d = res.data as { avg_rating: number | null; review_count: number | null } | null;
+              result.avg_rating = d?.avg_rating ?? null;
+              result.review_count = d?.review_count ?? 0;
+            })
+        );
+      } else if (role === "customer") {
+        queries.push(
+          supabase
+            .from("requests")
+            .select(
+              "id, title, status, created_at, categories:category_id(name)",
+              { count: "exact" }
+            )
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(3)
+            .then((res) => {
+              type ReqRow = Omit<ActivityRequest, "category_name"> & {
+                categories: { name: string | null } | null;
+              };
+              result.recent_requests = ((res.data as ReqRow[] | null) ?? []).map((r) => ({
+                id: r.id,
+                title: r.title,
+                status: r.status,
+                created_at: r.created_at,
+                category_name: r.categories?.name ?? undefined,
+              }));
+              result.requests_total = res.count ?? 0;
+            })
+        );
+        queries.push(
+          supabase
+            .from("reviews")
+            .select(
+              "id, rating, comment, created_at, provider_id, provider:provider_id(full_name)",
+              { count: "exact" }
+            )
+            .eq("customer_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(3)
+            .then((res) => {
+              type RevRow = Omit<ActivityReview, "provider_name"> & {
+                provider: { full_name: string | null } | null;
+              };
+              result.recent_reviews_given = ((res.data as RevRow[] | null) ?? []).map((r) => ({
+                id: r.id,
+                rating: r.rating,
+                comment: r.comment,
+                created_at: r.created_at,
+                provider_id: r.provider_id,
+                provider_name: r.provider?.full_name ?? undefined,
+              }));
+              result.reviews_given_total = res.count ?? 0;
+            })
+        );
+      }
+
+      // Společné — celkové výdaje (zaplacené faktury vystavené tomuto user_id).
+      queries.push(
+        supabase
+          .from("invoices")
+          .select("total")
+          .eq("user_id", userId)
+          .eq("status", "paid")
+          .then((res) => {
+            result.total_invoice_spend = (res.data ?? []).reduce(
+              (sum: number, i: { total: number | null }) => sum + (i.total || 0),
+              0
+            );
+          })
+      );
+
+      await Promise.all(queries);
+      if (!cancelled) {
+        setActivity(result);
+        setActivityLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showModal, selectedUser?.id, selectedUser?.role]);
+
   const loadUsers = async () => {
     setLoading(true);
     let query = supabase
       .from("profiles")
-      .select("*")
+      .select("id, email, full_name, role, admin_role, is_verified, subscription_type, created_at")
       .order("created_at", { ascending: false });
 
     if (filter === "providers") {
@@ -54,7 +245,7 @@ function UzivateleContent() {
     }
 
     const { data } = await query;
-    setUsers(data || []);
+    setUsers((data || []).map((u) => ({ ...u, phone: null })));
     setLoading(false);
   };
 
@@ -124,6 +315,26 @@ function UzivateleContent() {
       default:
         return null;
     }
+  };
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString("cs-CZ", { day: "numeric", month: "short", year: "numeric" });
+
+  const formatCZK = (n: number) =>
+    new Intl.NumberFormat("cs-CZ", { style: "currency", currency: "CZK", maximumFractionDigits: 0 }).format(n);
+
+  const statusLabel = (s: string | undefined) => {
+    if (!s) return "—";
+    const map: Record<string, string> = {
+      active: "aktivní",
+      pending: "čeká",
+      accepted: "přijatá",
+      rejected: "zamítnutá",
+      completed: "dokončeno",
+      expired: "vypršelo",
+      cancelled: "zrušeno",
+    };
+    return map[s] || s;
   };
 
   const getSubscriptionBadge = (sub: string) => {
@@ -278,7 +489,15 @@ function UzivateleContent() {
                             </button>
                           )}
                           <button
-                            onClick={() => { setSelectedUser(user); setShowModal(true); }}
+                            onClick={async () => {
+                              setSelectedUser({ ...user, phone: null });
+                              setShowModal(true);
+                              const { data: ph } = await supabase
+                                .rpc("get_provider_phone", { p_provider_id: user.id });
+                              setSelectedUser((prev) => prev && prev.id === user.id
+                                ? { ...prev, phone: (ph as string | null) ?? null }
+                                : prev);
+                            }}
                             className="px-3 py-1.5 bg-white/5 text-slate-400 rounded-lg text-sm font-medium hover:bg-white/10 hover:text-white transition-colors"
                           >
                             Upravit
@@ -316,11 +535,175 @@ function UzivateleContent() {
                 <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center text-white font-bold text-2xl">
                   {selectedUser.full_name?.charAt(0) || "?"}
                 </div>
-                <div>
-                  <p className="text-white font-semibold text-lg">{selectedUser.full_name}</p>
-                  <p className="text-slate-400">{selectedUser.email}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold text-lg truncate">{selectedUser.full_name}</p>
+                  <p className="text-slate-400 truncate">{selectedUser.email}</p>
                   <p className="text-slate-500 text-sm">{selectedUser.phone || "Bez telefonu"}</p>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    Registrace: {formatDate(selectedUser.created_at)}
+                  </p>
                 </div>
+                {selectedUser.role === "provider" && (
+                  <Link
+                    href={`/admin/fachmani/${selectedUser.id}`}
+                    className="px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-medium hover:bg-cyan-500/30 transition-colors"
+                  >
+                    Detail →
+                  </Link>
+                )}
+              </div>
+
+              {/* Activity panel — lazy loaded */}
+              <div className="bg-slate-900/50 border border-white/5 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-white">📊 Aktivita</h3>
+                  {activityLoading && (
+                    <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                </div>
+
+                {!activityLoading && activity && (
+                  <div className="space-y-3">
+                    {/* Provider stats */}
+                    {selectedUser.role === "provider" && (
+                      <>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-slate-800/60 rounded-lg p-2">
+                            <p className="text-xs text-slate-500">Nabídek</p>
+                            <p className="text-lg font-bold text-white">{activity.offers_total ?? 0}</p>
+                          </div>
+                          <div className="bg-slate-800/60 rounded-lg p-2">
+                            <p className="text-xs text-slate-500">Recenzí</p>
+                            <p className="text-lg font-bold text-white">
+                              {activity.review_count ?? 0}
+                              {activity.avg_rating != null && activity.review_count ? (
+                                <span className="text-xs text-amber-400 ml-1">★{activity.avg_rating.toFixed(1)}</span>
+                              ) : null}
+                            </p>
+                          </div>
+                          <div className="bg-slate-800/60 rounded-lg p-2">
+                            <p className="text-xs text-slate-500">Promo (akt.)</p>
+                            <p className="text-lg font-bold text-white">{formatCZK(activity.total_promo_spend ?? 0)}</p>
+                          </div>
+                        </div>
+
+                        {activity.recent_offers && activity.recent_offers.length > 0 ? (
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Poslední 3 nabídky</p>
+                            <div className="space-y-1.5">
+                              {activity.recent_offers.map((o) => (
+                                <Link
+                                  key={o.id}
+                                  href={`/poptavka/${o.request_id}`}
+                                  className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-800/40 hover:bg-slate-800/80 rounded-lg text-sm transition-colors"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-white truncate">{o.request_title || "—"}</p>
+                                    <p className="text-xs text-slate-500">
+                                      {formatDate(o.created_at)} · {statusLabel(o.request_status)}
+                                    </p>
+                                  </div>
+                                  <span className="text-cyan-400 font-medium whitespace-nowrap">
+                                    {formatCZK(o.price)}
+                                  </span>
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-500 italic">Žádné nabídky</p>
+                        )}
+                      </>
+                    )}
+
+                    {/* Customer stats */}
+                    {selectedUser.role === "customer" && (
+                      <>
+                        <div className="grid grid-cols-2 gap-2 text-center">
+                          <div className="bg-slate-800/60 rounded-lg p-2">
+                            <p className="text-xs text-slate-500">Poptávek</p>
+                            <p className="text-lg font-bold text-white">{activity.requests_total ?? 0}</p>
+                          </div>
+                          <div className="bg-slate-800/60 rounded-lg p-2">
+                            <p className="text-xs text-slate-500">Recenzí</p>
+                            <p className="text-lg font-bold text-white">{activity.reviews_given_total ?? 0}</p>
+                          </div>
+                        </div>
+
+                        {activity.recent_requests && activity.recent_requests.length > 0 ? (
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Poslední 3 poptávky</p>
+                            <div className="space-y-1.5">
+                              {activity.recent_requests.map((r) => (
+                                <Link
+                                  key={r.id}
+                                  href={`/poptavka/${r.id}`}
+                                  className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-800/40 hover:bg-slate-800/80 rounded-lg text-sm transition-colors"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-white truncate">{r.title}</p>
+                                    <p className="text-xs text-slate-500">
+                                      {formatDate(r.created_at)}
+                                      {r.category_name ? ` · ${r.category_name}` : ""}
+                                    </p>
+                                  </div>
+                                  <span className="text-xs text-slate-400 whitespace-nowrap">
+                                    {statusLabel(r.status)}
+                                  </span>
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-500 italic">Žádné poptávky</p>
+                        )}
+
+                        {activity.recent_reviews_given && activity.recent_reviews_given.length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400 uppercase mb-1.5">Poslední 3 recenze</p>
+                            <div className="space-y-1.5">
+                              {activity.recent_reviews_given.map((r) => (
+                                <Link
+                                  key={r.id}
+                                  href={`/fachman/${r.provider_id}`}
+                                  className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-800/40 hover:bg-slate-800/80 rounded-lg text-sm transition-colors"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-white truncate">
+                                      {r.provider_name || "—"}
+                                    </p>
+                                    {r.comment && (
+                                      <p className="text-xs text-slate-500 truncate">{r.comment}</p>
+                                    )}
+                                  </div>
+                                  <span className="text-amber-400 text-xs whitespace-nowrap">
+                                    {"★".repeat(Math.round(r.rating))}
+                                  </span>
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Total spend (společné) */}
+                    {(activity.total_invoice_spend ?? 0) > 0 && (
+                      <div className="flex items-center justify-between px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                        <span className="text-sm text-slate-300">💰 Celkem zaplaceno (faktury)</span>
+                        <span className="text-emerald-400 font-bold">
+                          {formatCZK(activity.total_invoice_spend ?? 0)}
+                        </span>
+                      </div>
+                    )}
+
+                    {selectedUser.role !== "provider" && selectedUser.role !== "customer" && (
+                      <p className="text-xs text-slate-500 italic">
+                        Aktivita se zobrazuje pouze pro zákazníky a fachmany.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Role */}

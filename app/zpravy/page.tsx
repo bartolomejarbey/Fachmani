@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type Conversation = {
-  request_id: string;
+  request_id: string | null;
   other_user_id: string;
   other_user_name: string;
   request_title: string;
@@ -19,18 +19,15 @@ export default function Zpravy() {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadConversations() {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         router.push("/auth/login");
         return;
       }
-      
-      setCurrentUser(user.id);
 
       // Načteme všechny zprávy uživatele
       const { data: messages } = await supabase
@@ -67,7 +64,9 @@ export default function Zpravy() {
               request_id: msg.request_id,
               other_user_id: otherUserId,
               other_user_name: otherUserName || "Neznámý",
-              request_title: msg.requests?.title || "Poptávka",
+              request_title: msg.request_id
+                ? msg.requests?.title || "Poptávka"
+                : "Direct chat",
               last_message: msg.content,
               last_message_at: msg.created_at,
               unread_count: 0,
@@ -122,8 +121,12 @@ export default function Zpravy() {
           <div className="bg-white rounded-lg shadow divide-y">
             {conversations.map((conv) => (
               <Link
-                key={`${conv.request_id}-${conv.other_user_id}`}
-                href={`/zpravy/${conv.request_id}/${conv.other_user_id}`}
+                key={`${conv.request_id ?? "direct"}-${conv.other_user_id}`}
+                href={
+                  conv.request_id
+                    ? `/zpravy/${conv.request_id}/${conv.other_user_id}`
+                    : `/zpravy/direct/${conv.other_user_id}`
+                }
                 className="block p-4 hover:bg-gray-50"
               >
                 <div className="flex justify-between items-start">

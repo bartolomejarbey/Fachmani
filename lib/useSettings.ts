@@ -7,6 +7,9 @@ export type PlatformSettings = {
   free_offers_per_month: number;
   request_expiry_days: number;
   max_images_per_request: number;
+  max_offers_per_request: number;
+  refresh_offer_slots: number;
+  free_requests_per_month: number;
 };
 
 export type SubscriptionPrices = {
@@ -21,6 +24,7 @@ export type PricingSettings = {
   boost_feed_1d: number;
   premium_badge_30d: number;
   extra_offer: number;
+  urgent_request: number;
 };
 
 export type AllSettings = {
@@ -34,6 +38,9 @@ const DEFAULTS: AllSettings = {
     free_offers_per_month: 3,
     request_expiry_days: 30,
     max_images_per_request: 5,
+    max_offers_per_request: 5,
+    refresh_offer_slots: 10,
+    free_requests_per_month: 1,
   },
   subscriptions: {
     premium_monthly: 499,
@@ -46,6 +53,7 @@ const DEFAULTS: AllSettings = {
     boost_feed_1d: 49,
     premium_badge_30d: 199,
     extra_offer: 29,
+    urgent_request: 99,
   },
 };
 

@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/ares-reverify?max_age_days=30&limit=50",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/bot-flag-notifications",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/auto-match-emails",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/trial-expiry-emails",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

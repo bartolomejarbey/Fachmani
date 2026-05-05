@@ -15,7 +15,10 @@ export const viewport: Viewport = {
   themeColor: "#06b6d4",
 };
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.fachmani.cz").replace(/\/$/, "");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Fachmani - Najdi ověřeného fachmana",
   description: "Platforma pro propojení zákazníků s ověřenými poskytovateli služeb",
   icons: {

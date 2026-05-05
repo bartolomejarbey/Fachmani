@@ -1,18 +1,20 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useParams } from "next/navigation";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { createSupabaseServer } from "@/lib/supabase/server";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import CategoryIcon from "@/app/components/CategoryIcon";
+import { formatLocation } from "@/app/types/location";
 
-type Category = {
-  id: string;
-  name: string;
-  icon: string;
-};
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.fachmani.cz").replace(/\/$/, "");
 
+// SSR vyžadováno smlouvou. Detail kombinuje real (`uuid`) i seed (`seed_<id>`) profily.
+export const dynamic = "force-dynamic";
+
+type Params = Promise<{ id: string }>;
+
+type Category = { id: string; name: string; icon: string };
 type Review = {
   id: string;
   rating: number;
@@ -21,16 +23,26 @@ type Review = {
   created_at: string;
 };
 
+type RatingBreakdown = {
+  quality: number | null;
+  communication: number | null;
+  price: number | null;
+  dim_count: number;
+};
+
 type FachmanDetail = {
   id: string;
   full_name: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   is_verified: boolean;
+  bank_verified: boolean;
   subscription_type: string;
   bio: string | null;
   description: string | null;
   location: string | null;
+  region_name: string | null;
+  district_name: string | null;
   ico: string | null;
   hourly_rate: number | null;
   locations: string[] | null;
@@ -39,210 +51,285 @@ type FachmanDetail = {
   rating: number;
   review_count: number;
   reviews: Review[];
+  rating_breakdown: RatingBreakdown;
   is_seed: boolean;
   has_promo: boolean;
   promo_type: string | null;
   created_at: string;
 };
 
-export default function FachmanDetailPage() {
-  const params = useParams();
-  const id = params.id as string;
+async function fetchFachman(id: string): Promise<FachmanDetail | null> {
+  const supabase = await createSupabaseServer();
   const isSeed = id.startsWith("seed_");
   const realId = isSeed ? id.replace("seed_", "") : id;
 
-  const [fachman, setFachman] = useState<FachmanDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  if (isSeed) {
+    const { data: seedData } = await supabase
+      .from("seed_providers")
+      .select("*")
+      .eq("id", realId)
+      .maybeSingle();
+    if (!seedData) return null;
 
-  useEffect(() => {
-    setMounted(true);
-    loadFachman();
-  }, [id]);
+    const catIds: string[] = (seedData.category_ids as string[] | null) ?? [];
+    const [catRes, revRes] = await Promise.all([
+      catIds.length > 0
+        ? supabase.from("categories").select("id, name, icon").in("id", catIds)
+        : Promise.resolve({ data: [] as Category[] }),
+      supabase
+        .from("seed_reviews")
+        .select("id, rating, comment, customer_name, display_date")
+        .eq("provider_id", realId)
+        .order("display_date", { ascending: false }),
+    ]);
 
-  const loadFachman = async () => {
-    if (isSeed) {
-      const { data: seedData } = await supabase
-        .from("seed_providers")
-        .select("*")
-        .eq("id", realId)
-        .single();
+    const reviews: Review[] = (revRes.data ?? []).map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      comment: r.comment ?? "",
+      customer_name: r.customer_name,
+      created_at: r.display_date,
+    }));
 
-      if (seedData) {
-        const { data: categoriesData } = await supabase
-          .from("categories")
-          .select("id, name, icon")
-          .in("id", seedData.category_ids || []);
+    return {
+      id: `seed_${seedData.id}`,
+      full_name: seedData.full_name,
+      email: seedData.email ?? null,
+      phone: seedData.phone ?? null,
+      is_verified: seedData.is_verified,
+      bank_verified: false,
+      subscription_type: "premium",
+      bio: seedData.bio ?? null,
+      description: seedData.description ?? null,
+      location: seedData.location ?? null,
+      region_name: null,
+      district_name: null,
+      ico: null,
+      avatar_url: seedData.avatar_url ?? null,
+      hourly_rate: seedData.hourly_rate ?? null,
+      locations: seedData.locations ?? null,
+      categories: (catRes.data ?? []) as Category[],
+      rating: seedData.rating ?? 0,
+      review_count: seedData.review_count ?? 0,
+      reviews,
+      rating_breakdown: { quality: null, communication: null, price: null, dim_count: 0 },
+      is_seed: true,
+      has_promo: true,
+      promo_type: "top_profile",
+      created_at: seedData.created_at,
+    };
+  }
 
-        const { data: seedReviewsData } = await supabase
-          .from("seed_reviews")
-          .select("*")
-          .eq("provider_id", realId)
-          .order("display_date", { ascending: false });
+  // Real profil — UUID v `id`.
+  // `region` / `district` jako nested select vrací jeden record (singular FK relace).
+  const { data: profileData } = await supabase
+    .from("profiles")
+    .select(
+      "id, email, full_name, role, description, location, ico, avatar_url, is_verified, bank_verification_status, subscription_type, created_at, region:region_id(name_cs), district:district_id(name_cs)",
+    )
+    .eq("id", realId)
+    .maybeSingle();
 
-        setFachman({
-          id: `seed_${seedData.id}`,
-          full_name: seedData.full_name,
-          email: seedData.email,
-          phone: seedData.phone,
-          is_verified: seedData.is_verified,
-          subscription_type: "premium",
-          bio: seedData.bio,
-          description: seedData.description || null,
-          location: seedData.location || null,
-          ico: null,
-          avatar_url: seedData.avatar_url || null,
-          hourly_rate: seedData.hourly_rate,
-          locations: seedData.locations,
-          categories: categoriesData || [],
-          rating: seedData.rating || 0,
-          review_count: seedData.review_count || 0,
-          reviews: (seedReviewsData || []).map((r) => ({
-            id: r.id,
-            rating: r.rating,
-            comment: r.comment,
-            customer_name: r.customer_name,
-            created_at: r.display_date,
-          })),
-          is_seed: true,
-          has_promo: true,
-          promo_type: "top_profile",
-          created_at: seedData.created_at,
-        });
-      }
-    } else {
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", realId)
-        .single();
+  if (!profileData) return null;
 
-      if (profileData) {
-        const { data: providerProfileData } = await supabase
-          .from("provider_profiles")
-          .select("*")
-          .eq("user_id", realId)
-          .single();
+  const [providerProfileRes, providerCategoriesRes, reviewsRes, promoRes, phoneRes] = await Promise.all([
+    supabase.from("provider_profiles").select("bio, hourly_rate, locations").eq("user_id", realId).maybeSingle(),
+    supabase.from("provider_categories").select("categories(id, name, icon)").eq("provider_id", realId),
+    supabase
+      .from("reviews")
+      .select("id, rating, rating_quality, rating_communication, rating_price, comment, created_at, profiles:customer_id(full_name)")
+      .eq("provider_id", realId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("promotions")
+      .select("type")
+      .eq("provider_id", realId)
+      .eq("status", "active")
+      .gte("ends_at", new Date().toISOString())
+      .limit(1)
+      .maybeSingle(),
+    supabase.rpc("get_provider_phone", { p_provider_id: realId }),
+  ]);
 
-        const { data: providerCategoriesData } = await supabase
-          .from("provider_categories")
-          .select("categories(id, name, icon)")
-          .eq("provider_id", realId);
+  const reviewsRaw = (reviewsRes.data ?? []) as Array<{
+    id: string;
+    rating: number;
+    rating_quality: number | null;
+    rating_communication: number | null;
+    rating_price: number | null;
+    comment: string | null;
+    created_at: string;
+    profiles: { full_name?: string } | null;
+  }>;
 
-        const { data: reviewsData } = await supabase
-          .from("reviews")
-          .select(`
-            id,
-            rating,
-            comment,
-            created_at,
-            profiles:customer_id (full_name)
-          `)
-          .eq("provider_id", realId)
-          .order("created_at", { ascending: false });
+  const reviews: Review[] = reviewsRaw.map((r) => ({
+    id: r.id,
+    rating: r.rating,
+    comment: r.comment ?? "",
+    customer_name: r.profiles?.full_name ?? "Zákazník",
+    created_at: r.created_at,
+  }));
 
-        const { data: promoData } = await supabase
-          .from("promotions")
-          .select("type")
-          .eq("provider_id", realId)
-          .eq("status", "active")
-          .gte("ends_at", new Date().toISOString())
-          .limit(1)
-          .single();
+  const avgRating = reviews.length > 0
+    ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10
+    : 0;
 
-        const reviews = (reviewsData || []).map((r) => ({
-          id: r.id,
-          rating: r.rating,
-          comment: r.comment || "",
-          customer_name: (r.profiles as { full_name?: string } | null)?.full_name || "Zákazník",
-          created_at: r.created_at,
-        }));
-
-        const avgRating =
-          reviews.length > 0
-            ? Math.round(
-                (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10
-              ) / 10
-            : 0;
-
-        setFachman({
-          id: profileData.id,
-          full_name: profileData.full_name,
-          email: profileData.email,
-          phone: profileData.phone,
-          is_verified: profileData.is_verified,
-          subscription_type: profileData.subscription_type || "free",
-          bio: providerProfileData?.bio || null,
-          description: profileData.description || null,
-          location: profileData.location || null,
-          ico: profileData.ico || null,
-          avatar_url: profileData.avatar_url || null,
-          hourly_rate: providerProfileData?.hourly_rate || null,
-          locations: providerProfileData?.locations || null,
-          categories: (providerCategoriesData || []).flatMap((pc) => {
-            const cat = (pc as unknown as { categories: { id: string; name: string; icon: string } | null }).categories;
-            return cat ? [cat] : [];
-          }),
-          rating: avgRating,
-          review_count: reviews.length,
-          reviews,
-          is_seed: false,
-          has_promo: !!promoData,
-          promo_type: promoData?.type || null,
-          created_at: profileData.created_at,
-        });
-      }
-    }
-
-    setLoading(false);
+  // 3-D rozpad — průměr jen z reviews které mají dimenze (legacy bez nich přeskočíme).
+  const dimReviews = reviewsRaw.filter(
+    (r) => r.rating_quality !== null && r.rating_communication !== null && r.rating_price !== null,
+  );
+  const avgDim = (key: "rating_quality" | "rating_communication" | "rating_price") =>
+    dimReviews.length > 0
+      ? Math.round((dimReviews.reduce((s, r) => s + (r[key] ?? 0), 0) / dimReviews.length) * 10) / 10
+      : null;
+  const ratingBreakdown: RatingBreakdown = {
+    quality: avgDim("rating_quality"),
+    communication: avgDim("rating_communication"),
+    price: avgDim("rating_price"),
+    dim_count: dimReviews.length,
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white">
-        <Navbar />
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
+  const regionName = (profileData.region as { name_cs?: string } | null)?.name_cs ?? null;
+  const districtName = (profileData.district as { name_cs?: string } | null)?.name_cs ?? null;
 
+  return {
+    id: profileData.id,
+    full_name: profileData.full_name,
+    email: profileData.email,
+    phone: (phoneRes.data as string | null) ?? null,
+    is_verified: profileData.is_verified,
+    bank_verified: (profileData as { bank_verification_status?: string | null }).bank_verification_status === "verified",
+    subscription_type: profileData.subscription_type ?? "free",
+    bio: providerProfileRes.data?.bio ?? null,
+    description: profileData.description ?? null,
+    location: profileData.location ?? null,
+    region_name: regionName,
+    district_name: districtName,
+    ico: profileData.ico ?? null,
+    avatar_url: profileData.avatar_url ?? null,
+    hourly_rate: providerProfileRes.data?.hourly_rate ?? null,
+    locations: providerProfileRes.data?.locations ?? null,
+    categories: (providerCategoriesRes.data ?? []).flatMap((pc) => {
+      const cat = (pc as unknown as { categories: Category | null }).categories;
+      return cat ? [cat] : [];
+    }),
+    rating: avgRating,
+    review_count: reviews.length,
+    reviews,
+    rating_breakdown: ratingBreakdown,
+    is_seed: false,
+    has_promo: !!promoRes.data,
+    promo_type: promoRes.data?.type ?? null,
+    created_at: profileData.created_at,
+  };
+}
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  const fachman = await fetchFachman(id);
   if (!fachman) {
-    return (
-      <div className="min-h-screen bg-white">
-        <Navbar />
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="text-6xl mb-4">🔍</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Fachman nenalezen
-            </h2>
-            <p className="text-gray-600 mb-6">
-              Tento profil neexistuje nebo byl odstraněn.
-            </p>
-            <Link
-              href="/fachmani"
-              className="text-cyan-600 font-semibold hover:text-cyan-700"
-            >
-              ← Zpět na seznam fachmanů
-            </Link>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
+    return { title: "Fachman nenalezen | Fachmani", robots: { index: false, follow: false } };
+  }
+  const catNames = fachman.categories.slice(0, 3).map((c) => c.name).join(", ");
+  const titleBase = catNames ? `${fachman.full_name} — ${catNames}` : fachman.full_name;
+  const locationLabel = formatLocation(fachman.region_name, fachman.district_name)
+    || (fachman.locations && fachman.locations.length > 0 ? fachman.locations[0] : null);
+  const title = locationLabel ? `${titleBase} (${locationLabel})` : titleBase;
+  const descBase = (fachman.bio ?? fachman.description ?? "").trim().slice(0, 180);
+  const descParts = [
+    descBase || `Profesionál ${fachman.full_name}`,
+    catNames ? `Obory: ${catNames}` : null,
+    locationLabel ? `Lokalita: ${locationLabel}` : null,
+  ].filter(Boolean);
+  return {
+    title: `${title} | Fachmani`,
+    description: descParts.join(" · "),
+    alternates: { canonical: `/fachman/${fachman.id}` },
+    openGraph: {
+      title,
+      description: descParts.join(" · "),
+      type: "profile",
+      url: `${SITE_URL}/fachman/${fachman.id}`,
+      ...(fachman.avatar_url ? { images: [{ url: fachman.avatar_url }] } : {}),
+    },
+  };
+}
+
+export default async function FachmanDetailPage({ params }: { params: Params }) {
+  const { id } = await params;
+  const fachman = await fetchFachman(id);
+  if (!fachman) notFound();
+
+  const isPremium = fachman.subscription_type === "premium" || fachman.subscription_type === "business";
+  const isTopProfile = fachman.has_promo && fachman.promo_type === "top_profile";
+
+  // B.F2 — direct chat tlačítko jen když je přihlášený provider a kouká na jiného (nesedového) providera
+  let canDirectMessage = false;
+  if (!fachman.is_seed) {
+    const supabase = await createSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && user.id !== fachman.id) {
+      const { data: meProfile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      const myRole = (meProfile as { role: string | null } | null)?.role ?? null;
+      // Druhý uživatel musí mít taky role='provider' — kouknu rovnou v profilu
+      const { data: otherProfile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", fachman.id)
+        .maybeSingle();
+      const otherRole = (otherProfile as { role: string | null } | null)?.role ?? null;
+      canDirectMessage = myRole === "provider" && otherRole === "provider";
+    }
   }
 
-  const isPremium =
-    fachman.subscription_type === "premium" ||
-    fachman.subscription_type === "business";
-  const isTopProfile = fachman.has_promo && fachman.promo_type === "top_profile";
+  const locationPrimary = formatLocation(fachman.region_name, fachman.district_name);
+  const locationFallback = locationPrimary
+    || fachman.location
+    || (fachman.locations && fachman.locations.length > 0 ? fachman.locations.join(", ") : null);
+
+  // JSON-LD ProfilePage + Person — Google obohatí výsledek o rating, lokaci a obor.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    mainEntity: {
+      "@type": "Person",
+      name: fachman.full_name,
+      url: `${SITE_URL}/fachman/${fachman.id}`,
+      ...(fachman.avatar_url ? { image: fachman.avatar_url } : {}),
+      ...(fachman.bio || fachman.description ? { description: fachman.bio ?? fachman.description } : {}),
+      ...(locationFallback ? {
+        address: {
+          "@type": "PostalAddress",
+          addressLocality: locationFallback,
+          addressCountry: "CZ",
+        },
+      } : {}),
+      ...(fachman.categories.length > 0 ? {
+        knowsAbout: fachman.categories.map((c) => c.name),
+      } : {}),
+      ...(fachman.review_count > 0 ? {
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: fachman.rating,
+          reviewCount: fachman.review_count,
+          bestRating: 5,
+          worstRating: 1,
+        },
+      } : {}),
+    },
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       <section className="relative pt-28 pb-12 bg-white border-b">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-white to-blue-50"></div>
@@ -255,13 +342,10 @@ export default function FachmanDetailPage() {
             ← Zpět na seznam
           </Link>
 
-          <div
-            className={`flex flex-col sm:flex-row gap-6 ${
-              mounted ? "animate-fade-in-up" : "opacity-0"
-            }`}
-          >
+          <div className="flex flex-col sm:flex-row gap-6">
             <div className="relative">
               {fachman.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={fachman.avatar_url}
                   alt={fachman.full_name}
@@ -297,17 +381,28 @@ export default function FachmanDetailPage() {
 
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-3 mb-2">
-                <h1 className="text-3xl font-bold text-gray-900">
-                  {fachman.full_name}
-                </h1>
+                <h1 className="text-3xl font-bold text-gray-900">{fachman.full_name}</h1>
                 {fachman.is_verified && (
                   <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium">
                     ✓ Ověřený
                   </span>
                 )}
+                {fachman.bank_verified && (
+                  <span
+                    className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium"
+                    title="Reálný bankovní účet ověřen 1 Kč platbou"
+                  >
+                    💳 Ověřeno bankou
+                  </span>
+                )}
                 {isPremium && (
                   <span className="inline-flex items-center gap-1 bg-cyan-100 text-cyan-700 px-3 py-1 rounded-full text-sm font-medium">
                     ⭐ Premium
+                  </span>
+                )}
+                {!fachman.is_verified && !fachman.is_seed && (
+                  <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-sm font-medium border border-orange-200">
+                    Neověřeno
                   </span>
                 )}
               </div>
@@ -318,49 +413,36 @@ export default function FachmanDetailPage() {
                     {[1, 2, 3, 4, 5].map((star) => (
                       <span
                         key={star}
-                        className={
-                          star <= Math.round(fachman.rating)
-                            ? "text-yellow-400"
-                            : "text-gray-300"
-                        }
+                        className={star <= Math.round(fachman.rating) ? "text-yellow-400" : "text-gray-300"}
                       >
                         ★
                       </span>
                     ))}
                   </div>
                   <span className="font-bold text-gray-900">{fachman.rating}</span>
-                  <span className="text-gray-500">
-                    ({fachman.review_count} hodnocení)
-                  </span>
+                  <span className="text-gray-500">({fachman.review_count} hodnocení)</span>
                 </div>
               )}
 
               {fachman.categories.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   {fachman.categories.map((cat) => (
-                    <span
-                      key={cat.id}
-                      className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm"
-                    >
-                      {cat.icon} {cat.name}
+                    <span key={cat.id} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm inline-flex items-center gap-1">
+                      <CategoryIcon icon={cat.icon} size={14} />{cat.name}
                     </span>
                   ))}
                 </div>
               )}
 
               <div className="flex flex-wrap gap-4 text-gray-600">
-                {fachman.locations && fachman.locations.length > 0 && (
-                  <span className="flex items-center gap-1">
-                    📍 {fachman.locations.join(", ")}
-                  </span>
-                )}
+                {locationPrimary ? (
+                  <span className="flex items-center gap-1">📍 {locationPrimary}</span>
+                ) : fachman.locations && fachman.locations.length > 0 ? (
+                  <span className="flex items-center gap-1">📍 {fachman.locations.join(", ")}</span>
+                ) : null}
                 {fachman.hourly_rate && (
                   <span className="flex items-center gap-1">
-                    💰 od{" "}
-                    <strong className="text-gray-900">
-                      {fachman.hourly_rate} Kč
-                    </strong>
-                    /hod
+                    💰 od <strong className="text-gray-900">{fachman.hourly_rate} Kč</strong>/hod
                   </span>
                 )}
               </div>
@@ -376,14 +458,12 @@ export default function FachmanDetailPage() {
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-xs text-gray-500 mb-1">📍 Lokalita</p>
               <p className="font-semibold text-gray-900 text-sm">
-                {fachman.location || (fachman.locations && fachman.locations.length > 0 ? fachman.locations.join(", ") : "Lokalita neuvedena")}
+                {locationFallback || "Lokalita neuvedena"}
               </p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-xs text-gray-500 mb-1">📞 Telefon</p>
-              <p className="font-semibold text-gray-900 text-sm">
-                {fachman.phone || "Neuvedeno"}
-              </p>
+              <p className="font-semibold text-gray-900 text-sm">{fachman.phone || "Neuvedeno"}</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-xs text-gray-500 mb-1">💰 Hodinová sazba</p>
@@ -393,9 +473,7 @@ export default function FachmanDetailPage() {
             </div>
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-xs text-gray-500 mb-1">🏢 IČO</p>
-              <p className="font-semibold text-gray-900 text-sm">
-                {fachman.ico || "Neuvedeno"}
-              </p>
+              <p className="font-semibold text-gray-900 text-sm">{fachman.ico || "Neuvedeno"}</p>
             </div>
           </div>
         </div>
@@ -417,6 +495,26 @@ export default function FachmanDetailPage() {
                   Hodnocení ({fachman.review_count})
                 </h2>
 
+                {fachman.rating_breakdown.dim_count > 0 && (
+                  <div className="mb-5 p-4 bg-gray-50 rounded-xl border border-gray-100 grid grid-cols-3 gap-3 text-center">
+                    {([
+                      { key: "quality", label: "Kvalita", value: fachman.rating_breakdown.quality },
+                      { key: "communication", label: "Komunikace", value: fachman.rating_breakdown.communication },
+                      { key: "price", label: "Cena", value: fachman.rating_breakdown.price },
+                    ] as const).map((d) => (
+                      <div key={d.key}>
+                        <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">{d.label}</div>
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-yellow-500">★</span>
+                          <span className="font-bold text-gray-900">
+                            {d.value !== null ? d.value.toFixed(1) : "—"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {fachman.reviews.length === 0 ? (
                   <p className="text-gray-500">Zatím žádná hodnocení.</p>
                 ) : (
@@ -431,18 +529,14 @@ export default function FachmanDetailPage() {
                             <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-600">
                               {review.customer_name.charAt(0)}
                             </div>
-                            <span className="font-medium text-gray-900">
-                              {review.customer_name}
-                            </span>
+                            <span className="font-medium text-gray-900">{review.customer_name}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             {[1, 2, 3, 4, 5].map((star) => (
                               <span
                                 key={star}
                                 className={`text-sm ${
-                                  star <= review.rating
-                                    ? "text-yellow-400"
-                                    : "text-gray-300"
+                                  star <= review.rating ? "text-yellow-400" : "text-gray-300"
                                 }`}
                               >
                                 ★
@@ -465,9 +559,7 @@ export default function FachmanDetailPage() {
 
             <div className="space-y-6">
               <div className="bg-white rounded-2xl p-6 shadow-sm sticky top-24">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">
-                  Kontaktovat
-                </h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Kontaktovat</h3>
 
                 <Link
                   href="/nova-poptavka"
@@ -476,15 +568,26 @@ export default function FachmanDetailPage() {
                   📝 Zadat poptávku
                 </Link>
 
+                {canDirectMessage && (
+                  <Link
+                    href={`/zpravy/direct/${fachman.id}`}
+                    className="block w-full text-center bg-white border-2 border-cyan-500 text-cyan-600 py-3 rounded-xl font-semibold hover:bg-cyan-50 transition-all mb-3"
+                  >
+                    💬 Napsat zprávu
+                  </Link>
+                )}
+
                 {fachman.phone && (
-                  <a href={`tel:${fachman.phone}`} className="block w-full text-center border-2 border-gray-200 text-gray-700 py-3 rounded-xl font-medium hover:border-cyan-500 hover:text-cyan-600 transition-all mb-3">
+                  <a
+                    href={`tel:${fachman.phone}`}
+                    className="block w-full text-center border-2 border-gray-200 text-gray-700 py-3 rounded-xl font-medium hover:border-cyan-500 hover:text-cyan-600 transition-all mb-3"
+                  >
                     📞 {fachman.phone}
                   </a>
                 )}
 
                 <p className="text-gray-500 text-sm text-center mt-4">
-                  Registrován od{" "}
-                  {new Date(fachman.created_at).toLocaleDateString("cs-CZ")}
+                  Registrován od {new Date(fachman.created_at).toLocaleDateString("cs-CZ")}
                 </p>
               </div>
             </div>

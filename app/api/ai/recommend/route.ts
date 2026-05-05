@@ -64,6 +64,7 @@ Kategorie může být: instalatér, elektrikář, malíř, zedník, truhlář, I
         service_description: "",
       };
     }
+    const analysisUsage = analysisData.usage;
 
     // Step 2: Query providers from DB
     const cookieStore = await cookies();
@@ -125,7 +126,7 @@ Kategorie může být: instalatér, elektrikář, malíř, zedník, truhlář, I
           .limit(5);
 
         // Track usage
-        await trackUsage(supabase, analysisData.usage);
+        await trackUsage(supabase, analysisUsage);
 
         return NextResponse.json({
           analysis,
@@ -134,7 +135,7 @@ Kategorie může být: instalatér, elektrikář, malíř, zedník, truhlář, I
       }
 
       // Track usage
-      await trackUsage(supabase, analysisData.usage);
+      await trackUsage(supabase, analysisUsage);
 
       return NextResponse.json({
         analysis,
@@ -147,7 +148,7 @@ Kategorie může být: instalatér, elektrikář, malíř, zedník, truhlář, I
     }
 
     // Track usage
-    await trackUsage(supabase, analysisData.usage);
+    await trackUsage(supabase, analysisUsage);
 
     return NextResponse.json({
       analysis,

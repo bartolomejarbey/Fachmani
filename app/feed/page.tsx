@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
@@ -47,7 +48,16 @@ const REACTIONS = ["👍", "❤️", "😂", "😮", "👏", "🔥"];
 
 function Avatar({ src, name, size = "w-12 h-12", textSize = "text-lg" }: { src?: string | null; name?: string; size?: string; textSize?: string }) {
   if (src) {
-    return <img src={src} alt={name || ""} className={`${size} rounded-full object-cover flex-shrink-0`} />;
+    const px = size.includes("w-8") ? 32 : 48;
+    return (
+      <Image
+        src={src}
+        alt={name || ""}
+        width={px}
+        height={px}
+        className={`${size} rounded-full object-cover flex-shrink-0`}
+      />
+    );
   }
   return (
     <div className={`${size} rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-white font-bold ${textSize} flex-shrink-0`}>
@@ -58,6 +68,7 @@ function Avatar({ src, name, size = "w-12 h-12", textSize = "text-lg" }: { src?:
 
 export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
+  const [totalPosts, setTotalPosts] = useState(0);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<{ id: string; profile?: { full_name?: string; role?: string; avatar_url?: string | null } } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -73,11 +84,20 @@ export default function FeedPage() {
   const [editContent, setEditContent] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [reactionsPopup, setReactionsPopup] = useState<{ postId: string; emoji: string; names: string[] } | null>(null);
+  const [feedQuota, setFeedQuota] = useState<{ remaining: number | null; limit: number; subscription: string } | null>(null);
+  const [reportingPost, setReportingPost] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState<string>("spam");
+  const [reportComment, setReportComment] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportedPostIds, setReportedPostIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadUser();
-    loadPosts();
   }, []);
+
+  useEffect(() => {
+    loadPosts(currentPage);
+  }, [currentPage]);
 
   const loadUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -88,13 +108,37 @@ export default function FeedPage() {
         .eq("id", user.id)
         .single();
       setCurrentUser({ ...user, profile: profile || undefined });
+      loadFeedQuota(user.id);
     }
   };
 
-  const loadPosts = async () => {
+  const loadFeedQuota = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("v_my_feed_quota")
+      .select("subscription_type, monthly_post_limit, posts_remaining")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !data) return;
+    const row = data as {
+      subscription_type: string | null;
+      monthly_post_limit: number | null;
+      posts_remaining: number | null;
+    };
+    setFeedQuota({
+      remaining: row.posts_remaining,
+      limit: row.monthly_post_limit ?? 3,
+      subscription: row.subscription_type || "free",
+    });
+  };
+
+  const loadPosts = async (page: number) => {
+    setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
-    const { data: postsData } = await supabase
+    const from = (page - 1) * ITEMS_PER_PAGE;
+    const to = from + ITEMS_PER_PAGE - 1;
+
+    const { data: postsData, count } = await supabase
       .from("posts")
       .select(`
         *,
@@ -102,8 +146,12 @@ export default function FeedPage() {
         post_likes (user_id, profiles:user_id (full_name)),
         post_comments (id, content, created_at, profiles:user_id (full_name, avatar_url)),
         post_reactions (user_id, emoji, profiles:user_id (full_name))
-      `)
-      .order("created_at", { ascending: false });
+      `, { count: "exact" })
+      .eq("moderation_status", "approved")
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (count !== null) setTotalPosts(count);
 
     if (postsData) {
       type PostRow = Record<string, unknown> & {
@@ -226,6 +274,25 @@ export default function FeedPage() {
       }
     }
 
+    // C.F3 — AI moderace před publikací
+    try {
+      const modRes = await fetch("/api/moderation/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: newPostContent.trim(), kind: "feed" }),
+      });
+      if (modRes.ok) {
+        const mod = await modRes.json();
+        if (mod.flagged) {
+          alert("Příspěvek nelze publikovat — obsahuje obsah, který porušuje pravidla komunity.");
+          setPosting(false);
+          return;
+        }
+      }
+    } catch {
+      // fail-open
+    }
+
     const { error } = await supabase.from("posts").insert({
       user_id: currentUser.id,
       content: newPostContent.trim(),
@@ -233,7 +300,17 @@ export default function FeedPage() {
     });
 
     if (error) {
-      alert("Nepodařilo se publikovat příspěvek.");
+      const msg = error.message || "";
+      if (msg.includes("Vyčerpali jste") || msg.includes("free_feed_posts_per_month")) {
+        alert(
+          msg.includes("Vyčerpali")
+            ? msg
+            : "Vyčerpali jste bezplatné příspěvky pro tento měsíc. Aktivujte Premium pro neomezené přidávání.",
+        );
+      } else {
+        alert("Nepodařilo se publikovat příspěvek.");
+      }
+      loadFeedQuota(currentUser.id);
       setPosting(false);
       return;
     }
@@ -242,7 +319,9 @@ export default function FeedPage() {
     setNewPostImage(null);
     setImagePreview(null);
     setPosting(false);
-    loadPosts();
+    loadFeedQuota(currentUser.id);
+    if (currentPage === 1) loadPosts(1);
+    else setCurrentPage(1);
   };
 
   const handleDeletePost = async (postId: string) => {
@@ -253,7 +332,7 @@ export default function FeedPage() {
       alert("Nepodařilo se smazat příspěvek.");
       return;
     }
-    loadPosts();
+    loadPosts(currentPage);
   };
 
   const handleEditPost = async (postId: string) => {
@@ -271,7 +350,31 @@ export default function FeedPage() {
 
     setEditingPost(null);
     setEditContent("");
-    loadPosts();
+    loadPosts(currentPage);
+  };
+
+  const handleReportSubmit = async () => {
+    if (!reportingPost || !currentUser) return;
+    setReportSubmitting(true);
+    const { error } = await supabase.from("post_reports").insert({
+      post_id: reportingPost,
+      reporter_id: currentUser.id,
+      reason: reportReason,
+      comment: reportComment.trim() || null,
+    });
+    setReportSubmitting(false);
+    if (error) {
+      if (error.code === "23505") {
+        alert("Tento příspěvek jste již nahlásili.");
+      } else {
+        alert(`Nepodařilo se odeslat hlášení: ${error.message}`);
+        return;
+      }
+    }
+    setReportedPostIds((prev) => new Set([...prev, reportingPost]));
+    setReportingPost(null);
+    setReportReason("spam");
+    setReportComment("");
   };
 
   const handleReaction = async (postId: string, emoji: string) => {
@@ -294,7 +397,7 @@ export default function FeedPage() {
     }
 
     setShowReactions(null);
-    loadPosts();
+    loadPosts(currentPage);
   };
 
   const handleComment = async (postId: string) => {
@@ -313,7 +416,7 @@ export default function FeedPage() {
     }
 
     setNewComments((prev) => ({ ...prev, [postId]: "" }));
-    loadPosts();
+    loadPosts(currentPage);
   };
 
   const timeAgo = (date: string) => {
@@ -345,6 +448,29 @@ export default function FeedPage() {
           {/* New Post */}
           {currentUser ? (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+              {feedQuota && feedQuota.remaining !== null && (
+                <div
+                  className={`mb-4 -mt-1 rounded-lg px-3 py-2 text-sm border ${
+                    feedQuota.remaining === 0
+                      ? "bg-orange-50 border-orange-200 text-orange-800"
+                      : "bg-gray-50 border-gray-200 text-gray-600"
+                  }`}
+                >
+                  {feedQuota.remaining === 0 ? (
+                    <>
+                      Free limit vyčerpán ({feedQuota.limit} příspěvků / 30 dní).{" "}
+                      <Link href="/predplatne" className="text-cyan-700 font-semibold underline">
+                        Aktivovat Premium pro neomezené příspěvky →
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      Zbývá <strong>{feedQuota.remaining}</strong> z {feedQuota.limit} bezplatných
+                      příspěvků v tomto měsíci.
+                    </>
+                  )}
+                </div>
+              )}
               <div className="flex gap-4">
                 <Avatar src={currentUser.profile?.avatar_url} name={currentUser.profile?.full_name} />
                 <div className="flex-1">
@@ -354,6 +480,7 @@ export default function FeedPage() {
                     placeholder="Co je nového? Sdílejte svůj projekt..."
                     className="w-full border-0 resize-none focus:ring-0 text-gray-700 placeholder-gray-400 text-lg"
                     rows={3}
+                    disabled={feedQuota?.remaining === 0}
                   />
 
                   {imagePreview && (
@@ -386,7 +513,11 @@ export default function FeedPage() {
                     </div>
                     <button
                       onClick={handlePost}
-                      disabled={posting || (!newPostContent.trim() && !newPostImage)}
+                      disabled={
+                        posting ||
+                        (!newPostContent.trim() && !newPostImage) ||
+                        feedQuota?.remaining === 0
+                      }
                       className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-2 rounded-xl font-semibold disabled:opacity-50 hover:shadow-lg transition-all"
                     >
                       {posting ? "Publikuji..." : "Publikovat"}
@@ -417,7 +548,7 @@ export default function FeedPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              {posts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((post) => (
+              {posts.map((post) => (
                 <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                   {/* Post Header */}
                   <div className="p-6 pb-4">
@@ -440,7 +571,7 @@ export default function FeedPage() {
                       </div>
 
                       {/* Own post actions */}
-                      {currentUser?.id === post.user_id && (
+                      {currentUser?.id === post.user_id ? (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => {
@@ -460,7 +591,21 @@ export default function FeedPage() {
                             🗑️
                           </button>
                         </div>
-                      )}
+                      ) : currentUser ? (
+                        <button
+                          onClick={() => !reportedPostIds.has(post.id) && setReportingPost(post.id)}
+                          disabled={reportedPostIds.has(post.id)}
+                          className={`p-2 rounded-lg transition-colors text-sm ${
+                            reportedPostIds.has(post.id)
+                              ? "text-gray-300 cursor-not-allowed"
+                              : "text-gray-400 hover:text-red-600 hover:bg-red-50"
+                          }`}
+                          title={reportedPostIds.has(post.id) ? "Již nahlášeno" : "Nahlásit příspěvek"}
+                          aria-label="Nahlásit příspěvek"
+                        >
+                          🚩
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 
@@ -497,7 +642,14 @@ export default function FeedPage() {
                   {/* Image */}
                   {post.image_url && (
                     <div className="px-6 pb-4">
-                      <img src={post.image_url} alt="" className="w-full rounded-xl object-contain max-h-[600px]" />
+                      <Image
+                        src={post.image_url}
+                        alt=""
+                        width={1200}
+                        height={1200}
+                        sizes="(max-width: 672px) 100vw, 672px"
+                        className="w-full h-auto rounded-xl object-contain max-h-[600px]"
+                      />
                     </div>
                   )}
 
@@ -634,10 +786,10 @@ export default function FeedPage() {
             </div>
           )}
 
-          {posts.length > ITEMS_PER_PAGE && (
+          {totalPosts > ITEMS_PER_PAGE && (
             <Pagination
               currentPage={currentPage}
-              totalPages={Math.ceil(posts.length / ITEMS_PER_PAGE)}
+              totalPages={Math.ceil(totalPosts / ITEMS_PER_PAGE)}
               onPageChange={(page) => {
                 setCurrentPage(page);
                 window.scrollTo({ top: 0, behavior: "smooth" });
@@ -677,6 +829,87 @@ export default function FeedPage() {
                   <span className="text-gray-900 text-sm font-medium">{name}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report post modal */}
+      {reportingPost && (
+        <div
+          className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4"
+          onClick={() => !reportSubmitting && setReportingPost(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <span>🚩</span> Nahlásit příspěvek
+              </h3>
+              <button
+                onClick={() => setReportingPost(null)}
+                disabled={reportSubmitting}
+                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-gray-600">
+                Vyberte důvod hlášení. Příspěvek prozkoumá náš tým.
+              </p>
+              <div className="space-y-2">
+                {[
+                  { value: "spam", label: "Spam / reklama" },
+                  { value: "inappropriate", label: "Nevhodný obsah / vulgarity" },
+                  { value: "fraud", label: "Podvod / scam" },
+                  { value: "fake", label: "Falešné informace" },
+                  { value: "other", label: "Jiný důvod" },
+                ].map((r) => (
+                  <label key={r.value} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded-lg">
+                    <input
+                      type="radio"
+                      name="report-reason"
+                      value={r.value}
+                      checked={reportReason === r.value}
+                      onChange={(e) => setReportReason(e.target.value)}
+                      className="text-cyan-600"
+                    />
+                    <span className="text-sm text-gray-900">{r.label}</span>
+                  </label>
+                ))}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Doplňující informace (volitelné)
+                </label>
+                <textarea
+                  value={reportComment}
+                  onChange={(e) => setReportComment(e.target.value.slice(0, 500))}
+                  rows={3}
+                  placeholder="Např. konkrétní problém, kontext…"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 resize-none text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">{reportComment.length}/500</p>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-100 flex gap-2 justify-end">
+              <button
+                onClick={() => setReportingPost(null)}
+                disabled={reportSubmitting}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-semibold text-sm disabled:opacity-50"
+              >
+                Zrušit
+              </button>
+              <button
+                onClick={handleReportSubmit}
+                disabled={reportSubmitting}
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg font-semibold text-sm disabled:opacity-50"
+              >
+                {reportSubmitting ? "Odesílám…" : "Odeslat hlášení"}
+              </button>
             </div>
           </div>
         </div>

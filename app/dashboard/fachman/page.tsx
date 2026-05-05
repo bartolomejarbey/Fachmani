@@ -13,6 +13,8 @@ type Profile = {
   email: string;
   is_verified: boolean;
   subscription_type: string;
+  trial_until: string | null;
+  trial_offers_used: number | null;
 };
 
 type Request = {
@@ -44,6 +46,9 @@ type Offer = {
 
 type PlatformSettings = {
   free_offers_per_month: number;
+  trial_months?: number;
+  trial_offers_limit?: number;
+  trial_grace_days?: number;
 };
 
 export default function FachmanDashboard() {
@@ -98,10 +103,11 @@ export default function FachmanDashboard() {
       setSettings(settingsData.value);
     }
 
-    // Načteme kategorie
+    // Načteme pouze aktivní kategorie
     const { data: categoriesData } = await supabase
       .from("categories")
       .select("id, name, icon")
+      .eq("is_active", true)
       .order("name");
 
     setCategories(categoriesData || []);
@@ -184,8 +190,31 @@ export default function FachmanDashboard() {
   });
 
   const isPremium = profile?.subscription_type === "premium" || profile?.subscription_type === "business";
-  const canSendOffer = isPremium || offersThisMonth < settings.free_offers_per_month;
-  const remainingFreeOffers = Math.max(0, settings.free_offers_per_month - offersThisMonth);
+
+  // C.F1 / B.F1 — trial pro free fachmana (2 měsíce / 10 reakcí + 7 dní grace)
+  const trialOffersLimit = settings.trial_offers_limit ?? 10;
+  const trialGraceDays = settings.trial_grace_days ?? 7;
+  const trialUsed = profile?.trial_offers_used ?? 0;
+  const trialOffersLeft = Math.max(0, trialOffersLimit - trialUsed);
+  const trialUntilDate = profile?.trial_until ? new Date(profile.trial_until) : null;
+  const trialGraceEndDate = trialUntilDate
+    ? new Date(trialUntilDate.getTime() + trialGraceDays * 24 * 60 * 60 * 1000)
+    : null;
+  const trialDaysLeft = trialUntilDate
+    ? Math.max(0, Math.ceil((trialUntilDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null;
+  const graceDaysLeft = trialGraceEndDate
+    ? Math.max(0, Math.ceil((trialGraceEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null;
+  const trialExpired = trialUntilDate ? trialUntilDate.getTime() < Date.now() : false;
+  const trialInGrace = !isPremium && trialExpired && trialGraceEndDate !== null && trialGraceEndDate.getTime() > Date.now();
+  const graceExpired = trialGraceEndDate ? trialGraceEndDate.getTime() < Date.now() : false;
+  const trialOffersExhausted = !isPremium && trialOffersLeft === 0;
+  // Hard block jen po vypršení grace nebo vyčerpání reakcí
+  const trialBlocked = !isPremium && ((trialExpired && graceExpired) || trialOffersExhausted);
+
+  const canSendOffer = isPremium || ((!trialExpired || trialInGrace) && trialOffersLeft > 0);
+  const remainingFreeOffers = trialOffersLeft;
 
   if (loading) {
     return (
@@ -245,23 +274,27 @@ export default function FachmanDashboard() {
             </p>
           </div>
           <div className={`rounded-2xl p-6 shadow-sm border ${
-            isPremium 
-              ? "bg-cyan-50 border-cyan-200" 
-              : remainingFreeOffers > 0 
-                ? "bg-white border-gray-100"
-                : "bg-red-50 border-red-200"
+            isPremium
+              ? "bg-cyan-50 border-cyan-200"
+              : trialBlocked
+                ? "bg-red-50 border-red-200"
+                : trialOffersLeft <= 3
+                  ? "bg-amber-50 border-amber-200"
+                  : "bg-white border-gray-100"
           }`}>
             <p className="text-gray-500 text-sm mb-1">
-              {isPremium ? "Neomezené nabídky" : "Zbývá nabídek"}
+              {isPremium ? "Neomezené reakce" : "Trial reakce"}
             </p>
             <p className={`text-3xl font-bold ${
-              isPremium 
-                ? "text-cyan-600" 
-                : remainingFreeOffers > 0 
-                  ? "text-gray-900"
-                  : "text-red-600"
+              isPremium
+                ? "text-cyan-600"
+                : trialBlocked
+                  ? "text-red-600"
+                  : trialOffersLeft <= 3
+                    ? "text-amber-600"
+                    : "text-gray-900"
             }`}>
-              {isPremium ? "∞" : `${remainingFreeOffers}/${settings.free_offers_per_month}`}
+              {isPremium ? "∞" : `${trialOffersLeft}/${trialOffersLimit}`}
             </p>
             {!isPremium && (
               <Link href="/cenik" className="text-cyan-600 text-sm font-medium hover:underline">
@@ -271,22 +304,93 @@ export default function FachmanDashboard() {
           </div>
         </div>
 
-        {/* Upozornění na limit */}
-        {!isPremium && remainingFreeOffers === 0 && (
+        {/* C.F1 — Trial info banner (free fachman, trial ještě běží) */}
+        {!isPremium && !trialBlocked && trialUntilDate && (
+          <div className={`rounded-2xl p-4 mb-6 border ${
+            (trialDaysLeft !== null && trialDaysLeft <= 7) || trialOffersLeft <= 3
+              ? "bg-amber-50 border-amber-200"
+              : "bg-cyan-50 border-cyan-200"
+          }`}>
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🎁</span>
+              <div className="flex-1">
+                <h3 className={`font-semibold ${
+                  (trialDaysLeft !== null && trialDaysLeft <= 7) || trialOffersLeft <= 3
+                    ? "text-amber-800"
+                    : "text-cyan-800"
+                }`}>
+                  Trial: zbývá {trialOffersLeft} {trialOffersLeft === 1 ? "reakce" : (trialOffersLeft >= 2 && trialOffersLeft <= 4 ? "reakce" : "reakcí")}
+                  {trialDaysLeft !== null && (
+                    <> a {trialDaysLeft} {trialDaysLeft === 1 ? "den" : (trialDaysLeft >= 2 && trialDaysLeft <= 4 ? "dny" : "dní")}</>
+                  )}
+                </h3>
+                <p className={`text-sm ${
+                  (trialDaysLeft !== null && trialDaysLeft <= 7) || trialOffersLeft <= 3
+                    ? "text-amber-700"
+                    : "text-cyan-700"
+                }`}>
+                  Po vyčerpání trial období přejdete na Premium pro neomezené reakce a další výhody.
+                </p>
+              </div>
+              <Link
+                href="/cenik"
+                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap ${
+                  (trialDaysLeft !== null && trialDaysLeft <= 7) || trialOffersLeft <= 3
+                    ? "bg-amber-600 text-white hover:bg-amber-700"
+                    : "bg-cyan-600 text-white hover:bg-cyan-700"
+                }`}
+              >
+                Upgradovat
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* B.F1 — Soft block (grace 7 dní po vypršení trial) */}
+        {trialInGrace && !trialOffersExhausted && (
+          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">⏳</span>
+              <div className="flex-1">
+                <h3 className="font-semibold text-orange-800">
+                  Trial vypršel — máte ještě {graceDaysLeft} {graceDaysLeft === 1 ? "den" : "dní"} grace
+                </h3>
+                <p className="text-orange-700 text-sm">
+                  Trial období skončilo, ale ještě po dobu {trialGraceDays} dnů můžete reagovat na poptávky.
+                  Pro plný přístup bez přerušení aktivujte Premium.
+                </p>
+                <Link
+                  href="/predplatne"
+                  className="inline-block mt-2 bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-orange-700"
+                >
+                  Aktivovat Premium
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* C.F1 — Hard block po vyčerpání trialu (grace skončilo nebo reakce došly) */}
+        {trialBlocked && (
           <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6">
             <div className="flex items-start gap-3">
-              <span className="text-2xl">⚠️</span>
+              <span className="text-2xl">⛔</span>
               <div>
-                <h3 className="font-semibold text-red-800">Vyčerpali jste limit nabídek</h3>
+                <h3 className="font-semibold text-red-800">
+                  {trialOffersExhausted
+                    ? `Vyčerpáno ${trialOffersLimit} reakcí`
+                    : "Trial i grace období vypršely"}
+                </h3>
                 <p className="text-red-700 text-sm">
-                  Tento měsíc jste již odeslali {settings.free_offers_per_month} nabídek. 
-                  Přejděte na Premium pro neomezené nabídky.
+                  {trialOffersExhausted
+                    ? `Vyčerpali jste všech ${trialOffersLimit} trial reakcí. Pro neomezené reakce přejděte na Premium.`
+                    : `Vaše trial období i ${trialGraceDays}-denní grace skončily. Pro pokračování přejděte na Premium.`}
                 </p>
-                <Link 
-                  href="/cenik" 
+                <Link
+                  href="/predplatne"
                   className="inline-block mt-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700"
                 >
-                  Upgradovat na Premium
+                  Přejít na Premium
                 </Link>
               </div>
             </div>
@@ -414,7 +518,7 @@ export default function FachmanDashboard() {
                           </Link>
                         ) : (
                           <span className="flex-1 lg:flex-none text-center px-4 py-2 bg-gray-200 text-gray-500 rounded-xl cursor-not-allowed font-medium">
-                            Limit vyčerpán
+                            {trialExpired ? "Trial vypršel" : "Trial vyčerpán"}
                           </span>
                         )}
                       </div>

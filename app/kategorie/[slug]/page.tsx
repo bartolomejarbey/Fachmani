@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
+import CategoryIcon from "@/app/components/CategoryIcon";
 
 type Category = {
   id: string;
@@ -14,6 +15,17 @@ type Category = {
   slug: string;
   description: string | null;
   icon: string;
+  parent_id: string | null;
+  is_active: boolean;
+};
+
+type SubCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string;
+  providerCount: number;
+  requestCount: number;
 };
 
 type Request = {
@@ -39,6 +51,8 @@ type Provider = {
   rating: number;
   review_count: number;
   is_seed: boolean;
+  is_ghost: boolean;
+  ghost_ico: string | null;
   has_promo: boolean;
   promo_type: string | null;
 };
@@ -62,6 +76,8 @@ export default function KategorieDetail() {
   const slug = params.slug as string;
 
   const [category, setCategory] = useState<Category | null>(null);
+  const [parentCategory, setParentCategory] = useState<Category | null>(null);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,11 +91,12 @@ export default function KategorieDetail() {
   }, [slug]);
 
   const loadData = async () => {
-    // Načteme kategorii
+    // Načteme kategorii (pouze aktivní)
     const { data: catData } = await supabase
       .from("categories")
       .select("*")
       .eq("slug", slug)
+      .eq("is_active", true)
       .single();
 
     if (!catData) {
@@ -89,34 +106,96 @@ export default function KategorieDetail() {
 
     setCategory(catData);
 
-    // === Načteme poptávky v této kategorii ===
+    // Pokud je to MAIN (parent_id NULL), načteme subs a agregujeme přes ně
+    const isMain = catData.parent_id === null;
+    let categoryIds: string[] = [catData.id];
+
+    if (isMain) {
+      const { data: subs } = await supabase
+        .from("categories")
+        .select("id, name, slug, icon")
+        .eq("parent_id", catData.id)
+        .eq("is_active", true)
+        .order("sort_order")
+        .order("name");
+
+      if (subs && subs.length > 0) {
+        const subIds = subs.map(s => s.id);
+        categoryIds = [catData.id, ...subIds];
+
+        // Počty pro subs (providers + requests)
+        const { data: subProviderCats } = await supabase
+          .from("provider_categories")
+          .select("category_id")
+          .in("category_id", subIds);
+        const subProviderCounts: Record<string, number> = {};
+        subProviderCats?.forEach(pc => {
+          subProviderCounts[pc.category_id] = (subProviderCounts[pc.category_id] || 0) + 1;
+        });
+
+        const { data: subRequests } = await supabase
+          .from("requests")
+          .select("category_id")
+          .in("category_id", subIds)
+          .eq("status", "active");
+        const subRequestCounts: Record<string, number> = {};
+        subRequests?.forEach(r => {
+          if (r.category_id) {
+            subRequestCounts[r.category_id] = (subRequestCounts[r.category_id] || 0) + 1;
+          }
+        });
+
+        setSubCategories(subs.map(s => ({
+          ...s,
+          providerCount: subProviderCounts[s.id] || 0,
+          requestCount: subRequestCounts[s.id] || 0,
+        })));
+      } else {
+        setSubCategories([]);
+      }
+    } else {
+      // Sub — načti parent pro breadcrumb
+      if (catData.parent_id) {
+        const { data: parentData } = await supabase
+          .from("categories")
+          .select("*")
+          .eq("id", catData.parent_id)
+          .eq("is_active", true)
+          .single();
+        if (parentData) setParentCategory(parentData);
+      }
+    }
+
+    // === Načteme poptávky (pro main z main+subs, pro sub jen z té sub) ===
     const { data: reqData } = await supabase
       .from("requests")
       .select("*")
-      .eq("category_id", catData.id)
+      .in("category_id", categoryIds)
       .eq("status", "active")
       .order("created_at", { ascending: false });
 
     setRequests(reqData || []);
 
-    // === Načteme fachmany v této kategorii ===
+    // === Načteme fachmany ===
     const allProviders: Provider[] = [];
 
     // 1. REÁLNÍ fachmani
     const { data: providerCategoriesData } = await supabase
       .from("provider_categories")
       .select("provider_id")
-      .eq("category_id", catData.id);
+      .in("category_id", categoryIds);
 
     if (providerCategoriesData && providerCategoriesData.length > 0) {
-      const providerIds = providerCategoriesData.map(pc => pc.provider_id);
+      const providerIds = Array.from(new Set(providerCategoriesData.map(pc => pc.provider_id)));
 
-      // Načteme profily
+      // Načteme profily — C.F2: pouze premium+ nebo free s aktivním trialem
+      const nowIso = new Date().toISOString();
       const { data: profilesData } = await supabase
         .from("profiles")
-        .select("id, full_name, is_verified, subscription_type")
+        .select("id, full_name, is_verified, subscription_type, trial_until")
         .in("id", providerIds)
-        .eq("role", "provider");
+        .eq("role", "provider")
+        .or(`subscription_type.in.(premium,business),and(subscription_type.eq.free,trial_until.gt.${nowIso})`);
 
       // Načteme provider_profiles
       const { data: providerProfilesData } = await supabase
@@ -158,18 +237,20 @@ export default function KategorieDetail() {
           rating: avgRating,
           review_count: revs.length,
           is_seed: false,
+          is_ghost: false,
+          ghost_ico: null,
           has_promo: !!promo,
           promo_type: promo?.type || null,
         });
       });
     }
 
-    // 2. FIKTIVNÍ fachmani v této kategorii
+    // 2. FIKTIVNÍ fachmani (pro main: v hlavní i jejích subs; pro sub: jen v té sub)
     const { data: seedData } = await supabase
       .from("seed_providers")
       .select("*")
       .eq("is_active", true)
-      .contains("category_ids", [catData.id]);
+      .overlaps("category_ids", categoryIds);
 
     seedData?.forEach(seed => {
       allProviders.push({
@@ -183,23 +264,58 @@ export default function KategorieDetail() {
         rating: seed.rating || 0,
         review_count: seed.review_count || 0,
         is_seed: true,
+        is_ghost: false,
+        ghost_ico: null,
         has_promo: true,
         promo_type: "top_profile",
       });
     });
 
-    // Seřadíme: promo > premium > verified > rating
+    // 3. GHOST fachmani (ARES) — limit 200 pro výkon klientského loadu.
+    // Bio = právní forma (s.r.o., a.s., …), location = město z legal_address.
+    const { data: ghostData } = await supabase
+      .from("ghost_subjects")
+      .select("ico, name, legal_form, legal_address")
+      .is("claimed_at", null)
+      .eq("is_active", true)
+      .eq("gdpr_suppressed", false)
+      .overlaps("category_ids", categoryIds)
+      .order("ico", { ascending: true })
+      .limit(200);
+
+    ghostData?.forEach((g) => {
+      const city = (g.legal_address as { city?: string } | null)?.city ?? null;
+      allProviders.push({
+        id: `ghost_${g.ico}`,
+        full_name: g.name,
+        is_verified: false,
+        subscription_type: "free",
+        bio: g.legal_form ?? null,
+        hourly_rate: null,
+        locations: city ? [city] : null,
+        rating: 0,
+        review_count: 0,
+        is_seed: false,
+        is_ghost: true,
+        ghost_ico: g.ico,
+        has_promo: false,
+        promo_type: null,
+      });
+    });
+
+    // Sort tiers (per user instruction): real-unverified → real-verified → real-paying
+    // → seed (ARES profil) → ghost (ARES) — ARES vždy poslední.
+    const tier = (p: Provider): number => {
+      if (p.is_ghost) return 5;
+      if (p.is_seed) return 4;
+      const isPaid = p.subscription_type === "premium" || p.subscription_type === "business";
+      if (isPaid) return 3;
+      if (p.is_verified) return 2;
+      return 1;
+    };
     allProviders.sort((a, b) => {
-      if (a.has_promo && !b.has_promo) return -1;
-      if (!a.has_promo && b.has_promo) return 1;
-
-      const subOrder: Record<string, number> = { business: 3, premium: 2, free: 1 };
-      const subDiff = (subOrder[b.subscription_type] || 0) - (subOrder[a.subscription_type] || 0);
-      if (subDiff !== 0) return subDiff;
-
-      if (a.is_verified && !b.is_verified) return -1;
-      if (!a.is_verified && b.is_verified) return 1;
-
+      const tDiff = tier(a) - tier(b);
+      if (tDiff !== 0) return tDiff;
       return b.rating - a.rating;
     });
 
@@ -269,16 +385,25 @@ export default function KategorieDetail() {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <Link
-              href="/kategorie"
-              className="inline-flex items-center gap-2 text-gray-500 hover:text-cyan-600 mb-6 transition-colors"
-            >
-              ← Všechny kategorie
-            </Link>
+            <nav className="flex items-center gap-2 text-sm text-gray-500 mb-6">
+              <Link href="/kategorie" className="hover:text-cyan-600 transition-colors">
+                Všechny kategorie
+              </Link>
+              {parentCategory && (
+                <>
+                  <span>/</span>
+                  <Link href={`/kategorie/${parentCategory.slug}`} className="hover:text-cyan-600 transition-colors">
+                    {parentCategory.name}
+                  </Link>
+                </>
+              )}
+              <span>/</span>
+              <span className="text-gray-700 font-medium">{category.name}</span>
+            </nav>
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
               <div className="w-20 h-20 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-2xl flex items-center justify-center text-5xl">
-                {category.icon}
+                <CategoryIcon icon={category.icon} size={48} />
               </div>
               <div>
                 <h1 className="text-3xl lg:text-4xl font-bold text-gray-900">{category.name}</h1>
@@ -290,6 +415,32 @@ export default function KategorieDetail() {
           </div>
         </div>
       </section>
+
+      {/* Grid podkategorií (pouze pro hlavní kategorie s subs) */}
+      {category.parent_id === null && subCategories.length > 0 && (
+        <section className="bg-white border-b py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Podkategorie</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {subCategories.map((sub) => (
+                <Link
+                  key={sub.id}
+                  href={`/kategorie/${sub.slug}`}
+                  className="group bg-gray-50 hover:bg-cyan-50 border border-gray-100 hover:border-cyan-200 rounded-xl p-4 transition-all"
+                >
+                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">
+                    <CategoryIcon icon={sub.icon} size={32} />
+                  </div>
+                  <div className="font-semibold text-gray-900 text-sm group-hover:text-cyan-700">{sub.name}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {sub.providerCount} fachmanů · {sub.requestCount} poptávek
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Filters & Tabs */}
       <section className="bg-white border-b sticky top-16 z-20">
@@ -437,33 +588,46 @@ export default function KategorieDetail() {
               ) : (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredProviders.map((provider, i) => {
-                    const isPremium = provider.subscription_type === "premium" || provider.subscription_type === "business";
-                    const isTopProfile = provider.has_promo && provider.promo_type === "top_profile";
+                    const isPremium = !provider.is_ghost && (provider.subscription_type === "premium" || provider.subscription_type === "business");
+                    const isTopProfile = !provider.is_ghost && provider.has_promo && provider.promo_type === "top_profile";
+                    const href = provider.is_ghost && provider.ghost_ico
+                      ? `/fachman/ghost/${provider.ghost_ico}`
+                      : `/fachman/${provider.id}`;
 
                     return (
                       <Link
                         key={provider.id}
-                        href={`/fachman/${provider.id}`}
+                        href={href}
                         className={`block bg-white rounded-2xl shadow-sm p-6 hover:shadow-lg transition-all hover:-translate-y-0.5 border border-gray-100 relative ${
+                          provider.is_ghost ? "opacity-90" :
                           isTopProfile ? "ring-2 ring-yellow-400/50 bg-yellow-50/30" :
                           isPremium ? "ring-2 ring-cyan-500/30" : ""
                         } ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}
                         style={{ animationDelay: `${i * 50}ms` }}
                       >
                         {/* Badges */}
-                        {(isTopProfile || isPremium) && (
-                          <div className="absolute -top-2 left-4">
-                            {isTopProfile ? (
-                              <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                                🚀 Top
-                              </span>
-                            ) : (
-                              <span className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                                ⭐ Premium
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        <div className="absolute -top-2 left-4 flex gap-2">
+                          {isTopProfile && (
+                            <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                              🚀 Top
+                            </span>
+                          )}
+                          {isPremium && !isTopProfile && (
+                            <span className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                              ⭐ Premium
+                            </span>
+                          )}
+                          {provider.is_ghost && (
+                            <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full font-semibold border border-gray-200" title="Subjekt importovaný z ARES, profil zatím nepřevzal">
+                              Neověřeno (ARES)
+                            </span>
+                          )}
+                          {!provider.is_ghost && !provider.is_verified && !isPremium && !isTopProfile && (
+                            <span className="bg-orange-50 text-orange-600 text-xs px-2 py-1 rounded-full font-semibold border border-orange-200" title="Profil zatím není ověřen">
+                              Neověřeno
+                            </span>
+                          )}
+                        </div>
 
                         <div className="flex items-start gap-4 mt-2">
                           <div className="w-14 h-14 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">

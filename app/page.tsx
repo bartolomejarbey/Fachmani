@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import CategoryIcon from "./components/CategoryIcon";
 import { useSettings } from "@/lib/useSettings";
 
 type ProviderAvatar = {
@@ -62,6 +63,15 @@ export default function Home() {
       .from("seed_providers")
       .select("*", { count: "exact", head: true });
 
+    // ARES ghost subjekty — aktivní + neclaimnutí. Počítají se jako profesionálové
+    // dostupní na platformě (tvoří drtivou většinu — viz ghost_subjects_active_visible_idx).
+    const { count: ghostSubjects } = await supabase
+      .from("ghost_subjects")
+      .select("*", { count: "exact", head: true })
+      .is("claimed_at", null)
+      .eq("is_active", true)
+      .eq("gdpr_suppressed", false);
+
     // Expire old requests (may fail if RPC not created yet)
     await supabase.rpc('expire_old_requests');
 
@@ -86,7 +96,7 @@ export default function Home() {
       : 4.8;
 
     setStats({
-      providers: (realProviders || 0) + (seedProviders || 0),
+      providers: (realProviders || 0) + (seedProviders || 0) + (ghostSubjects || 0),
       requests: activeRequests || 0,
       completed: completedRequests || 0,
       avgRating,
@@ -94,26 +104,45 @@ export default function Home() {
   };
 
   const loadCategories = async () => {
-    const { data: cats } = await supabase
+    // Homepage — jen 12 hlavních aktivních
+    const { data: mains } = await supabase
       .from("categories")
       .select("id, name, icon, slug")
-      .order("name");
+      .is("parent_id", null)
+      .eq("is_active", true)
+      .order("sort_order");
 
-    if (cats) {
+    if (mains) {
+      // Count providers agregovaně přes main + jeho subs
+      const { data: allActive } = await supabase
+        .from("categories")
+        .select("id, parent_id")
+        .eq("is_active", true);
+
+      const mainToIds: Record<string, string[]> = {};
+      mains.forEach(m => { mainToIds[m.id] = [m.id]; });
+      allActive?.forEach(c => {
+        if (c.parent_id && mainToIds[c.parent_id]) mainToIds[c.parent_id].push(c.id);
+      });
+
       const { data: providerCategories } = await supabase
         .from("provider_categories")
         .select("category_id");
 
-      const counts: Record<string, number> = {};
+      const perCat: Record<string, number> = {};
       providerCategories?.forEach((pc) => {
-        counts[pc.category_id] = (counts[pc.category_id] || 0) + 1;
+        perCat[pc.category_id] = (perCat[pc.category_id] || 0) + 1;
       });
 
-      setCategories(cats.map(c => ({
-        ...c,
-        slug: c.slug || c.name.toLowerCase().replace(/\s+/g, "-"),
-        count: counts[c.id] || 0,
-      })));
+      setCategories(mains.map(m => {
+        const ids = mainToIds[m.id] || [m.id];
+        const count = ids.reduce((s, id) => s + (perCat[id] || 0), 0);
+        return {
+          ...m,
+          slug: m.slug || m.name.toLowerCase().replace(/\s+/g, "-"),
+          count,
+        };
+      }));
     }
   };
 
@@ -341,7 +370,7 @@ export default function Home() {
                           <div key={req.id} className="w-full flex-shrink-0">
                             <Link href={`/poptavka/${req.id}`} className="block space-y-4 hover:opacity-80 transition-opacity cursor-pointer">
                               <div className="flex items-center justify-between">
-                                <span className="text-3xl">{req.category_icon}</span>
+                                <CategoryIcon icon={req.category_icon} size={32} className="text-3xl" />
                                 <span className="text-sm text-gray-400">{timeAgo(req.created_at)}</span>
                               </div>
                               <h3 className="text-lg sm:text-xl font-bold text-gray-900">{req.title}</h3>
@@ -522,7 +551,9 @@ export default function Home() {
                 href={`/kategorie/${cat.slug}`}
                 className="bg-white rounded-xl p-5 lg:p-6 border border-gray-100 hover:border-cyan-200 hover:shadow-lg transition-all group"
               >
-                <div className="text-3xl lg:text-4xl mb-3 group-hover:scale-110 transition-transform">{cat.icon}</div>
+                <div className="mb-3 group-hover:scale-110 transition-transform inline-flex items-center justify-center text-3xl lg:text-4xl">
+                  <CategoryIcon icon={cat.icon} size={40} />
+                </div>
                 <h3 className="font-semibold text-gray-900 text-base lg:text-lg">{cat.name}</h3>
                 <p className="text-sm text-gray-500">{cat.count} profesionálů</p>
               </Link>
@@ -640,7 +671,7 @@ export default function Home() {
                     className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-cyan-200 hover:shadow-lg transition-all group"
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-2xl">{req.category_icon}</span>
+                      <CategoryIcon icon={req.category_icon} size={28} className="text-2xl" />
                       <div className="flex items-center gap-2">
                         {isNew && (
                           <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">

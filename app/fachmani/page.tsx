@@ -1,225 +1,420 @@
-"use client";
-
-import { useEffect, useState, Suspense } from "react";
-import { supabase } from "@/lib/supabase";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { createSupabaseServer } from "@/lib/supabase/server";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
-import Pagination from "@/app/components/Pagination";
+import CategoryIcon from "@/app/components/CategoryIcon";
+import FachmaniFilters from "./FachmaniFilters";
+import PaginationLinks from "./PaginationLinks";
+
+const PAGE_SIZE = 12;
+
+// SSR vyžadováno smlouvou (SEO crawl). Filtry & paginace jsou URL-driven, takže každý
+// kombinaci search/page lze nasdílet a indexovat. Ghost vrstva (290k subjektů) se
+// dotahuje serverově s key/range stránkováním proti `ghost_subjects`.
+export const dynamic = "force-dynamic";
+
+type SP = Promise<{
+  kategorie?: string;
+  kraj?: string;
+  okres?: string;
+  overeni?: string;
+  q?: string;
+  page?: string;
+}>;
 
 type Category = {
   id: string;
   name: string;
   icon: string;
+  parent_id: string | null;
+  sort_order: number | null;
 };
+
+type Region = { id: string; code: string; name_cs: string; sort_order: number | null };
+type District = { id: string; code: string; name_cs: string; region_id: string; sort_order: number | null };
 
 type Fachman = {
   id: string;
   full_name: string;
   avatar_url: string | null;
   is_verified: boolean;
+  bank_verified: boolean;
   subscription_type: string;
   bio: string | null;
   hourly_rate: number | null;
   locations: string[] | null;
+  region_id: string | null;
+  district_id: string | null;
   categories: { id: string; name: string; icon: string }[];
   rating: number;
   review_count: number;
-  is_seed: boolean; // fiktivní nebo reálný
-  has_promo: boolean; // má aktivní promo
+  is_seed: boolean;
+  is_ghost?: boolean;
+  ghost_ico?: string;
+  has_promo: boolean;
   promo_type: string | null;
 };
 
-function SeznamFachmanuContent() {
-  const searchParams = useSearchParams();
-  const [fachmani, setFachmani] = useState<Fachman[]>([]);
-  const [filteredFachmani, setFilteredFachmani] = useState<Fachman[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
+export const metadata: Metadata = {
+  title: "Najděte svého fachmana | Fachmani",
+  description:
+    "Tisíce ověřených fachmanů (řemeslníci, údržbáři, IT, doprava, péče…) k zadání poptávky. Filtruj podle kraje, okresu a kategorie.",
+  alternates: { canonical: "/fachmani" },
+  openGraph: {
+    title: "Najděte svého fachmana",
+    description: "Ověření profesionálové připravení vám pomoct.",
+    type: "website",
+    url: "/fachmani",
+  },
+};
 
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [locationFilter, setLocationFilter] = useState("");
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 12;
+function clampPage(raw: string | undefined, totalPages: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(Math.max(1, Math.floor(n)), Math.max(1, totalPages));
+}
 
-  // Read category from URL param
-  useEffect(() => {
-    const kategorie = searchParams.get("kategorie");
-    if (kategorie) {
-      setSelectedCategory(kategorie);
-    }
-  }, [searchParams]);
+export default async function FachmaniPage({ searchParams }: { searchParams: SP }) {
+  const sp = await searchParams;
+  const supabase = await createSupabaseServer();
 
-  useEffect(() => {
-    setMounted(true);
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    // Načteme kategorie
-    const { data: categoriesData } = await supabase
+  // --- LOOKUPS (kategorie, kraje, okresy) ---
+  const [{ data: rawCats }, { data: rawRegions }, { data: rawDistricts }] = await Promise.all([
+    supabase
       .from("categories")
-      .select("id, name, icon")
-      .order("name");
+      .select("id, name, icon, parent_id, sort_order")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("name"),
+    supabase
+      .from("regions")
+      .select("id, code, name_cs, sort_order")
+      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("name_cs"),
+    supabase
+      .from("districts")
+      .select("id, code, name_cs, region_id, sort_order")
+      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("name_cs"),
+  ]);
+  const categories: Category[] = rawCats ?? [];
+  const regions: Region[] = rawRegions ?? [];
+  const districts: District[] = rawDistricts ?? [];
 
-    if (categoriesData) {
-      setCategories(categoriesData);
-    }
+  // --- ROZKLAD URL PARAMS NA INTERNAL STATE ---
+  const kategorieParam = sp.kategorie ?? "";
+  const matchedCategory = kategorieParam ? categories.find((c) => c.id === kategorieParam) : undefined;
+  // Pokud URL říká sub kategorii, naplníme oba: hlavní (parent) i sub.
+  const selectedSub = matchedCategory && matchedCategory.parent_id !== null ? matchedCategory.id : "";
+  const selectedMain = matchedCategory
+    ? matchedCategory.parent_id ?? matchedCategory.id
+    : "";
 
-    const allFachmani: Fachman[] = [];
+  const krajParam = sp.kraj ?? "";
+  const matchedRegion = krajParam
+    ? regions.find((r) => r.id === krajParam || r.code === krajParam)
+    : undefined;
+  const selectedRegion = matchedRegion?.id ?? "";
 
-    // === 1. Načteme REÁLNÉ fachmany ===
-    const { data: profilesData } = await supabase
-      .from("profiles")
-      .select("id, full_name, avatar_url, is_verified, subscription_type, created_at")
-      .eq("role", "provider")
-      .order("subscription_type", { ascending: false });
+  const okresParam = sp.okres ?? "";
+  const matchedDistrict = okresParam
+    ? districts.find((d) => d.id === okresParam || d.code === okresParam)
+    : undefined;
+  const selectedDistrict = matchedDistrict?.id ?? "";
+  // Když okres je v jiném kraji než selectedRegion, derive kraj z okresu.
+  const effectiveRegion = matchedDistrict?.region_id ?? selectedRegion;
 
-    if (profilesData && profilesData.length > 0) {
-      const providerIds = profilesData.map(p => p.id);
+  const verifiedOnly = sp.overeni === "1" || sp.overeni === "true";
+  const searchText = (sp.q ?? "").trim().slice(0, 200);
 
-      // Provider profiles
-      const { data: providerProfilesData } = await supabase
-        .from("provider_profiles")
-        .select("id, user_id, bio, hourly_rate, locations")
-        .in("user_id", providerIds);
+  // Sady IČkat — sub vyhrává, jinak hlavní + všechny její sub kategorie.
+  const subCategories = categories.filter((c) => c.parent_id !== null);
+  const categoryFilterIds: string[] = selectedSub
+    ? [selectedSub]
+    : selectedMain
+    ? [selectedMain, ...subCategories.filter((c) => c.parent_id === selectedMain).map((c) => c.id)]
+    : [];
 
-      // Provider categories
-      const { data: providerCategoriesData } = await supabase
-        .from("provider_categories")
-        .select("provider_id, categories(id, name, icon)");
+  // --- REAL providers ---
+  // C.F2 — Public feed: premium+ vždy, free POUZE pokud trial ještě běží.
+  const all: Fachman[] = [];
+  const nowIso = new Date().toISOString();
+  const { data: profilesData } = await supabase
+    .from("profiles")
+    .select("id, full_name, avatar_url, is_verified, bank_verification_status, subscription_type, region_id, district_id, created_at, trial_until")
+    .eq("role", "provider")
+    .or(`subscription_type.in.(premium,business),and(subscription_type.eq.free,trial_until.gt.${nowIso})`)
+    .order("subscription_type", { ascending: false });
 
-      // Reviews
-      const { data: reviewsData } = await supabase
-        .from("reviews")
-        .select("provider_id, rating")
-        .in("provider_id", providerIds);
+  if (profilesData && profilesData.length > 0) {
+    const providerIds = profilesData.map((p) => p.id);
 
-      // Aktivní promo
-      const { data: promosData } = await supabase
+    const [{ data: providerProfilesData }, { data: providerCategoriesData }, { data: reviewsData }, { data: promosData }] = await Promise.all([
+      supabase.from("provider_profiles").select("id, user_id, bio, hourly_rate, locations").in("user_id", providerIds),
+      supabase.from("provider_categories").select("provider_id, categories(id, name, icon)"),
+      supabase.from("reviews").select("provider_id, rating").in("provider_id", providerIds),
+      supabase
         .from("promotions")
         .select("provider_id, type")
         .eq("status", "active")
-        .gte("ends_at", new Date().toISOString());
+        .gte("ends_at", new Date().toISOString()),
+    ]);
 
-      // Spojíme data
-      profilesData.forEach(profile => {
-        const providerProfile = providerProfilesData?.find(pp => pp.user_id === profile.id);
-        const cats = providerCategoriesData?.filter((pc: { provider_id: string }) => pc.provider_id === providerProfile?.id) || [];
-        const revs = reviewsData?.filter(r => r.provider_id === profile.id) || [];
-        const promo = promosData?.find(p => p.provider_id === profile.id);
+    profilesData.forEach((profile) => {
+      const providerProfile = providerProfilesData?.find((pp) => pp.user_id === profile.id);
+      const cats = providerCategoriesData?.filter((pc: { provider_id: string }) => pc.provider_id === providerProfile?.id) || [];
+      const revs = reviewsData?.filter((r) => r.provider_id === profile.id) || [];
+      const promo = promosData?.find((p) => p.provider_id === profile.id);
 
-        const avgRating = revs.length > 0
-          ? Math.round((revs.reduce((sum, r) => sum + r.rating, 0) / revs.length) * 10) / 10
-          : 0;
+      const avgRating = revs.length > 0
+        ? Math.round((revs.reduce((sum, r) => sum + r.rating, 0) / revs.length) * 10) / 10
+        : 0;
 
-        allFachmani.push({
-          id: profile.id,
-          full_name: profile.full_name,
-          avatar_url: profile.avatar_url || null,
-          is_verified: profile.is_verified,
-          subscription_type: profile.subscription_type || "free",
-          bio: providerProfile?.bio || null,
-          hourly_rate: providerProfile?.hourly_rate || null,
-          locations: providerProfile?.locations || null,
-          categories: cats.flatMap((c) => {
-            const cat = (c as unknown as { categories: { id: string; name: string; icon: string } | null }).categories;
-            return cat ? [cat] : [];
-          }),
-          rating: avgRating,
-          review_count: revs.length,
-          is_seed: false,
-          has_promo: !!promo,
-          promo_type: promo?.type || null,
-        });
+      all.push({
+        id: profile.id,
+        full_name: profile.full_name,
+        avatar_url: profile.avatar_url || null,
+        is_verified: profile.is_verified,
+        bank_verified:
+          (profile as { bank_verification_status?: string | null }).bank_verification_status ===
+          "verified",
+        subscription_type: profile.subscription_type || "free",
+        bio: providerProfile?.bio || null,
+        hourly_rate: providerProfile?.hourly_rate || null,
+        locations: providerProfile?.locations || null,
+        region_id: profile.region_id || null,
+        district_id: profile.district_id || null,
+        categories: cats.flatMap((c) => {
+          const cat = (c as unknown as { categories: { id: string; name: string; icon: string } | null }).categories;
+          return cat ? [cat] : [];
+        }),
+        rating: avgRating,
+        review_count: revs.length,
+        is_seed: false,
+        has_promo: !!promo,
+        promo_type: promo?.type || null,
       });
-    }
-
-    // === 2. Načteme FIKTIVNÍ fachmany ===
-    const { data: seedData } = await supabase
-      .from("seed_providers")
-      .select("*")
-      .eq("is_active", true);
-
-    if (seedData) {
-      seedData.forEach(seed => {
-        // Mapujeme category_ids na objekty
-        const seedCategories = seed.category_ids
-          ?.map((catId: string) => categoriesData?.find(c => c.id === catId))
-          .filter(Boolean) || [];
-
-        allFachmani.push({
-          id: `seed_${seed.id}`,
-          full_name: seed.full_name,
-          avatar_url: seed.avatar_url || null,
-          is_verified: seed.is_verified,
-          subscription_type: "premium", // Fiktivní jsou vždy premium
-          bio: seed.bio,
-          hourly_rate: seed.hourly_rate,
-          locations: seed.locations,
-          categories: seedCategories,
-          rating: seed.rating || 0,
-          review_count: seed.review_count || 0,
-          is_seed: true,
-          has_promo: true, // Fiktivní mají vždy "promo"
-          promo_type: "top_profile",
-        });
-      });
-    }
-
-    // === 3. Seřadíme ===
-    // Pořadí: promo/topovaní > premium/business > verified > ostatní > podle ratingu
-    allFachmani.sort((a, b) => {
-      // Promo nahoře
-      if (a.has_promo && !b.has_promo) return -1;
-      if (!a.has_promo && b.has_promo) return 1;
-
-      // Premium/Business
-      const subOrder: Record<string, number> = { business: 3, premium: 2, free: 1 };
-      const subDiff = (subOrder[b.subscription_type] || 0) - (subOrder[a.subscription_type] || 0);
-      if (subDiff !== 0) return subDiff;
-
-      // Verified
-      if (a.is_verified && !b.is_verified) return -1;
-      if (!a.is_verified && b.is_verified) return 1;
-
-      // Rating
-      return b.rating - a.rating;
     });
+  }
 
-    setFachmani(allFachmani);
-    setFilteredFachmani(allFachmani);
-    setLoading(false);
+  // --- SEED providers ---
+  const { data: seedData } = await supabase.from("seed_providers").select("*").eq("is_active", true);
+  if (seedData) {
+    seedData.forEach((seed) => {
+      const seedCategories = (seed.category_ids as string[] | null)
+        ?.map((catId: string) => categories.find((c) => c.id === catId))
+        .filter(Boolean) as { id: string; name: string; icon: string }[] || [];
+
+      all.push({
+        id: `seed_${seed.id}`,
+        full_name: seed.full_name,
+        avatar_url: seed.avatar_url || null,
+        is_verified: seed.is_verified,
+        bank_verified: false,
+        subscription_type: "premium",
+        bio: seed.bio,
+        hourly_rate: seed.hourly_rate,
+        locations: seed.locations,
+        region_id: null,
+        district_id: null,
+        categories: seedCategories,
+        rating: seed.rating || 0,
+        review_count: seed.review_count || 0,
+        is_seed: true,
+        has_promo: true,
+        promo_type: "top_profile",
+      });
+    });
+  }
+
+  // Sort tiers (per user instruction): real-unverified → real-verified → real-paying
+  // → seed (ARES profil). Ghosti (ARES) jdou až za vším přes itemsToShow concat (ghostSlice).
+  const tier = (f: Fachman): number => {
+    if (f.is_seed) return 4;
+    const isPaid = f.subscription_type === "premium" || f.subscription_type === "business";
+    if (isPaid) return 3;
+    if (f.is_verified) return 2;
+    return 1;
   };
+  all.sort((a, b) => {
+    const tDiff = tier(a) - tier(b);
+    if (tDiff !== 0) return tDiff;
+    return b.rating - a.rating;
+  });
 
-  useEffect(() => {
-    let result = [...fachmani];
+  // --- FILTR REAL+SEED V PAMĚTI ---
+  let realAndSeedFiltered = all;
 
-    if (selectedCategory) {
-      result = result.filter(f =>
-        f.categories?.some(c => c.id === selectedCategory)
-      );
-    }
+  if (selectedSub) {
+    realAndSeedFiltered = realAndSeedFiltered.filter((f) => f.categories?.some((c) => c.id === selectedSub));
+  } else if (selectedMain) {
+    const allowed = new Set(categoryFilterIds);
+    realAndSeedFiltered = realAndSeedFiltered.filter((f) => f.categories?.some((c) => allowed.has(c.id)));
+  }
 
-    if (locationFilter) {
-      result = result.filter(f =>
-        f.locations?.some(loc =>
-          loc.toLowerCase().includes(locationFilter.toLowerCase())
-        )
-      );
-    }
+  if (selectedDistrict) {
+    const districtName = matchedDistrict?.name_cs.toLowerCase() || "";
+    realAndSeedFiltered = realAndSeedFiltered.filter((f) => {
+      if (f.district_id === selectedDistrict) return true;
+      if (districtName && f.locations?.some((loc) => loc.toLowerCase().includes(districtName))) return true;
+      return false;
+    });
+  } else if (effectiveRegion) {
+    const regionObj = regions.find((r) => r.id === effectiveRegion);
+    const regionName = regionObj?.name_cs.toLowerCase() || "";
+    const districtIdsInRegion = new Set(districts.filter((d) => d.region_id === effectiveRegion).map((d) => d.id));
+    const districtNamesInRegion = districts
+      .filter((d) => d.region_id === effectiveRegion)
+      .map((d) => d.name_cs.toLowerCase());
+    realAndSeedFiltered = realAndSeedFiltered.filter((f) => {
+      if (f.region_id === effectiveRegion) return true;
+      if (f.district_id && districtIdsInRegion.has(f.district_id)) return true;
+      if (!f.locations) return false;
+      return f.locations.some((loc) => {
+        const l = loc.toLowerCase();
+        if (regionName && l.includes(regionName)) return true;
+        return districtNamesInRegion.some((dn) => l.includes(dn));
+      });
+    });
+  }
 
-    if (verifiedOnly) {
-      result = result.filter(f => f.is_verified);
-    }
+  if (verifiedOnly) {
+    realAndSeedFiltered = realAndSeedFiltered.filter((f) => f.is_verified);
+  }
 
-    setFilteredFachmani(result);
-    setCurrentPage(1);
-  }, [fachmani, selectedCategory, locationFilter, verifiedOnly]);
+  if (searchText) {
+    const q = searchText.toLowerCase();
+    realAndSeedFiltered = realAndSeedFiltered.filter((f) => {
+      if (f.full_name.toLowerCase().includes(q)) return true;
+      if (f.locations?.some((loc) => loc.toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }
+
+  // --- GHOST QUERY ---
+  // Ghosti nikdy nejsou ověření, takže verifiedOnly=true je celý ghost segment vynulovaný.
+  // Search → server-side ILIKE na name + legal_address->>city (oba s GIN trgm indexem
+  // z migrace 20260504110000_ghost_search_trgm.sql). Pod 3 znaky trgm není selektivní
+  // → segment přeskočíme aby se vyhnulo full-scan.
+  const ghostSearchActive = searchText.length >= 3;
+  const ghostsDisabled = verifiedOnly || (!!searchText && !ghostSearchActive);
+  // Sanitize: v `.or()` raw stringu jsou čárky/závorky řídicí znaky → nahradit mezerou.
+  const ghostSearchTerm = ghostSearchActive ? searchText.replace(/[,(){}*]/g, " ").trim() : "";
+  const ghostSearchOr = ghostSearchTerm
+    ? `name.ilike.*${ghostSearchTerm}*,legal_address->>city.ilike.*${ghostSearchTerm}*`
+    : "";
+  let ghostCount = 0;
+  let ghostSlice: Fachman[] = [];
+
+  if (!ghostsDisabled) {
+    // `estimated` (pg_class.reltuples + filter selectivity) místo `exact` —
+    // `exact` na 290k řádcích občas spadne na statement_timeout a vrátí null.
+    // Estimate je ~1% off ale stabilní; pro pagination UX postačuje.
+    let q = supabase
+      .from("ghost_subjects")
+      .select("ico", { count: "estimated", head: true })
+      .is("claimed_at", null)
+      .eq("is_active", true)
+      .eq("gdpr_suppressed", false);
+    if (effectiveRegion) q = q.eq("region_id", effectiveRegion);
+    if (selectedDistrict) q = q.eq("district_id", selectedDistrict);
+    if (selectedSub) q = q.contains("category_ids", [selectedSub]);
+    else if (categoryFilterIds.length > 0) q = q.overlaps("category_ids", categoryFilterIds);
+    if (ghostSearchOr) q = q.or(ghostSearchOr);
+    const { count } = await q;
+    ghostCount = count || 0;
+  }
+
+  // --- TOTAL + PAGE ---
+  const realCount = realAndSeedFiltered.length;
+  const totalCount = realCount + ghostCount;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const currentPage = clampPage(sp.page, totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE;
+
+  const realSlice = realAndSeedFiltered.slice(
+    Math.min(pageStart, realCount),
+    Math.min(pageEnd, realCount),
+  );
+
+  // --- GHOST SLICE pro tuto stránku ---
+  if (!ghostsDisabled && pageEnd > realCount) {
+    const ghostCombinedStart = Math.max(pageStart, realCount);
+    const ghostOffset = ghostCombinedStart - realCount;
+    const ghostLimit = pageEnd - ghostCombinedStart;
+
+    let q = supabase
+      .from("ghost_subjects")
+      .select("ico, name, legal_form, category_ids, region_id, district_id, legal_address, datum_vzniku")
+      .is("claimed_at", null)
+      .eq("is_active", true)
+      .eq("gdpr_suppressed", false);
+    if (effectiveRegion) q = q.eq("region_id", effectiveRegion);
+    if (selectedDistrict) q = q.eq("district_id", selectedDistrict);
+    if (selectedSub) q = q.contains("category_ids", [selectedSub]);
+    else if (categoryFilterIds.length > 0) q = q.overlaps("category_ids", categoryFilterIds);
+    if (ghostSearchOr) q = q.or(ghostSearchOr);
+    // Sort přes PK ico (nikdy ne přes name — full sort 290k by překročil PostgREST timeout).
+    const { data } = await q
+      .order("ico", { ascending: true })
+      .range(ghostOffset, ghostOffset + ghostLimit - 1);
+    const rows = ((data ?? []) as unknown) as Array<{
+      ico: string;
+      name: string;
+      legal_form: string | null;
+      category_ids: string[];
+      region_id: string | null;
+      district_id: string | null;
+      legal_address: { city?: string } | null;
+      datum_vzniku: string | null;
+    }>;
+
+    ghostSlice = rows.map((g) => {
+      const ghostCategories = (g.category_ids || [])
+        .map((catId) => categories.find((c) => c.id === catId))
+        .filter(Boolean) as { id: string; name: string; icon: string }[];
+      const city = g.legal_address?.city ?? null;
+      return {
+        id: `ghost_${g.ico}`,
+        full_name: g.name,
+        avatar_url: null,
+        is_verified: false,
+        bank_verified: false,
+        subscription_type: "free",
+        bio: g.legal_form ?? null,
+        hourly_rate: null,
+        locations: city ? [city] : null,
+        region_id: g.region_id,
+        district_id: g.district_id,
+        categories: ghostCategories,
+        rating: 0,
+        review_count: 0,
+        is_seed: false,
+        is_ghost: true,
+        ghost_ico: g.ico,
+        has_promo: false,
+        promo_type: null,
+      };
+    });
+  }
+
+  const itemsToShow = [...realSlice, ...ghostSlice];
+
+  // Helper: build href pro paginaci s zachováním všech filtrů
+  function buildPageHref(page: number): string {
+    const params = new URLSearchParams();
+    if (kategorieParam) params.set("kategorie", kategorieParam);
+    if (krajParam) params.set("kraj", krajParam);
+    if (okresParam) params.set("okres", okresParam);
+    if (verifiedOnly) params.set("overeni", "1");
+    if (searchText) params.set("q", searchText);
+    if (page > 1) params.set("page", String(page));
+    const qs = params.toString();
+    return qs ? `/fachmani?${qs}` : "/fachmani";
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -232,7 +427,7 @@ function SeznamFachmanuContent() {
         <div className="absolute bottom-10 left-10 w-96 h-96 bg-blue-200/30 rounded-full opacity-30 animate-float animation-delay-200"></div>
 
         <div className="max-w-7xl mx-auto px-4 relative z-10">
-          <div className={`text-center ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+          <div className="text-center">
             <span className="inline-block px-4 py-1 bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-full mb-4">
               OVĚŘENÍ PROFESIONÁLOVÉ
             </span>
@@ -240,7 +435,7 @@ function SeznamFachmanuContent() {
               Najděte svého fachmana
             </h1>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              {fachmani.filter(f => f.is_verified).length} ověřených profesionálů připravených vám pomoct
+              {totalCount.toLocaleString("cs-CZ")} profesionálů připravených vám pomoct
             </p>
           </div>
         </div>
@@ -249,105 +444,53 @@ function SeznamFachmanuContent() {
       {/* Filters & Content */}
       <section className="py-12">
         <div className="max-w-7xl mx-auto px-4">
-          {/* Filtry */}
-          <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <div className="grid md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kategorie
-                </label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                >
-                  <option value="">Všechny kategorie</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.icon} {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Lokalita
-                </label>
-                <input
-                  type="text"
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  placeholder="Např. Praha, Brno..."
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-
-              <div className="flex items-end">
-                <label className="flex items-center gap-3 cursor-pointer bg-gray-50 px-4 py-3 rounded-xl hover:bg-gray-100 transition-colors w-full">
-                  <input
-                    type="checkbox"
-                    checked={verifiedOnly}
-                    onChange={(e) => setVerifiedOnly(e.target.checked)}
-                    className="w-5 h-5 text-emerald-600 rounded-lg border-gray-300 focus:ring-emerald-500"
-                  />
-                  <span className="text-gray-700 font-medium">Pouze ověření</span>
-                </label>
-              </div>
-
-              <div className="flex items-end">
-                <button
-                  onClick={() => {
-                    setSelectedCategory("");
-                    setLocationFilter("");
-                    setVerifiedOnly(false);
-                  }}
-                  className="w-full px-4 py-3 text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors font-medium"
-                >
-                  Zrušit filtry
-                </button>
-              </div>
-            </div>
-          </div>
+          <FachmaniFilters
+            categories={categories}
+            regions={regions}
+            districts={districts}
+            selectedMain={selectedMain}
+            selectedSub={selectedSub}
+            selectedRegion={effectiveRegion}
+            selectedDistrict={selectedDistrict}
+            verifiedOnly={verifiedOnly}
+            searchText={searchText}
+          />
 
           {/* Počet výsledků */}
           <p className="text-gray-500 mb-6">
-            {filteredFachmani.length} {filteredFachmani.length === 1 ? "fachman" : filteredFachmani.length < 5 ? "fachmani" : "fachmanů"}
+            {totalCount.toLocaleString("cs-CZ")} {totalCount === 1 ? "fachman" : totalCount < 5 ? "fachmani" : "fachmanů"}
+            {searchText && searchText.length < 3 && (
+              <span className="text-xs text-gray-400 ml-2">
+                (zadejte 3+ znaků pro vyhledávání i v ARES)
+              </span>
+            )}
           </p>
 
           {/* Seznam */}
-          {loading ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3, 4, 5, 6].map(i => (
-                <div key={i} className="bg-gray-100 rounded-3xl h-72 animate-pulse"></div>
-              ))}
-            </div>
-          ) : filteredFachmani.length === 0 ? (
+          {itemsToShow.length === 0 ? (
             <div className="bg-gray-50 rounded-3xl p-12 text-center">
               <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-gray-400">{Icons.users}</span>
               </div>
-              <p className="text-gray-600 text-lg">
-                {fachmani.length === 0
-                  ? "Zatím nejsou žádní registrovaní fachmani."
-                  : "Žádní fachmani neodpovídají vašim filtrům."}
-              </p>
+              <p className="text-gray-600 text-lg">Žádní fachmani neodpovídají vašim filtrům.</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredFachmani.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((fachman, i) => {
+              {itemsToShow.map((fachman) => {
                 const isPremium = fachman.subscription_type === "premium" || fachman.subscription_type === "business";
                 const isTopProfile = fachman.has_promo && fachman.promo_type === "top_profile";
 
                 return (
                   <Link
                     key={fachman.id}
-                    href={`/fachman/${fachman.id}`}
+                    href={fachman.is_ghost && fachman.ghost_ico
+                      ? `/fachman/ghost/${fachman.ghost_ico}`
+                      : `/fachman/${fachman.id}`}
                     className={`group relative bg-white rounded-3xl p-6 border border-gray-100 hover:border-transparent hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 ${
+                      fachman.is_ghost ? "opacity-90" :
                       isTopProfile ? "ring-2 ring-yellow-400/50 bg-yellow-50/30" :
                       isPremium ? "ring-2 ring-cyan-500/50" : ""
-                    } ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}
-                    style={{ animationDelay: `${i * 50}ms` }}
+                    }`}
                   >
                     {/* Badges */}
                     <div className="absolute -top-3 left-6 flex gap-2">
@@ -356,15 +499,26 @@ function SeznamFachmanuContent() {
                           🚀 Top
                         </span>
                       )}
-                      {isPremium && !isTopProfile && (
+                      {isPremium && !isTopProfile && !fachman.is_ghost && (
                         <span className="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white text-xs px-3 py-1 rounded-full font-semibold shadow-lg">
                           Premium
+                        </span>
+                      )}
+                      {fachman.is_ghost && (
+                        <span className="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full font-semibold border border-gray-200" title="Subjekt importovaný z ARES, profil zatím nepřevzal">
+                          Neověřeno (ARES)
+                        </span>
+                      )}
+                      {!fachman.is_ghost && !fachman.is_verified && (
+                        <span className="bg-orange-50 text-orange-600 text-xs px-3 py-1 rounded-full font-semibold border border-orange-200" title="Profil zatím není ověřen">
+                          Neověřeno
                         </span>
                       )}
                     </div>
 
                     <div className="flex items-start gap-4 mb-4 mt-2">
                       {fachman.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={fachman.avatar_url}
                           alt={fachman.full_name}
@@ -386,6 +540,14 @@ function SeznamFachmanuContent() {
                               {Icons.check}
                             </span>
                           )}
+                          {fachman.bank_verified && (
+                            <span
+                              className="text-blue-500 text-sm"
+                              title="Reálný bankovní účet ověřen 1 Kč platbou"
+                            >
+                              💳
+                            </span>
+                          )}
                         </div>
 
                         {fachman.rating > 0 && (
@@ -405,25 +567,18 @@ function SeznamFachmanuContent() {
                     </div>
 
                     {fachman.bio && (
-                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                        {fachman.bio}
-                      </p>
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">{fachman.bio}</p>
                     )}
 
                     {fachman.categories && fachman.categories.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-4">
                         {fachman.categories.slice(0, 3).map((cat, idx) => (
-                          <span
-                            key={idx}
-                            className="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full"
-                          >
-                            {cat.icon} {cat.name}
+                          <span key={idx} className="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full inline-flex items-center gap-1">
+                            <CategoryIcon icon={cat.icon} size={12} />{cat.name}
                           </span>
                         ))}
                         {fachman.categories.length > 3 && (
-                          <span className="text-xs text-gray-400 px-2 py-1">
-                            +{fachman.categories.length - 3}
-                          </span>
+                          <span className="text-xs text-gray-400 px-2 py-1">+{fachman.categories.length - 3}</span>
                         )}
                       </div>
                     )}
@@ -435,8 +590,12 @@ function SeznamFachmanuContent() {
                       </p>
                     )}
 
-                    <div className="w-full text-center bg-gradient-to-r from-cyan-500 to-cyan-600 text-white py-3 rounded-xl font-semibold group-hover:shadow-lg transition-all">
-                      Zobrazit profil
+                    <div className={`w-full text-center py-3 rounded-xl font-semibold group-hover:shadow-lg transition-all ${
+                      fachman.is_ghost
+                        ? "bg-gray-100 text-gray-700 border border-gray-200"
+                        : "bg-gradient-to-r from-cyan-500 to-cyan-600 text-white"
+                    }`}>
+                      {fachman.is_ghost ? "Detail subjektu" : "Zobrazit profil"}
                     </div>
                   </Link>
                 );
@@ -444,16 +603,11 @@ function SeznamFachmanuContent() {
             </div>
           )}
 
-          {filteredFachmani.length > ITEMS_PER_PAGE && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={Math.ceil(filteredFachmani.length / ITEMS_PER_PAGE)}
-              onPageChange={(page) => {
-                setCurrentPage(page);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-            />
-          )}
+          <PaginationLinks
+            currentPage={currentPage}
+            totalPages={totalPages}
+            buildHref={buildPageHref}
+          />
         </div>
       </section>
 
@@ -465,9 +619,7 @@ function SeznamFachmanuContent() {
             <div className="absolute inset-0 bg-black/10"></div>
 
             <div className="relative z-10 px-8 py-16 md:px-16 text-center">
-              <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">
-                Nechcete hledat?
-              </h2>
+              <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">Nechcete hledat?</h2>
               <p className="text-xl text-white/80 mb-8 max-w-2xl mx-auto">
                 Zadejte poptávku a nechte fachmany, ať se ozvou vám. Je to rychlejší a jednodušší.
               </p>
@@ -485,13 +637,5 @@ function SeznamFachmanuContent() {
 
       <Footer />
     </div>
-  );
-}
-
-export default function SeznamFachmanu() {
-  return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div></div>}>
-      <SeznamFachmanuContent />
-    </Suspense>
   );
 }

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import AdminLayout from "../../components/AdminLayout";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import CategoryIcon, { iconAsTextPrefix } from "@/app/components/CategoryIcon";
 
 type Category = {
   id: string;
@@ -296,13 +297,16 @@ export default function SeedFachmanForm() {
                   key={cat.id}
                   type="button"
                   onClick={() => toggleCategory(cat.id)}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all inline-flex items-center gap-1.5 ${
                     selectedCategories.includes(cat.id)
                       ? "bg-cyan-500 text-white"
                       : "bg-white/5 text-slate-400 hover:bg-white/10"
                   }`}
                 >
-                  {cat.icon} {cat.name}
+                  {cat.icon?.startsWith("iconify:") ? (
+                    <CategoryIcon icon={cat.icon} size={16} />
+                  ) : null}
+                  {iconAsTextPrefix(cat.icon)}{cat.name}
                 </button>
               ))}
             </div>
