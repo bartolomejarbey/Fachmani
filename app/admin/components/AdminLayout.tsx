@@ -32,6 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     pendingVerifications: 0,
     pendingBankVerifications: 0,
     pendingBotFlags: 0,
+    pendingBotContent: 0,
     activeRequests: 0,
     newToday: 0,
   });
@@ -57,6 +58,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Vyhledávání", href: "/admin/vyhledavani", icon: "🔎", roles: ["master_admin", "admin"] },
     { name: "Newsletter", href: "/admin/newsletter", icon: "📧", roles: ["master_admin", "admin"] },
     { name: "Bot flag-y", href: "/admin/bot-flags", icon: "🤖", roles: ["master_admin", "admin"] },
+    { name: "Bot obsah", href: "/admin/bot-content", icon: "📝", roles: ["master_admin", "admin"] },
+    { name: "Bot monitor", href: "/admin/bot-monitor", icon: "📡", roles: ["master_admin", "admin"] },
     { name: "Activity Log", href: "/admin/activity", icon: "📜", roles: ["master_admin"] },
     { name: "Nastavení", href: "/admin/nastaveni", icon: "⚙️", roles: ["master_admin"] },
   ];
@@ -89,6 +92,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { count: pendingBankVerifications },
         { count: activeRequests },
         { count: pendingBotFlags },
+        { count: pendingBotContent },
       ] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true })
           .eq("role", "provider").eq("is_verified", false),
@@ -98,12 +102,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           .eq("status", "active"),
         supabase.from("bot_flagged_replies").select("id", { count: "exact", head: true })
           .eq("status", "pending"),
+        supabase.from("bot_generated_content").select("id", { count: "exact", head: true })
+          .eq("status", "pending_review"),
       ]);
 
       setStats({
         pendingVerifications: pendingVerifications || 0,
         pendingBankVerifications: pendingBankVerifications || 0,
         pendingBotFlags: pendingBotFlags || 0,
+        pendingBotContent: pendingBotContent || 0,
         activeRequests: activeRequests || 0,
         newToday: 0,
       });
@@ -114,28 +121,46 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     checkAuth();
   }, [router]);
 
-  // Realtime refresh of bot-flag pending count, so badge stays live across the admin panel.
+  // Realtime refresh of bot-flag + bot-content pending counts, so badges stay live.
   useEffect(() => {
     if (!admin) return;
-    const refresh = async () => {
+    const refreshFlags = async () => {
       const { count } = await supabase
         .from("bot_flagged_replies")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending");
       setStats((s) => ({ ...s, pendingBotFlags: count || 0 }));
     };
-    const channel = supabase
+    const refreshContent = async () => {
+      const { count } = await supabase
+        .from("bot_generated_content")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending_review");
+      setStats((s) => ({ ...s, pendingBotContent: count || 0 }));
+    };
+    const flagsChannel = supabase
       .channel("bot_flagged_replies_badge")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "bot_flagged_replies" },
         () => {
-          refresh();
+          refreshFlags();
+        },
+      )
+      .subscribe();
+    const contentChannel = supabase
+      .channel("bot_generated_content_badge")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "bot_generated_content" },
+        () => {
+          refreshContent();
         },
       )
       .subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(flagsChannel);
+      supabase.removeChannel(contentChannel);
     };
   }, [admin]);
 
@@ -232,6 +257,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     {item.name === "Bot flag-y" && stats.pendingBotFlags > 0 && (
                       <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full" title="Nevyřešené bot flag-y">
                         {stats.pendingBotFlags}
+                      </span>
+                    )}
+                    {item.name === "Bot obsah" && stats.pendingBotContent > 0 && (
+                      <span className="bg-yellow-500 text-slate-900 text-xs px-2 py-0.5 rounded-full font-bold" title="Obsah čekající na schválení">
+                        {stats.pendingBotContent}
                       </span>
                     )}
                   </>
