@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 
 export default function GdprOptOutPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+      <GdprOptOutContent />
+    </Suspense>
+  );
+}
+
+function GdprOptOutContent() {
   const searchParams = useSearchParams();
   const [ico, setIco] = useState("");
 
