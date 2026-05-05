@@ -10,6 +10,9 @@ import AdminLayout from "../components/AdminLayout";
 // (status je jediný garantovaný filter, zbytek tolerantně typujeme).
 // Spec: status='pending_review' → admin schválí → bot publikuje.
 
+// bot_generated_content NEMÁ conversation_id sloupec — vazba je obrácená:
+// bot_conversations.turn_{1,2,3}_content_id ukazují na bot_generated_content.id.
+// Po načtení rows děláme reverse lookup do bot_conversations.
 type ContentRow = {
   id: string;
   body: string | null;
@@ -17,7 +20,6 @@ type ContentRow = {
   status: string;
   generated_at: string | null;
   created_at: string | null;
-  conversation_id: string | null;
   account_id: string | null;
   // Volitelné metadata sloupce — schéma je v bot projektu, dostupnost se může lišit:
   turn: number | string | null;
@@ -75,7 +77,8 @@ function deriveTurnLabel(c: ContentRow, conv: Conversation | null): string {
     if (conv.turn_2_content_id === c.id) return "turn_2";
     if (conv.turn_3_content_id === c.id) return "turn_3";
   }
-  if (!c.conversation_id) return "standalone_post";
+  // Žádná conversation = standalone post (bot_conversations row tu nikdy neexistuje)
+  if (!conv) return "standalone_post";
   return "—";
 }
 
@@ -101,6 +104,8 @@ export default function AdminBotContentPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ContentRow[]>([]);
   const [conversations, setConversations] = useState<Record<string, Conversation>>({});
+  // content_id → conversation_id (reverse lookup z bot_conversations.turn_{1,2,3}_content_id)
+  const [contentToConv, setContentToConv] = useState<Record<string, string>>({});
   const [classifications, setClassifications] = useState<Record<string, Classification>>({});
   const [accounts, setAccounts] = useState<Record<string, Account>>({});
   const [accountList, setAccountList] = useState<Account[]>([]);
@@ -144,22 +149,32 @@ export default function AdminBotContentPage() {
     }));
     setItems(rows);
 
-    // Načti conversations + post classifications + accounts
-    const convIds = Array.from(new Set(rows.map((r) => r.conversation_id).filter(Boolean))) as string[];
-    if (convIds.length) {
+    // Reverse lookup: bot_conversations.turn_{1,2,3}_content_id → content.id.
+    // bot_generated_content nemá conversation_id, vazbu drží bot_conversations.
+    const contentIds = rows.map((r) => r.id).filter(Boolean) as string[];
+    if (contentIds.length) {
+      const idsCsv = contentIds.join(",");
       const { data: convs } = await supabase
         .from("bot_conversations")
         .select(
           "id, fb_post_url, extracted_topic, thread_state, account_id, turn_1_content_id, turn_2_content_id, turn_3_content_id, last_reply_text",
         )
-        .in("id", convIds);
-      const map: Record<string, Conversation> = {};
+        .or(
+          `turn_1_content_id.in.(${idsCsv}),turn_2_content_id.in.(${idsCsv}),turn_3_content_id.in.(${idsCsv})`,
+        );
+
+      const convMap: Record<string, Conversation> = {};
+      const c2c: Record<string, string> = {};
       const postUrls: string[] = [];
       for (const c of (convs as Conversation[]) || []) {
-        map[c.id] = c;
+        convMap[c.id] = c;
+        if (c.turn_1_content_id) c2c[c.turn_1_content_id] = c.id;
+        if (c.turn_2_content_id) c2c[c.turn_2_content_id] = c.id;
+        if (c.turn_3_content_id) c2c[c.turn_3_content_id] = c.id;
         if (c.fb_post_url) postUrls.push(c.fb_post_url);
       }
-      setConversations(map);
+      setConversations(convMap);
+      setContentToConv(c2c);
 
       if (postUrls.length) {
         const { data: cls } = await supabase
@@ -176,6 +191,7 @@ export default function AdminBotContentPage() {
       }
     } else {
       setConversations({});
+      setContentToConv({});
       setClassifications({});
     }
 
@@ -254,13 +270,14 @@ export default function AdminBotContentPage() {
     return items.filter((r) => {
       if (filterAccount && r.account_id !== filterAccount) return false;
       if (filterTurn) {
-        const turnLabel = deriveTurnLabel(r, r.conversation_id ? conversations[r.conversation_id] || null : null);
+        const convId = contentToConv[r.id];
+        const turnLabel = deriveTurnLabel(r, convId ? conversations[convId] || null : null);
         if (turnLabel !== filterTurn) return false;
       }
       if (filterGroup && r.group_label !== filterGroup) return false;
       return true;
     });
-  }, [items, conversations, filterAccount, filterTurn, filterGroup]);
+  }, [items, conversations, contentToConv, filterAccount, filterTurn, filterGroup]);
 
   // Odlišné groupy v aktuálním datasetu (pro dropdown)
   const groupOptions = useMemo(() => {
@@ -420,7 +437,8 @@ export default function AdminBotContentPage() {
         ) : (
           <div className="space-y-4">
             {visible.map((c) => {
-              const conv = c.conversation_id ? conversations[c.conversation_id] || null : null;
+              const convId = contentToConv[c.id] || null;
+              const conv = convId ? conversations[convId] || null : null;
               const cls = conv?.fb_post_url ? classifications[conv.fb_post_url] || null : null;
               const account = c.account_id ? accounts[c.account_id] : null;
               const turnLabel = deriveTurnLabel(c, conv);
@@ -649,12 +667,12 @@ export default function AdminBotContentPage() {
                   </div>
 
                   <div className="text-right">
-                    {c.conversation_id && (
+                    {convId && (
                       <Link
                         href={`/admin/bot-flags`}
                         className="text-xs text-slate-500 hover:text-slate-300"
                       >
-                        conv: {c.conversation_id.slice(0, 8)}…
+                        conv: {convId.slice(0, 8)}…
                       </Link>
                     )}
                   </div>
