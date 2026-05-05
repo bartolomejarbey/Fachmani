@@ -316,7 +316,8 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
       .from("ghost_subjects")
       .select("ico", { count: "estimated", head: true })
       .is("claimed_at", null)
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .eq("gdpr_suppressed", false);
     if (effectiveRegion) q = q.eq("region_id", effectiveRegion);
     if (selectedDistrict) q = q.eq("district_id", selectedDistrict);
     if (selectedSub) q = q.contains("category_ids", [selectedSub]);
@@ -349,7 +350,8 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
       .from("ghost_subjects")
       .select("ico, name, legal_form, category_ids, region_id, district_id, legal_address, datum_vzniku")
       .is("claimed_at", null)
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .eq("gdpr_suppressed", false);
     if (effectiveRegion) q = q.eq("region_id", effectiveRegion);
     if (selectedDistrict) q = q.eq("district_id", selectedDistrict);
     if (selectedSub) q = q.contains("category_ids", [selectedSub]);

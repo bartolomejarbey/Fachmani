@@ -1,19 +1,25 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useParams, useRouter } from "next/navigation";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { createSupabaseServer } from "@/lib/supabase/server";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 
-type GhostSubject = {
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.fachmani.cz").replace(/\/$/, "");
+
+// SSR vyžadováno smlouvou (SEO crawl). Ghost subjekty (~290k) potřebují individuální URL
+// indexovatelnou Googlem — proto generateMetadata + JSON-LD Organization markup.
+export const dynamic = "force-dynamic";
+
+type Params = Promise<{ ico: string }>;
+
+type GhostRow = {
   ico: string;
   name: string;
   legal_form: string | null;
-  cz_nace: string[];
-  category_ids: string[];
+  cz_nace: string[] | null;
+  category_ids: string[] | null;
   region_id: string | null;
   district_id: string | null;
   legal_address: {
@@ -23,111 +29,135 @@ type GhostSubject = {
     postal_code?: string;
   } | null;
   datum_vzniku: string | null;
-  registration_states: Record<string, string>;
   claimed_at: string | null;
+  gdpr_suppressed: boolean | null;
 };
 
-type Category = { id: string; name: string; icon: string };
-type Region = { id: string; name_cs: string };
-type District = { id: string; name_cs: string };
+async function fetchGhost(ico: string): Promise<GhostRow | null> {
+  if (!/^[0-9]{8}$/.test(ico)) return null;
+  const supabase = await createSupabaseServer();
+  const { data } = await supabase
+    .from("ghost_subjects")
+    .select("ico, name, legal_form, cz_nace, category_ids, region_id, district_id, legal_address, datum_vzniku, claimed_at, gdpr_suppressed")
+    .eq("ico", ico)
+    .maybeSingle();
+  return (data as GhostRow | null) ?? null;
+}
 
-export default function GhostFachmanPage() {
-  const params = useParams();
-  const router = useRouter();
-  const ico = params.ico as string;
-
-  const [ghost, setGhost] = useState<GhostSubject | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [region, setRegion] = useState<Region | null>(null);
-  const [district, setDistrict] = useState<District | null>(null);
-  const [userIco, setUserIco] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-
-  useEffect(() => {
-    if (!ico || !/^[0-9]{8}$/.test(ico)) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    void load();
-  }, [ico]);
-
-  async function load() {
-    const { data: ghostData } = await supabase
-      .from("ghost_subjects")
-      .select("*")
-      .eq("ico", ico)
-      .maybeSingle();
-
-    if (!ghostData) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    setGhost(ghostData as GhostSubject);
-
-    if (ghostData.category_ids?.length) {
-      const { data: catData } = await supabase
-        .from("categories")
-        .select("id, name, icon")
-        .in("id", ghostData.category_ids);
-      if (catData) setCategories(catData);
-    }
-
-    if (ghostData.region_id) {
-      const { data: r } = await supabase
-        .from("regions")
-        .select("id, name_cs")
-        .eq("id", ghostData.region_id)
-        .maybeSingle();
-      if (r) setRegion(r);
-    }
-    if (ghostData.district_id) {
-      const { data: d } = await supabase
-        .from("districts")
-        .select("id, name_cs")
-        .eq("id", ghostData.district_id)
-        .maybeSingle();
-      if (d) setDistrict(d);
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("ico")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (profile?.ico) setUserIco(profile.ico);
-    }
-
-    setLoading(false);
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { ico } = await params;
+  const ghost = await fetchGhost(ico);
+  if (!ghost) {
+    return { title: "Subjekt nenalezen | Fachmani", robots: { index: false, follow: false } };
   }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+  // A.F6 — gdpr_suppressed: noindex + minimal title.
+  if (ghost.gdpr_suppressed) {
+    return {
+      title: "Profil byl odstraněn | Fachmani",
+      robots: { index: false, follow: false },
+    };
   }
+  const city = ghost.legal_address?.city ?? null;
+  const titleBase = `${ghost.name} (IČO ${ghost.ico})`;
+  const title = city ? `${titleBase} — ${city}` : titleBase;
+  // Bez koncové tečky v segmentech — join " · " pak nedělá doubled-period.
+  const descParts = [
+    ghost.legal_form,
+    city ? `sídlo ${city}` : null,
+    "údaje z ARES",
+    "poptejte přes Fachmani",
+  ].filter(Boolean);
+  const description = descParts.join(" · ");
+  return {
+    title: `${title} | Fachmani`,
+    description,
+    alternates: { canonical: `/fachman/ghost/${ghost.ico}` },
+    openGraph: {
+      title,
+      description,
+      type: "profile",
+      url: `${SITE_URL}/fachman/ghost/${ghost.ico}`,
+    },
+  };
+}
 
-  if (notFound || !ghost) {
+export default async function GhostFachmanPage({ params }: { params: Params }) {
+  const { ico } = await params;
+  const ghost = await fetchGhost(ico);
+  if (!ghost) notFound();
+
+  // A.F6 — GDPR suppress: ukáž minimální stránku bez dat o subjektu.
+  if (ghost.gdpr_suppressed) {
     return (
       <div className="min-h-screen bg-white">
         <Navbar />
-        <div className="max-w-3xl mx-auto px-4 py-32 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Subjekt nenalezen</h1>
-          <p className="text-gray-600 mb-8">IČO {ico} v ARES databázi neexistuje, nebo už byl převzat.</p>
-          <Link href="/fachmani" className="inline-block px-6 py-3 bg-cyan-500 text-white rounded-xl font-semibold">
-            Zpět na seznam
-          </Link>
-        </div>
+        <section className="pt-32 pb-24">
+          <div className="max-w-2xl mx-auto px-4 text-center">
+            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8">
+              <h1 className="text-2xl font-bold text-gray-900 mb-3">Profil byl odstraněn</h1>
+              <p className="text-gray-600 mb-2">
+                Na žádost subjektu byly informace o IČO {ico} z této platformy odstraněny v souladu
+                s GDPR čl. 21 (právo vznést námitku proti zpracování).
+              </p>
+              <p className="text-sm text-gray-500">
+                Veřejně dostupná data jsou nadále k dispozici v{" "}
+                <a
+                  href={`https://ares.gov.cz/ekonomicke-subjekty?ico=${ico}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-700 hover:underline"
+                >
+                  rejstříku ARES
+                </a>.
+              </p>
+            </div>
+            <Link href="/fachmani" className="inline-block mt-8 text-cyan-700 hover:underline">
+              ← Zpět na seznam fachmanů
+            </Link>
+          </div>
+        </section>
         <Footer />
       </div>
     );
   }
+
+  const supabase = await createSupabaseServer();
+
+  // Lookup data — paralelně.
+  const catIds = ghost.category_ids ?? [];
+  const [categoriesRes, regionRes, districtRes, userRes] = await Promise.all([
+    catIds.length > 0
+      ? supabase.from("categories").select("id, name, icon").in("id", catIds)
+      : Promise.resolve({ data: [] as { id: string; name: string; icon: string }[] }),
+    ghost.region_id
+      ? supabase.from("regions").select("id, name_cs").eq("id", ghost.region_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    ghost.district_id
+      ? supabase.from("districts").select("id, name_cs").eq("id", ghost.district_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.auth.getUser(),
+  ]);
+
+  const categories = (categoriesRes.data ?? []) as { id: string; name: string; icon: string }[];
+  const region = regionRes.data as { id: string; name_cs: string } | null;
+  const district = districtRes.data as { id: string; name_cs: string } | null;
+
+  // Pokud je user logged in a má stejné IČO jako ghost, ukážeme rovnou tlačítko převzetí.
+  const user = userRes.data?.user ?? null;
+  let userIco: string | null = null;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("ico")
+      .eq("id", user.id)
+      .maybeSingle();
+    userIco = (profile as { ico: string | null } | null)?.ico ?? null;
+  }
+  const isOwner = !!userIco && userIco === ghost.ico;
+
+  const claimHref = user
+    ? `/dashboard/profil?claimIco=${ghost.ico}`
+    : `/prihlaseni?next=${encodeURIComponent(`/fachman/ghost/${ghost.ico}`)}`;
 
   const addressLine = ghost.legal_address
     ? [
@@ -138,20 +168,33 @@ export default function GhostFachmanPage() {
       ].filter(Boolean).join(" ")
     : null;
 
-  const isOwner = userIco === ghost.ico;
-
-  async function handleClaim() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      router.push(`/prihlaseni?next=${encodeURIComponent(`/fachman/ghost/${ico}`)}`);
-      return;
-    }
-    router.push(`/dashboard/profil?claimIco=${ico}`);
-  }
+  // JSON-LD: Organization schema pro každý ARES subjekt.
+  // Google to umí mappovat na Knowledge Graph + obohatit search results o adresu/založení.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: ghost.name,
+    identifier: ghost.ico,
+    url: `${SITE_URL}/fachman/ghost/${ghost.ico}`,
+    ...(ghost.datum_vzniku ? { foundingDate: ghost.datum_vzniku } : {}),
+    ...(addressLine ? {
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: [ghost.legal_address?.street, ghost.legal_address?.house_number].filter(Boolean).join(" ") || undefined,
+        postalCode: ghost.legal_address?.postal_code || undefined,
+        addressLocality: ghost.legal_address?.city || undefined,
+        addressCountry: "CZ",
+      },
+    } : {}),
+  };
 
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       <section className="pt-32 pb-12 bg-gradient-to-br from-gray-50 to-white">
         <div className="max-w-5xl mx-auto px-4">
@@ -189,16 +232,16 @@ export default function GhostFachmanPage() {
               Údaje pocházejí z veřejného rejstříku ARES. Pokud jste majitel nebo zástupce {ghost.name},
               můžete profil převzít a doplnit fotky, ceník a popis vašich služeb.
             </p>
-            <button
-              onClick={handleClaim}
-              className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+            <Link
+              href={claimHref}
+              className={`inline-block px-6 py-3 rounded-xl font-semibold transition-all ${
                 isOwner
                   ? "bg-emerald-500 text-white hover:bg-emerald-600"
                   : "bg-cyan-500 text-white hover:bg-cyan-600"
               }`}
             >
               {isOwner ? "Převzít profil (vaše IČO)" : "Toto je moje firma — převzít profil"}
-            </button>
+            </Link>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8">
@@ -225,7 +268,7 @@ export default function GhostFachmanPage() {
                     <dd className="text-gray-900">{ghost.datum_vzniku}</dd>
                   </div>
                 )}
-                {ghost.cz_nace?.length > 0 && (
+                {ghost.cz_nace && ghost.cz_nace.length > 0 && (
                   <div>
                     <dt className="text-gray-500">CZ-NACE</dt>
                     <dd className="text-gray-900 text-xs font-mono">{ghost.cz_nace.join(", ")}</dd>
@@ -263,6 +306,40 @@ export default function GhostFachmanPage() {
             </Link>
             <p className="text-xs text-gray-500 mt-3">
               Náš tým fachmana osobně zkontaktuje a předá poptávku.
+            </p>
+          </div>
+
+          {/* A.F6 — GDPR disclaimer pro ghost subjekty z ARES */}
+          <div className="mt-8 bg-gray-50 border border-gray-200 rounded-2xl p-6 text-sm text-gray-600">
+            <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
+              <span>ℹ️</span> Informace o zpracování dat
+            </h3>
+            <p className="mb-2">
+              Tato stránka zobrazuje veřejně dostupná data o subjektu <strong>{ghost.name}</strong> (IČO {ghost.ico})
+              získaná z <a
+                href={`https://ares.gov.cz/ekonomicke-subjekty?ico=${ghost.ico}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan-700 hover:underline"
+              >
+                veřejného rejstříku ARES
+              </a> provozovaného Ministerstvem financí ČR. Tato data jsou ze zákona veřejná
+              (zákon č. 304/2013 Sb., zákon č. 455/1991 Sb.) a jejich zpracování probíhá v souladu s GDPR
+              čl. 6 odst. 1 písm. f) (oprávněný zájem provozovatele a uživatelů platformy).
+            </p>
+            <p className="mb-2">
+              Subjekt na Fachmani zatím <strong>nemá aktivní profil</strong> a nepotvrdil registraci na naší platformě.
+              Informace zobrazené zde mají pouze informativní charakter.
+            </p>
+            <p className="text-xs text-gray-500">
+              <strong>Námitka proti zpracování / žádost o vyřazení:</strong>{" "}
+              Pokud si přejete, aby tento profil nebyl na Fachmani zveřejněn, vyplňte{" "}
+              <Link href={`/gdpr/opt-out?ico=${ghost.ico}`} className="text-cyan-700 hover:underline font-semibold">
+                online formulář pro vyřazení
+              </Link>
+              {" "}nebo nás kontaktujte na{" "}
+              <a href="mailto:gdpr@fachmani.org" className="text-cyan-700 hover:underline">gdpr@fachmani.org</a>.
+              Vaši žádost zpracujeme v souladu s GDPR čl. 21 do 30 dnů.
             </p>
           </div>
         </div>
