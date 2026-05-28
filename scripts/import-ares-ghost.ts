@@ -80,6 +80,47 @@ const PREFIX_OVERRIDE = process.env.ARES_NACE_PREFIXES
   : null;
 const ACTIVE_PREFIXES = PREFIX_OVERRIDE ?? RELEVANT_NACE_PREFIXES;
 
+const PF_OVERRIDE = process.env.ARES_PRAVNI_FORMY
+  ? process.env.ARES_PRAVNI_FORMY.split(",").map((s) => s.trim()).filter(Boolean)
+  : null;
+const ACTIVE_PF = PF_OVERRIDE ?? POPULAR_PRAVNI_FORMY;
+
+// ARES API nepodporuje server-side filtr na kraj ani okres v root payloadu
+// (AdresaFiltr má jen kodObce/kodCastiObce/kodSpravnihoObvodu). Filtrujeme
+// proto klient-side podle `sidlo.nazevKraje` / `sidlo.nazevOkresu` v response.
+// CLI: ARES_REGIONS="Jihočeský kraj" ARES_DISTRICTS="Benešov,Příbram"
+const ALLOWED_REGIONS = new Set(
+  (process.env.ARES_REGIONS ?? "").split(",").map((s) => normalizeRegionName(s)).filter(Boolean)
+);
+const ALLOWED_DISTRICTS = new Set(
+  (process.env.ARES_DISTRICTS ?? "").split(",").map((s) => normalizeRegionName(s)).filter(Boolean)
+);
+const HAS_REGION_FILTER = ALLOWED_REGIONS.size > 0 || ALLOWED_DISTRICTS.size > 0;
+
+function normalizeRegionName(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Vrátí true, pokud subjekt patří do povolené množiny (kraj NEBO okres match). */
+function isInAllowedRegion(subject: AresSubject): boolean {
+  if (!HAS_REGION_FILTER) return true;
+  const sidlo = subject.sidlo ?? {};
+  const kraj = normalizeRegionName(sidlo.nazevKraje ?? "");
+  const okres = normalizeRegionName(sidlo.nazevOkresu ?? "");
+  if (kraj && ALLOWED_REGIONS.has(kraj)) return true;
+  if (okres && ALLOWED_DISTRICTS.has(okres)) return true;
+  return false;
+}
+
+// Brzký stop, jakmile zachytíme N kept subjektů (pro malé regionální runy).
+// Pokud není set, jede celý NACE seznam.
+const MAX_KEEP = process.env.ARES_MAX_KEEP ? Number(process.env.ARES_MAX_KEEP) : Infinity;
+
+// Post-filter blacklist: subjekty, jejichž název matchne, vůbec nezapíšeme.
+// Pokrývá likvidaci, insolvenci, státní/úřední subjekty (i kdyby ARES sub
+// vrátil 101/112 právní formu, neměly by být ve výsledcích Fachmani).
+const NAME_BLACKLIST = /(v likvidaci|v konkurzu|v insolvenci|Lesy ČR|Lesy České|\búřad\b|ministerstvo|česká pošta|česká televize|český rozhlas|národní park|správa železnic|státní podnik|příspěvková organizace)/i;
+
 // -------------------------------------------------------------------------
 // Typy
 // -------------------------------------------------------------------------
@@ -126,6 +167,7 @@ type Stats = {
   fetched: number;
   filtered_inactive: number;
   filtered_nace: number;
+  filtered_region: number;
   duplicates: number;
   kept: number;
   upserted: number;
@@ -241,6 +283,7 @@ function mapToGhostRow(
   const naces = extractNaces(subject);
   if (!isRelevantNace(naces)) return null;
   if (!isActive(subject)) return null;
+  if (NAME_BLACKLIST.test(subject.obchodniJmeno)) return null;
 
   // Region/district mapping přes nazev match
   let region_id: string | null = null;
@@ -390,7 +433,11 @@ async function* paginateFilter(
 
 async function peekTotal(filter: Record<string, unknown>): Promise<number> {
   try {
-    const data = await aresPost(ARES_VYHLEDAT, { ...filter, start: 0, pocet: 1 });
+    const data = await aresPost(ARES_VYHLEDAT, {
+      ...filter,
+      start: 0,
+      pocet: 1,
+    });
     return data?.pocetCelkem ?? 0;
   } catch (e: any) {
     if (e.code === "CHYBA_VSTUPU") return Infinity;
@@ -419,7 +466,7 @@ async function* iterateNace(
   console.log(`  [${naceCode}] >${ARES_LIMIT_PER_QUERY} subjektů — sub-split per pravniForma`);
 
   // Úroveň 2: NACE × pravniForma
-  for (const pf of POPULAR_PRAVNI_FORMY) {
+  for (const pf of ACTIVE_PF) {
     const t2 = await peekTotal({ czNace: [naceCode], pravniForma: [pf] });
     if (t2 === 0) continue;
 
@@ -526,6 +573,7 @@ async function main() {
     fetched: 0,
     filtered_inactive: 0,
     filtered_nace: 0,
+    filtered_region: 0,
     duplicates: 0,
     kept: 0,
     upserted: 0,
@@ -534,7 +582,7 @@ async function main() {
   const buffer: GhostRow[] = [];
   const seenIcos = new Set<string>();
 
-  for (const { kod, nazev } of naceCodes) {
+  outer: for (const { kod, nazev } of naceCodes) {
     console.log(`\n  → NACE ${kod} (${nazev})`);
     for await (const subject of iterateNace(kod, fus, stats, seenIcos)) {
       // isActive a NACE filter (subjekt může mít víc NACE; alespoň jeden musí být relevantní)
@@ -545,6 +593,10 @@ async function main() {
       const naces = extractNaces(subject);
       if (!isRelevantNace(naces)) {
         stats.filtered_nace++;
+        continue;
+      }
+      if (!isInAllowedRegion(subject)) {
+        stats.filtered_region++;
         continue;
       }
 
@@ -566,6 +618,11 @@ async function main() {
           `    fetched=${stats.fetched.toLocaleString()} kept=${stats.kept.toLocaleString()} upserted=${stats.upserted.toLocaleString()}\r`
         );
       }
+
+      if (stats.kept >= MAX_KEEP) {
+        console.log(`\n  MAX_KEEP=${MAX_KEEP} dosaženo — stop.`);
+        break outer;
+      }
     }
   }
 
@@ -575,12 +632,13 @@ async function main() {
   }
 
   console.log("\n[4/4] Hotovo:");
-  console.log(`  fetched:        ${stats.fetched.toLocaleString()}`);
-  console.log(`  duplicates:     ${stats.duplicates.toLocaleString()}`);
-  console.log(`  filtered NACE:  ${stats.filtered_nace.toLocaleString()}`);
-  console.log(`  filtered inactive: ${stats.filtered_inactive.toLocaleString()}`);
-  console.log(`  kept:           ${stats.kept.toLocaleString()}`);
-  console.log(`  upserted:       ${stats.upserted.toLocaleString()}`);
+  console.log(`  fetched:          ${stats.fetched.toLocaleString()}`);
+  console.log(`  duplicates:       ${stats.duplicates.toLocaleString()}`);
+  console.log(`  filtered NACE:    ${stats.filtered_nace.toLocaleString()}`);
+  console.log(`  filtered inactive:${stats.filtered_inactive.toLocaleString()}`);
+  console.log(`  filtered region:  ${stats.filtered_region.toLocaleString()}`);
+  console.log(`  kept:             ${stats.kept.toLocaleString()}`);
+  console.log(`  upserted:         ${stats.upserted.toLocaleString()}`);
   if (stats.over_limit_buckets.length > 0) {
     console.warn(
       `  POZOR: ${stats.over_limit_buckets.length} bucketů přeplnilo limit 1 000 ` +

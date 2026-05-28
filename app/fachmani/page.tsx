@@ -461,7 +461,7 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
             {totalCount.toLocaleString("cs-CZ")} {totalCount === 1 ? "fachman" : totalCount < 5 ? "fachmani" : "fachmanů"}
             {searchText && searchText.length < 3 && (
               <span className="text-xs text-gray-400 ml-2">
-                (zadejte 3+ znaků pro vyhledávání i v ARES)
+                (zadejte 3+ znaků pro lepší výsledky)
               </span>
             )}
           </p>
@@ -488,7 +488,6 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
                       ? `/fachman/ghost/${fachman.ghost_ico}${backParam}`
                       : `/fachman/${fachman.id}${backParam}`}
                     className={`group relative bg-white rounded-3xl p-6 border border-gray-100 hover:border-transparent hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 ${
-                      fachman.is_ghost ? "opacity-90" :
                       isTopProfile ? "ring-2 ring-yellow-400/50 bg-yellow-50/30" :
                       isPremium ? "ring-2 ring-cyan-500/50" : ""
                     }`}
@@ -500,14 +499,9 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
                           🚀 Top
                         </span>
                       )}
-                      {isPremium && !isTopProfile && !fachman.is_ghost && (
+                      {isPremium && !isTopProfile && (
                         <span className="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white text-xs px-3 py-1 rounded-full font-semibold shadow-lg">
                           Premium
-                        </span>
-                      )}
-                      {fachman.is_ghost && (
-                        <span className="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full font-semibold border border-gray-200" title="Subjekt importovaný z ARES, profil zatím nepřevzal">
-                          Neověřeno (ARES)
                         </span>
                       )}
                       {!fachman.is_ghost && !fachman.is_verified && (

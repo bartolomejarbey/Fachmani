@@ -616,11 +616,6 @@ export default function KategorieDetail() {
                               ⭐ Premium
                             </span>
                           )}
-                          {provider.is_ghost && (
-                            <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full font-semibold border border-gray-200" title="Subjekt importovaný z ARES, profil zatím nepřevzal">
-                              Neověřeno (ARES)
-                            </span>
-                          )}
                           {!provider.is_ghost && !provider.is_verified && !isPremium && !isTopProfile && (
                             <span className="bg-orange-50 text-orange-600 text-xs px-2 py-1 rounded-full font-semibold border border-orange-200" title="Profil zatím není ověřen">
                               Neověřeno

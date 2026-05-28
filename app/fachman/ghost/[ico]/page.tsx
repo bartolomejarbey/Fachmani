@@ -64,7 +64,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const descParts = [
     ghost.legal_form,
     city ? `sídlo ${city}` : null,
-    "údaje z ARES",
     "poptejte přes Fachmani",
   ].filter(Boolean);
   const description = descParts.join(" · ");
@@ -211,17 +210,14 @@ export default async function GhostFachmanPage({
           </Link>
 
           <div className="mt-6 flex items-start gap-6">
-            <div className="w-24 h-24 bg-gradient-to-br from-gray-200 to-gray-300 rounded-2xl flex items-center justify-center flex-shrink-0">
-              <span className="text-4xl text-gray-500 font-bold">
+            <div className="w-24 h-24 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
+              <span className="text-4xl text-white font-bold">
                 {ghost.name.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-3 flex-wrap mb-2">
                 <h1 className="text-3xl font-bold text-gray-900">{ghost.name}</h1>
-                <span className="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full font-semibold border border-gray-200">
-                  Neověřeno (ARES)
-                </span>
               </div>
               {ghost.legal_form && (
                 <p className="text-gray-600">{ghost.legal_form}</p>
@@ -234,27 +230,26 @@ export default async function GhostFachmanPage({
 
       <section className="py-8">
         <div className="max-w-5xl mx-auto px-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-8">
-            <h2 className="font-bold text-amber-900 mb-2">Tento subjekt na Fachmani zatím nemá aktivní profil</h2>
-            <p className="text-sm text-amber-800 mb-4">
-              Údaje pocházejí z veřejného rejstříku ARES. Pokud jste majitel nebo zástupce {ghost.name},
-              můžete profil převzít a doplnit fotky, ceník a popis vašich služeb.
-            </p>
-            <Link
-              href={claimHref}
-              className={`inline-block px-6 py-3 rounded-xl font-semibold transition-all ${
-                isOwner
-                  ? "bg-emerald-500 text-white hover:bg-emerald-600"
-                  : "bg-cyan-500 text-white hover:bg-cyan-600"
-              }`}
-            >
-              {isOwner ? "Převzít profil (vaše IČO)" : "Toto je moje firma — převzít profil"}
-            </Link>
-          </div>
+          {/* Owner-only mini banner — fachman vidí, ostatní ne */}
+          {isOwner && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-8 flex items-center gap-4">
+              <span className="text-2xl">✋</span>
+              <div className="flex-1">
+                <p className="font-semibold text-emerald-900">Toto je váš profil — můžete ho spravovat.</p>
+                <p className="text-sm text-emerald-800">Doplňte fotky, ceník a popis služeb.</p>
+              </div>
+              <Link
+                href={claimHref}
+                className="bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-emerald-600 transition-all flex-shrink-0"
+              >
+                Spravovat profil
+              </Link>
+            </div>
+          )}
 
           <div className="grid md:grid-cols-2 gap-8">
             <div>
-              <h3 className="font-bold text-gray-900 mb-3">Údaje z ARES</h3>
+              <h3 className="font-bold text-gray-900 mb-3">Kontaktní údaje</h3>
               <dl className="space-y-2 text-sm">
                 {addressLine && (
                   <div>
@@ -276,17 +271,11 @@ export default async function GhostFachmanPage({
                     <dd className="text-gray-900">{ghost.datum_vzniku}</dd>
                   </div>
                 )}
-                {ghost.cz_nace && ghost.cz_nace.length > 0 && (
-                  <div>
-                    <dt className="text-gray-500">CZ-NACE</dt>
-                    <dd className="text-gray-900 text-xs font-mono">{ghost.cz_nace.join(", ")}</dd>
-                  </div>
-                )}
               </dl>
             </div>
 
             <div>
-              <h3 className="font-bold text-gray-900 mb-3">Obory (odhad podle NACE)</h3>
+              <h3 className="font-bold text-gray-900 mb-3">Obory</h3>
               {categories.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {categories.map((c) => (
@@ -317,39 +306,58 @@ export default async function GhostFachmanPage({
             </p>
           </div>
 
-          {/* A.F6 — GDPR disclaimer pro ghost subjekty z ARES */}
-          <div className="mt-8 bg-gray-50 border border-gray-200 rounded-2xl p-6 text-sm text-gray-600">
-            <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-              <span>ℹ️</span> Informace o zpracování dat
-            </h3>
-            <p className="mb-2">
-              Tato stránka zobrazuje veřejně dostupná data o subjektu <strong>{ghost.name}</strong> (IČO {ghost.ico})
-              získaná z <a
-                href={`https://ares.gov.cz/ekonomicke-subjekty?ico=${ghost.ico}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-cyan-700 hover:underline"
-              >
-                veřejného rejstříku ARES
-              </a> provozovaného Ministerstvem financí ČR. Tato data jsou ze zákona veřejná
-              (zákon č. 304/2013 Sb., zákon č. 455/1991 Sb.) a jejich zpracování probíhá v souladu s GDPR
-              čl. 6 odst. 1 písm. f) (oprávněný zájem provozovatele a uživatelů platformy).
-            </p>
-            <p className="mb-2">
-              Subjekt na Fachmani zatím <strong>nemá aktivní profil</strong> a nepotvrdil registraci na naší platformě.
-              Informace zobrazené zde mají pouze informativní charakter.
-            </p>
-            <p className="text-xs text-gray-500">
-              <strong>Námitka proti zpracování / žádost o vyřazení:</strong>{" "}
-              Pokud si přejete, aby tento profil nebyl na Fachmani zveřejněn, vyplňte{" "}
-              <Link href={`/gdpr/opt-out?ico=${ghost.ico}`} className="text-cyan-700 hover:underline font-semibold">
-                online formulář pro vyřazení
-              </Link>
-              {" "}nebo nás kontaktujte na{" "}
-              <a href="mailto:gdpr@fachmani.org" className="text-cyan-700 hover:underline">gdpr@fachmani.org</a>.
-              Vaši žádost zpracujeme v souladu s GDPR čl. 21 do 30 dnů.
-            </p>
-          </div>
+          {/* GDPR / A.F6 — schované v collapsoru, default zavřené, dole stránky.
+              Právně NUTNÉ zachovat (oprávněný zájem GDPR čl. 6/1/f + opt-out čl. 21).
+              UI ale schválně decentní, aby visitor na první dobrou viděl normální profil. */}
+          {!isOwner && (
+            <details className="mt-16 text-xs text-gray-400">
+              <summary className="cursor-pointer select-none text-gray-400 hover:text-gray-600">
+                Informace o profilu
+              </summary>
+              <div className="mt-3 space-y-2 pl-4 border-l border-gray-200">
+                <p>
+                  Údaje na této stránce o subjektu {ghost.name} (IČO {ghost.ico})
+                  pocházejí z veřejných rejstříků ČR (zákon č. 304/2013 Sb., zákon
+                  č. 455/1991 Sb.) a jejich zpracování probíhá v souladu s GDPR čl. 6
+                  odst. 1 písm. f).{" "}
+                  <a
+                    href={`https://ares.gov.cz/ekonomicke-subjekty?ico=${ghost.ico}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-500 hover:text-gray-700 underline"
+                  >
+                    Zdroj
+                  </a>
+                  .
+                </p>
+                <p>
+                  Pokud jste zástupce této firmy a chcete profil spravovat nebo
+                  vyřadit, použijte{" "}
+                  <Link
+                    href={claimHref}
+                    className="text-gray-500 hover:text-gray-700 underline"
+                  >
+                    správu profilu
+                  </Link>
+                  {" "}nebo{" "}
+                  <Link
+                    href={`/gdpr/opt-out?ico=${ghost.ico}`}
+                    className="text-gray-500 hover:text-gray-700 underline"
+                  >
+                    formulář pro vyřazení
+                  </Link>
+                  . Kontakt:{" "}
+                  <a
+                    href="mailto:gdpr@fachmani.org"
+                    className="text-gray-500 hover:text-gray-700 underline"
+                  >
+                    gdpr@fachmani.org
+                  </a>
+                  .
+                </p>
+              </div>
+            </details>
+          )}
         </div>
       </section>
 
