@@ -15,7 +15,7 @@ export const OPERATOR = {
   emailGdpr: "gdpr@fachmani.org",
   emailDpo: "dpo@fachmani.org",
   emailLegal: "pravo@fachmani.org",
-  phone: "+420 228 228 143",
+  phone: "+420 775 909 019",
   site: "www.fachmani.org",
   // Ověřeno v ARES 2026-05-28: registrovaná obchodní firma je „Comgate a.s."
   // (dříve „ComGate Payments, a.s."), IČO 27924505, sídlo Hradec Králové.

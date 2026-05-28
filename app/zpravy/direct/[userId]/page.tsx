@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import Navbar from "@/app/components/Navbar";
+import Avatar from "@/app/components/Avatar";
 
 type Message = {
   id: string;
@@ -16,8 +18,30 @@ type Message = {
 type OtherUser = {
   id: string;
   full_name: string;
+  avatar_url: string | null;
   role: string | null;
 };
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDayLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return "Dnes";
+  const y = new Date(now.getTime() - 86_400_000);
+  if (d.toDateString() === y.toDateString()) return "Včera";
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString("cs-CZ", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
 
 // B.F2 — direct chat fachman→fachman bez kontextu poptávky.
 export default function DirectChatPage() {
@@ -50,25 +74,25 @@ export default function DirectChatPage() {
 
   useEffect(() => {
     async function loadData() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         router.push("/auth/login");
         return;
       }
       setCurrentUser(user.id);
 
-      const { data: meProfile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+      // Paralelně — můj profil (role) + profil druhého fachmana.
+      const [{ data: meProfile }, { data: userData }] = await Promise.all([
+        supabase.from("profiles").select("role").eq("id", user.id).single(),
+        supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url, role")
+          .eq("id", otherUserId)
+          .single(),
+      ]);
       const myRole = (meProfile as { role: string | null } | null)?.role ?? null;
-
-      const { data: userData } = await supabase
-        .from("profiles")
-        .select("id, full_name, role")
-        .eq("id", otherUserId)
-        .single();
 
       if (!userData) {
         setError("Uživatel nenalezen.");
@@ -115,7 +139,7 @@ export default function DirectChatPage() {
           const m = payload.new as Message & { request_id: string | null };
           if (m.request_id !== null) return;
           if (m.sender_id !== otherUserId) return;
-          setMessages((prev) => [...prev, m]);
+          setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, m]));
         },
       )
       .subscribe();
@@ -133,7 +157,7 @@ export default function DirectChatPage() {
     if (!newMessage.trim() || !currentUser || error) return;
 
     setSending(true);
-    const text = newMessage.trim();
+    const text = newMessage.trim().slice(0, 2000);
     const { error: insErr } = await supabase.from("messages").insert({
       request_id: null,
       sender_id: currentUser,
@@ -150,7 +174,7 @@ export default function DirectChatPage() {
       user_id: otherUserId,
       type: "new_message",
       title: "Nová zpráva",
-      message: `Máte novou zprávu: "${text.substring(0, 50)}${text.length > 50 ? "…" : ""}"`,
+      message: text.slice(0, 120),
       link: `/zpravy/direct/${currentUser}`,
     });
 
@@ -159,28 +183,36 @@ export default function DirectChatPage() {
     setSending(false);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p>Načítám…</p>
-      </div>
-    );
-  }
-
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <nav className="bg-white shadow-sm">
-          <div className="max-w-4xl mx-auto px-4 py-4">
-            <Link href="/zpravy" className="text-blue-600 hover:underline text-sm">
-              ← Zpět na zprávy
-            </Link>
+      <div className="flex min-h-screen flex-col bg-gray-50">
+        <Navbar />
+        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-3 py-4 sm:px-6">
+          <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-3 text-white">
+              <Link
+                href="/zpravy"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-white/85 transition hover:text-white"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-3.5 w-3.5"
+                >
+                  <path d="M19 12H5" />
+                  <path d="M12 19l-7-7 7-7" />
+                </svg>
+                Zpět na zprávy
+              </Link>
+            </div>
           </div>
-        </nav>
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="bg-white border border-red-200 rounded-2xl p-6 text-center max-w-md">
-            <div className="text-3xl mb-2">🚫</div>
-            <p className="text-red-700 font-semibold">{error}</p>
+          <div className="mt-4 rounded-3xl bg-white p-10 text-center ring-1 ring-gray-100">
+            <div className="text-5xl">🚫</div>
+            <p className="mt-4 text-base font-semibold text-red-700">{error}</p>
           </div>
         </div>
       </div>
@@ -188,80 +220,182 @@ export default function DirectChatPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <Link href="/zpravy" className="text-blue-600 hover:underline text-sm">
-              ← Zpět na zprávy
-            </Link>
-            <h1 className="font-semibold">{otherUser?.full_name}</h1>
-            <p className="text-xs text-gray-500">Direct chat (bez poptávky)</p>
-          </div>
-          <Link
-            href={`/fachman/${otherUserId}`}
-            className="text-blue-600 hover:underline text-sm"
-          >
-            Profil fachmana
-          </Link>
-        </div>
-      </nav>
+    <div className="flex min-h-screen flex-col bg-gray-50">
+      <Navbar />
 
-      <div className="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full">
-        <div className="space-y-4">
-          {messages.length === 0 ? (
-            <p className="text-center text-gray-500 py-8">
-              Zatím žádné zprávy. Napište první!
-            </p>
-          ) : (
-            messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.sender_id === currentUser ? "justify-end" : "justify-start"}`}
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-3 py-4 sm:px-6">
+        {/* Header karta */}
+        <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-gray-100">
+          <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-3 text-white">
+            <Link
+              href="/zpravy"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-white/85 transition hover:text-white"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-3.5 w-3.5"
               >
-                <div
-                  className={`max-w-xs md:max-w-md px-4 py-2 rounded-lg ${
-                    msg.sender_id === currentUser
-                      ? "bg-blue-600 text-white"
-                      : "bg-white shadow"
-                  }`}
-                >
-                  <p>{msg.content}</p>
-                  <p
-                    className={`text-xs mt-1 ${
-                      msg.sender_id === currentUser ? "text-blue-200" : "text-gray-400"
-                    }`}
-                  >
-                    {new Date(msg.created_at).toLocaleTimeString("cs-CZ", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
+                <path d="M19 12H5" />
+                <path d="M12 19l-7-7 7-7" />
+              </svg>
+              Zpět na zprávy
+            </Link>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Avatar
+              src={otherUser?.avatar_url ?? null}
+              name={otherUser?.full_name ?? "?"}
+              size={48}
+              ringClass="ring-2 ring-cyan-100"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base font-bold text-gray-900">
+                {otherUser?.full_name ?? "Načítám…"}
+              </p>
+              <Link
+                href={`/fachman/${otherUserId}`}
+                className="truncate text-xs text-cyan-600 hover:underline"
+              >
+                👤 Profil fachmana →
+              </Link>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="bg-white border-t p-4">
-        <form onSubmit={handleSend} className="max-w-4xl mx-auto flex gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Napište zprávu…"
-            maxLength={2000}
-            className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <button
-            type="submit"
-            disabled={sending || !newMessage.trim()}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {sending ? "…" : "Odeslat"}
-          </button>
+        {/* Zprávy */}
+        <div className="mt-4 flex-1 overflow-y-auto rounded-3xl bg-white px-3 py-4 ring-1 ring-gray-100 sm:px-5">
+          {loading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className={`flex ${i % 2 === 0 ? "justify-start" : "justify-end"}`}
+                >
+                  <div
+                    className={`h-12 w-1/2 animate-pulse rounded-2xl ${
+                      i % 2 === 0 ? "bg-gray-100" : "bg-cyan-100"
+                    }`}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="text-5xl">👋</div>
+              <p className="mt-3 text-base font-semibold text-gray-900">
+                Začněte konverzaci
+              </p>
+              <p className="mt-1 text-sm text-gray-500">
+                Napište první zprávu — {otherUser?.full_name} ji dostane v reálném čase.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {messages.map((msg, idx) => {
+                const mine = msg.sender_id === currentUser;
+                const prev = messages[idx - 1];
+                const showDayDivider =
+                  !prev ||
+                  new Date(prev.created_at).toDateString() !==
+                    new Date(msg.created_at).toDateString();
+                const showAvatar =
+                  !mine && (!prev || prev.sender_id !== msg.sender_id);
+                return (
+                  <div key={msg.id}>
+                    {showDayDivider && (
+                      <div className="my-3 flex items-center gap-3">
+                        <div className="h-px flex-1 bg-gray-100" />
+                        <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                          {formatDayLabel(msg.created_at)}
+                        </span>
+                        <div className="h-px flex-1 bg-gray-100" />
+                      </div>
+                    )}
+                    <div
+                      className={`flex items-end gap-2 ${
+                        mine ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      {!mine && (
+                        <div className="w-8 flex-shrink-0">
+                          {showAvatar && (
+                            <Avatar
+                              src={otherUser?.avatar_url ?? null}
+                              name={otherUser?.full_name ?? "?"}
+                              size={32}
+                            />
+                          )}
+                        </div>
+                      )}
+                      <div
+                        className={`max-w-[78%] rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm sm:max-w-[70%] ${
+                          mine
+                            ? "rounded-br-sm bg-gradient-to-r from-cyan-500 to-blue-500 text-white"
+                            : "rounded-bl-sm bg-gray-50 text-gray-800 ring-1 ring-gray-100"
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        <p
+                          className={`mt-0.5 text-[10px] ${
+                            mine ? "text-white/70" : "text-gray-400"
+                          }`}
+                        >
+                          {formatTime(msg.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Composer */}
+        <form
+          onSubmit={handleSend}
+          className="mt-3 rounded-3xl bg-white p-2 shadow-sm ring-1 ring-gray-100"
+        >
+          <div className="flex items-end gap-2">
+            <textarea
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value.slice(0, 2000))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend(e as unknown as React.FormEvent);
+                }
+              }}
+              placeholder="Napište zprávu… (Enter odešle)"
+              rows={1}
+              className="max-h-32 min-h-[2.75rem] flex-1 resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 transition focus:border-cyan-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-100"
+            />
+            <button
+              type="submit"
+              disabled={sending || !newMessage.trim()}
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-md transition enabled:hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Odeslat zprávu"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+              >
+                <path d="M22 2L11 13" />
+                <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+              </svg>
+            </button>
+          </div>
         </form>
       </div>
     </div>
