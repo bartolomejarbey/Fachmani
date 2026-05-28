@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import {
+  getCachedCategories,
+  getCachedRegions,
+  getCachedDistricts,
+} from "@/lib/cachedLookups";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
@@ -27,7 +32,7 @@ type SP = Promise<{
 type Category = {
   id: string;
   name: string;
-  icon: string;
+  icon: string | null;
   parent_id: string | null;
   sort_order: number | null;
 };
@@ -81,27 +86,12 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
   const supabase = await createSupabaseServer();
 
   // --- LOOKUPS (kategorie, kraje, okresy) ---
-  const [{ data: rawCats }, { data: rawRegions }, { data: rawDistricts }] = await Promise.all([
-    supabase
-      .from("categories")
-      .select("id, name, icon, parent_id, sort_order")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true, nullsFirst: false })
-      .order("name"),
-    supabase
-      .from("regions")
-      .select("id, code, name_cs, sort_order")
-      .order("sort_order", { ascending: true, nullsFirst: false })
-      .order("name_cs"),
-    supabase
-      .from("districts")
-      .select("id, code, name_cs, region_id, sort_order")
-      .order("sort_order", { ascending: true, nullsFirst: false })
-      .order("name_cs"),
+  // Tahnuto z `lib/cachedLookups` — unstable_cache 1h, šetří ~150 ms na každý request.
+  const [categories, regions, districts] = await Promise.all([
+    getCachedCategories(),
+    getCachedRegions(),
+    getCachedDistricts(),
   ]);
-  const categories: Category[] = rawCats ?? [];
-  const regions: Region[] = rawRegions ?? [];
-  const districts: District[] = rawDistricts ?? [];
 
   // --- ROZKLAD URL PARAMS NA INTERNAL STATE ---
   const kategorieParam = sp.kategorie ?? "";
@@ -138,14 +128,13 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
     : [];
 
   // --- REAL providers ---
-  // C.F2 — Public feed: premium+ vždy, free POUZE pokud trial ještě běží.
+  // Public feed: všichni registrovaní providers jsou vidět vždy.
+  // (Trial řídí jen aktivní bidování — viz logika v /poptavka/[id], ne viditelnost v katalogu.)
   const all: Fachman[] = [];
-  const nowIso = new Date().toISOString();
   const { data: profilesData } = await supabase
     .from("profiles")
     .select("id, full_name, avatar_url, is_verified, bank_verification_status, subscription_type, region_id, district_id, created_at, trial_until")
     .eq("role", "provider")
-    .or(`subscription_type.in.(premium,business),and(subscription_type.eq.free,trial_until.gt.${nowIso})`)
     .order("subscription_type", { ascending: false });
 
   if (profilesData && profilesData.length > 0) {

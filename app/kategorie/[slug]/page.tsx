@@ -188,14 +188,13 @@ export default function KategorieDetail() {
     if (providerCategoriesData && providerCategoriesData.length > 0) {
       const providerIds = Array.from(new Set(providerCategoriesData.map(pc => pc.provider_id)));
 
-      // Načteme profily — C.F2: pouze premium+ nebo free s aktivním trialem
-      const nowIso = new Date().toISOString();
+      // Načteme profily — všichni registrovaní providers vidět vždy
+      // (trial řídí jen bidování, ne viditelnost v katalogu).
       const { data: profilesData } = await supabase
         .from("profiles")
         .select("id, full_name, is_verified, subscription_type, trial_until")
         .in("id", providerIds)
-        .eq("role", "provider")
-        .or(`subscription_type.in.(premium,business),and(subscription_type.eq.free,trial_until.gt.${nowIso})`);
+        .eq("role", "provider");
 
       // Načteme provider_profiles
       const { data: providerProfilesData } = await supabase

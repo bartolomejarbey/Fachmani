@@ -147,15 +147,12 @@ async function searchFachmani(
   }[] = [];
 
   // 1) Reální ověření/aktivní poskytovatelé
+  // Všichni registrovaní providers jsou viditelní — trial řídí jen bidování, ne viditelnost.
   try {
-    const nowIso = new Date().toISOString();
     let pq = supabase
       .from("profiles")
       .select("id, full_name, is_verified, region_id")
       .eq("role", "provider")
-      .or(
-        `subscription_type.in.(premium,business),and(subscription_type.eq.free,trial_until.gt.${nowIso})`
-      )
       .limit(20);
     if (term) pq = pq.ilike("full_name", `%${term}%`);
     type ProviderRow = { id: string; full_name: string | null; is_verified: boolean; region_id: string | null };

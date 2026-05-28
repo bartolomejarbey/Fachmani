@@ -114,17 +114,19 @@ export default function CookieBanner() {
         }`}
       >
         <div
-          className={`relative overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-gray-900/5 animate-fade-in-up ${
-            showDetails ? "w-full sm:max-w-lg max-h-[90vh] overflow-y-auto" : ""
+          className={`relative flex max-h-[calc(100dvh-2rem)] flex-col rounded-3xl bg-white shadow-2xl ring-1 ring-gray-900/5 animate-fade-in-up ${
+            showDetails ? "w-full sm:max-w-lg sm:max-h-[min(90vh,42rem)]" : ""
           }`}
         >
-          {/* Dekorativní gradient nahoře */}
-          <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-br from-cyan-500 via-blue-500 to-emerald-400 opacity-90" />
-          <div className="absolute -top-10 -right-8 text-[7rem] leading-none select-none opacity-20 rotate-12">
-            🍪
+          {/* Dekorativní gradient nahoře — má vlastní clip vrstvu, aby nepřebíjela scroll obsahu */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-28 overflow-hidden rounded-t-3xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500 via-blue-500 to-emerald-400 opacity-90" />
+            <div className="absolute -top-10 -right-8 text-[7rem] leading-none select-none opacity-20 rotate-12">
+              🍪
+            </div>
           </div>
 
-          <div className="relative p-6 sm:p-7">
+          <div className="relative overflow-y-auto p-6 sm:p-7">
             {/* Hlavička */}
             <div className="flex items-start gap-3 mb-3">
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-2xl shadow-lg ring-1 ring-gray-900/5">
@@ -158,16 +160,16 @@ export default function CookieBanner() {
                 {/* Nezbytné — vždy zapnuté */}
                 <div className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4">
                   <span className="text-xl">🔒</span>
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-gray-900">
                         Nezbytné
                       </p>
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                      <span className="flex-shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                         Vždy aktivní
                       </span>
                     </div>
-                    <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                    <p className="mt-1 break-words text-xs leading-relaxed text-gray-500">
                       Nutné pro funkčnost webu — přihlášení, košík poptávek,
                       zabezpečení. Nelze vypnout.
                     </p>
@@ -180,7 +182,7 @@ export default function CookieBanner() {
                     className="flex cursor-pointer items-start gap-3 rounded-2xl border border-gray-100 p-4 transition-colors hover:border-cyan-200 hover:bg-cyan-50/40"
                   >
                     <span className="text-xl">{c.emoji}</span>
-                    <div className="flex-1">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-gray-900">
                           {c.title}
@@ -205,7 +207,7 @@ export default function CookieBanner() {
                           />
                         </button>
                       </div>
-                      <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                      <p className="mt-1 break-words text-xs leading-relaxed text-gray-500">
                         {c.desc}
                       </p>
                     </div>

@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { iconAsTextPrefix } from "@/app/components/CategoryIcon";
 
-type Category = { id: string; name: string; icon: string; parent_id: string | null };
+type Category = { id: string; name: string; icon: string | null; parent_id: string | null };
 type Region = { id: string; code: string; name_cs: string };
 type District = { id: string; code: string; name_cs: string; region_id: string };
 

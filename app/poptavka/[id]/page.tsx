@@ -130,58 +130,75 @@ function PoptavkaDetail() {
 
     async function loadData() {
       const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        setIsLoggedIn(true);
-        setCurrentUser(user.id);
-        
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role, is_verified, subscription_type, monthly_offers_count, full_name, trial_until, trial_offers_used")
-          .eq("id", user.id)
-          .single();
-          
-        if (profile) {
-          setUserProfile(profile);
-        }
 
-        const { data: reviewData } = await supabase
-          .from("reviews")
-          .select("id")
-          .eq("request_id", params.id)
-          .eq("user_id", user.id)
-          .single();
-
-        if (reviewData) {
-          setExistingReview(true);
-        }
-
-        const { data: customerReviewData } = await supabase
-          .from("customer_reviews")
-          .select("id")
-          .eq("request_id", params.id)
-          .eq("provider_id", user.id)
-          .maybeSingle();
-
-        if (customerReviewData) {
-          setExistingCustomerReview(true);
-        }
-      }
-
-      const { data: requestData } = await supabase
+      // Phase A — všechny user-nezávislé i user-závislé dotazy jdou paralelně.
+      // Dříve běželo sekvenčně 6-8 awaitů (~800-1200 ms), teď ~1-2 RT.
+      const requestPromise = supabase
         .from("requests")
         .select("*, categories(name, icon), profiles(full_name)")
         .eq("id", params.id)
         .single();
 
+      const userQueries = user
+        ? Promise.all([
+            supabase
+              .from("profiles")
+              .select(
+                "role, is_verified, subscription_type, monthly_offers_count, full_name, trial_until, trial_offers_used"
+              )
+              .eq("id", user.id)
+              .single(),
+            supabase
+              .from("reviews")
+              .select("id")
+              .eq("request_id", params.id)
+              .eq("user_id", user.id)
+              .maybeSingle(),
+            supabase
+              .from("customer_reviews")
+              .select("id")
+              .eq("request_id", params.id)
+              .eq("provider_id", user.id)
+              .maybeSingle(),
+            supabase
+              .from("offers")
+              .select("*, profiles(full_name, is_verified)")
+              .eq("request_id", params.id)
+              .order("created_at", { ascending: false }),
+            supabase
+              .from("job_completions")
+              .select("*")
+              .eq("request_id", params.id),
+          ])
+        : Promise.resolve(null);
+
+      const [requestRes, userRes] = await Promise.all([requestPromise, userQueries]);
+
+      if (user) {
+        setIsLoggedIn(true);
+        setCurrentUser(user.id);
+        if (userRes) {
+          const [profileR, reviewR, customerReviewR, offersR, completionsR] = userRes;
+          if (profileR.data) setUserProfile(profileR.data);
+          if (reviewR.data) setExistingReview(true);
+          if (customerReviewR.data) setExistingCustomerReview(true);
+          if (offersR.data) setOffers(offersR.data as Offer[]);
+          if (completionsR.data) {
+            const map: Record<string, JobCompletion> = {};
+            for (const c of completionsR.data as JobCompletion[]) map[c.offer_id] = c;
+            setCompletions(map);
+          }
+        }
+      }
+
+      const requestData = requestRes.data;
       if (requestData) {
         setRequest(requestData as Request);
-        // Only load AI recommendations for demand owner
         if (user && requestData.user_id === user.id) {
           loadRecommendations(requestData as Request);
         }
 
-        // Customer rating stats — viditelné fachmanům na seznamu nabídek
+        // Phase B — customer rating stats závisí na request.user_id (kandidát na DB join, zatím extra RT).
         const { data: stats } = await supabase
           .from("v_customer_rating_stats")
           .select("avg_rating, review_count, avg_reliability, avg_communication, avg_payment")
@@ -189,29 +206,6 @@ function PoptavkaDetail() {
           .maybeSingle();
         if (stats) {
           setCustomerStats(stats as typeof customerStats);
-        }
-      }
-
-      if (user) {
-        const { data: offersData } = await supabase
-          .from("offers")
-          .select("*, profiles(full_name, is_verified)")
-          .eq("request_id", params.id)
-          .order("created_at", { ascending: false });
-
-        if (offersData) {
-          setOffers(offersData as Offer[]);
-        }
-
-        const { data: completionsData } = await supabase
-          .from("job_completions")
-          .select("*")
-          .eq("request_id", params.id);
-
-        if (completionsData) {
-          const map: Record<string, JobCompletion> = {};
-          for (const c of completionsData as JobCompletion[]) map[c.offer_id] = c;
-          setCompletions(map);
         }
       }
 
