@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
@@ -76,9 +76,12 @@ type JobCompletion = {
 
 const COMPLETION_CAP_MS = 3 * 30 * 24 * 60 * 60 * 1000; // ~3 měsíce
 
-export default function PoptavkaDetail() {
+function PoptavkaDetail() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromParam = searchParams.get("from");
+  const backHref = fromParam && fromParam.startsWith("/poptavky") ? fromParam : "/poptavky";
   const { settings } = useSettings();
   const [request, setRequest] = useState<Request | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -514,7 +517,7 @@ export default function PoptavkaDetail() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Poptávka nenalezena</h2>
             <p className="text-gray-600 mb-6">Tato poptávka neexistuje nebo byla smazána.</p>
-            <Link href="/poptavky" className="inline-flex items-center gap-2 text-cyan-600 font-semibold hover:text-cyan-700">
+            <Link href={backHref} className="inline-flex items-center gap-2 text-cyan-600 font-semibold hover:text-cyan-700">
               {Icons.arrowRight} Zpět na poptávky
             </Link>
           </div>
@@ -545,7 +548,7 @@ export default function PoptavkaDetail() {
           <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
             {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-              <Link href="/poptavky" className="hover:text-cyan-600 transition-colors">Poptávky</Link>
+              <Link href={backHref} className="hover:text-cyan-600 transition-colors">Poptávky</Link>
               <span>/</span>
               <span className="text-gray-900">{request.title}</span>
             </div>
@@ -1402,5 +1405,19 @@ export default function PoptavkaDetail() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function PoptavkaDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      }
+    >
+      <PoptavkaDetail />
+    </Suspense>
   );
 }

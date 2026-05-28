@@ -81,8 +81,16 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-export default async function GhostFachmanPage({ params }: { params: Params }) {
+export default async function GhostFachmanPage({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: Promise<{ from?: string }>;
+}) {
   const { ico } = await params;
+  const { from } = await searchParams;
+  const backHref = from && from.startsWith("/fachmani") ? from : "/fachmani";
   const ghost = await fetchGhost(ico);
   if (!ghost) notFound();
 
@@ -111,7 +119,7 @@ export default async function GhostFachmanPage({ params }: { params: Params }) {
                 </a>.
               </p>
             </div>
-            <Link href="/fachmani" className="inline-block mt-8 text-cyan-700 hover:underline">
+            <Link href={backHref} className="inline-block mt-8 text-cyan-700 hover:underline">
               ← Zpět na seznam fachmanů
             </Link>
           </div>
@@ -198,7 +206,7 @@ export default async function GhostFachmanPage({ params }: { params: Params }) {
 
       <section className="pt-32 pb-12 bg-gradient-to-br from-gray-50 to-white">
         <div className="max-w-5xl mx-auto px-4">
-          <Link href="/fachmani" className="text-sm text-gray-500 hover:text-gray-700">
+          <Link href={backHref} className="text-sm text-gray-500 hover:text-gray-700">
             ← Zpět na seznam
           </Link>
 

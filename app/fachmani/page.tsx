@@ -491,12 +491,13 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
                 const isPremium = fachman.subscription_type === "premium" || fachman.subscription_type === "business";
                 const isTopProfile = fachman.has_promo && fachman.promo_type === "top_profile";
 
+                const backParam = `?from=${encodeURIComponent(buildPageHref(currentPage))}`;
                 return (
                   <Link
                     key={fachman.id}
                     href={fachman.is_ghost && fachman.ghost_ico
-                      ? `/fachman/ghost/${fachman.ghost_ico}`
-                      : `/fachman/${fachman.id}`}
+                      ? `/fachman/ghost/${fachman.ghost_ico}${backParam}`
+                      : `/fachman/${fachman.id}${backParam}`}
                     className={`group relative bg-white rounded-3xl p-6 border border-gray-100 hover:border-transparent hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 ${
                       fachman.is_ghost ? "opacity-90" :
                       isTopProfile ? "ring-2 ring-yellow-400/50 bg-yellow-50/30" :

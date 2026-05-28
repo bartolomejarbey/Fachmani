@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
@@ -31,25 +32,58 @@ type Request = {
   offers_count?: number;
 };
 
-export default function PoptavkyPage() {
+function PoptavkyContent() {
   const { settings } = useSettings();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [requests, setRequests] = useState<Request[]>([]);
-  const [filteredRequests, setFilteredRequests] = useState<Request[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  const [selectedMain, setSelectedMain] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [locationFilter, setLocationFilter] = useState("");
-  const [sortBy, setSortBy] = useState("newest");
-  const [currentPage, setCurrentPage] = useState(1);
+  // Stav řízený URL → přežije návrat zpět (back) z detailu poptávky
+  const selectedMain = searchParams.get("kategorie") || "";
+  const selectedCategory = searchParams.get("podkategorie") || "";
+  const locationFilter = searchParams.get("lokalita") || "";
+  const sortBy = searchParams.get("sort") || "newest";
+  const currentPage = Math.max(1, parseInt(searchParams.get("strana") || "1", 10) || 1);
   const ITEMS_PER_PAGE = 12;
+
+  // Lokální mirror pro textový vstup lokality (plynulé psaní bez ztráty fokusu)
+  const [locationInput, setLocationInput] = useState(locationFilter);
+  useEffect(() => {
+    setLocationInput(locationFilter);
+  }, [locationFilter]);
+
+  const updateParams = (
+    updates: Record<string, string | null>,
+    { resetPage = true, scroll = false } = {}
+  ) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([k, v]) => {
+      if (v === null || v === "") params.delete(k);
+      else params.set(k, v);
+    });
+    if (resetPage) params.delete("strana");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll });
+    if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   useEffect(() => {
     setMounted(true);
     loadData();
   }, []);
+
+  // Debounce textového filtru lokality → URL
+  useEffect(() => {
+    if (locationInput === locationFilter) return;
+    const t = setTimeout(() => updateParams({ lokalita: locationInput }), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationInput]);
 
   const loadData = async () => {
     await supabase.rpc('expire_old_requests');
@@ -91,7 +125,6 @@ export default function PoptavkyPage() {
       }));
 
       setRequests(requestsWithCounts as unknown as Request[]);
-      setFilteredRequests(requestsWithCounts as unknown as Request[]);
     }
 
     setLoading(false);
@@ -103,7 +136,7 @@ export default function PoptavkyPage() {
     ? subCategories.filter(c => c.parent_id === selectedMain)
     : [];
 
-  useEffect(() => {
+  const filteredRequests = useMemo(() => {
     let result = [...requests];
 
     if (selectedCategory) {
@@ -117,7 +150,7 @@ export default function PoptavkyPage() {
     }
 
     if (locationFilter) {
-      result = result.filter(r => 
+      result = result.filter(r =>
         r.location.toLowerCase().includes(locationFilter.toLowerCase())
       );
     }
@@ -134,8 +167,8 @@ export default function PoptavkyPage() {
       return secondarySort(a, b);
     });
 
-    setFilteredRequests(result);
-    setCurrentPage(1);
+    return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requests, selectedMain, selectedCategory, locationFilter, sortBy, categories]);
 
   const daysLeft = (expiresAt: string) => {
@@ -217,10 +250,7 @@ export default function PoptavkyPage() {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Hlavní kategorie</label>
                 <select
                   value={selectedMain}
-                  onChange={(e) => {
-                    setSelectedMain(e.target.value);
-                    setSelectedCategory("");
-                  }}
+                  onChange={(e) => updateParams({ kategorie: e.target.value, podkategorie: null })}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                 >
                   <option value="">Všechny kategorie</option>
@@ -236,7 +266,7 @@ export default function PoptavkyPage() {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Podkategorie</label>
                 <select
                   value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  onChange={(e) => updateParams({ podkategorie: e.target.value })}
                   disabled={!selectedMain || subsOfSelectedMain.length === 0}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -253,8 +283,8 @@ export default function PoptavkyPage() {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Lokalita</label>
                 <input
                   type="text"
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
+                  value={locationInput}
+                  onChange={(e) => setLocationInput(e.target.value)}
                   placeholder="Praha, Brno..."
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                 />
@@ -264,7 +294,7 @@ export default function PoptavkyPage() {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Řadit podle</label>
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => updateParams({ sort: e.target.value })}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                 >
                   <option value="newest">Nejnovější</option>
@@ -276,10 +306,8 @@ export default function PoptavkyPage() {
               <div className="flex items-end">
                 <button
                   onClick={() => {
-                    setSelectedMain("");
-                    setSelectedCategory("");
-                    setLocationFilter("");
-                    setSortBy("newest");
+                    setLocationInput("");
+                    router.replace(pathname, { scroll: false });
                   }}
                   className="w-full px-4 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors font-medium"
                 >
@@ -379,7 +407,7 @@ export default function PoptavkyPage() {
                     {/* Right - Action */}
                     <div className="lg:w-44 flex-shrink-0">
                       <Link
-                        href={`/poptavka/${request.id}`}
+                        href={`/poptavka/${request.id}?from=${encodeURIComponent(`${pathname}?${searchParams.toString()}`)}`}
                         className="block w-full text-center bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3.5 rounded-xl font-semibold hover:shadow-lg hover:shadow-cyan-500/25 transition-all"
                       >
                         Zobrazit detail →
@@ -395,10 +423,9 @@ export default function PoptavkyPage() {
             <Pagination
               currentPage={currentPage}
               totalPages={Math.ceil(filteredRequests.length / ITEMS_PER_PAGE)}
-              onPageChange={(page) => {
-                setCurrentPage(page);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
+              onPageChange={(page) =>
+                updateParams({ strana: page > 1 ? String(page) : null }, { resetPage: false, scroll: true })
+              }
             />
           )}
 
@@ -427,5 +454,19 @@ export default function PoptavkyPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function PoptavkyPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      }
+    >
+      <PoptavkyContent />
+    </Suspense>
   );
 }

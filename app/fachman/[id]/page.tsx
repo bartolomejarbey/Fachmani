@@ -255,7 +255,16 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-export default async function FachmanDetailPage({ params }: { params: Params }) {
+export default async function FachmanDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const { from } = await searchParams;
+  // Zachová stránku/filtry, ze kterých uživatel přišel; jinak zpět na výpis.
+  const backHref = from && from.startsWith("/fachmani") ? from : "/fachmani";
   const { id } = await params;
   const fachman = await fetchFachman(id);
   if (!fachman) notFound();
@@ -336,7 +345,7 @@ export default async function FachmanDetailPage({ params }: { params: Params }) 
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <Link
-            href="/fachmani"
+            href={backHref}
             className="inline-flex items-center gap-2 text-gray-500 hover:text-cyan-600 mb-6 transition-colors"
           >
             ← Zpět na seznam

@@ -1,245 +1,262 @@
-"use client";
+import type { Metadata } from "next";
+import LegalDocument, { type LegalDoc } from "@/app/components/legal/LegalDocument";
+import { OPERATOR, OPERATOR_LINE } from "@/app/components/legal/operator";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import Navbar from "@/app/components/Navbar";
-import Footer from "@/app/components/Footer";
+export const metadata: Metadata = {
+  title: "Zásady ochrany osobních údajů | Fachmani",
+  description:
+    "Jak platforma Fachmani zpracovává osobní údaje — účely, právní základy, příjemci a zpracovatelé, předávání do třetích zemí, zpracování AI, data z rejstříku ARES a vaše práva dle GDPR.",
+  alternates: { canonical: "/gdpr" },
+};
 
-export default function GDPR() {
-  const [mounted, setMounted] = useState(false);
-  const [activeSection, setActiveSection] = useState<string | null>("spravce");
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const sections = [
+const doc: LegalDoc = {
+  kicker: "🔒 OCHRANA SOUKROMÍ",
+  title: "Zásady ochrany osobních údajů",
+  subtitle:
+    "Informace o zpracování osobních údajů dle nařízení (EU) 2016/679 (GDPR) a zákona č. 110/2019 Sb.",
+  version: "2.0",
+  effectiveDate: "1. června 2026",
+  updatedDate: "28. května 2026",
+  intro:
+    "Vaše soukromí je pro nás prioritou. Zpracováváme jen údaje nezbytné pro fungování platformy, **neprodáváme** je třetím stranám a dáváme vám plnou kontrolu nad vašimi údaji. Tyto zásady vysvětlují, jaké údaje zpracováváme, proč, na jakém právním základě, komu je předáváme a jaká máte práva.",
+  related: [
+    { href: "/vop", label: "Obchodní podmínky" },
+    { href: "/cookies", label: "Cookies" },
+    { href: "/dpa", label: "Zpracování OÚ / DPA" },
+    { href: "/gdpr/opt-out", label: "Námitka proti ghost profilu (ARES)" },
+  ],
+  sections: [
     {
       id: "spravce",
       title: "1. Správce osobních údajů",
-      icon: "🏢",
-      content: `Správcem osobních údajů je společnost Fachmani Network s.r.o., IČO: 24872849, se sídlem Příčná 1892/4, 110 00 Praha - Nové Město (dále jen „Správce").
-
-Kontakt pro záležitosti ochrany osobních údajů: info@fachmani.cz`
+      blocks: [
+        { type: "p", text: `Správcem osobních údajů je ${OPERATOR_LINE}.` },
+        {
+          type: "p",
+          text: `Kontakt ve věcech ochrany osobních údajů: [${OPERATOR.emailGdpr}](mailto:${OPERATOR.emailGdpr}), případně pověřenec pro ochranu osobních údajů: [${OPERATOR.emailDpo}](mailto:${OPERATOR.emailDpo}).`,
+        },
+        {
+          type: "callout",
+          variant: "legal",
+          text: "Jmenování pověřence pro ochranu osobních údajů (DPO) není pro Provozovatele povinné ze zákona; je-li uveden, slouží jako kontaktní bod. Před spuštěním ověřte, zda chcete DPO formálně jmenovat.",
+        },
+      ],
+    },
+    {
+      id: "subjekty",
+      title: "2. Koho se zpracování týká",
+      blocks: [
+        {
+          type: "list",
+          items: [
+            "**Zákazníci** — registrovaní uživatelé zadávající poptávky.",
+            "**Fachmani** — poskytovatelé služeb (zpravidla podnikatelé).",
+            "**Návštěvníci** — neregistrovaní uživatelé webu.",
+            "**Odběratelé newsletteru.**",
+            "**Subjekty z rejstříku ARES** („ghost profily“) — podnikatelské subjekty zobrazené z veřejných dat (viz čl. 7).",
+            "**Osoby, které nás kontaktují** (kontaktní formulář, e-mail).",
+          ],
+        },
+      ],
     },
     {
       id: "udaje",
-      title: "2. Jaké údaje zpracováváme",
-      icon: "📋",
-      content: `V rámci poskytování služeb platformy Fachmani zpracováváme následující kategorie osobních údajů:
-
-- Identifikační údaje: jméno, příjmení, email, telefonní číslo
-- Přihlašovací údaje: email, heslo (šifrované)
-- Údaje o aktivitě: poptávky, nabídky, zprávy, hodnocení
-- Technické údaje: IP adresa, typ prohlížeče, cookies
-- Fakturační údaje: u Premium členství adresa, IČO (pokud je uvedeno)`
+      title: "3. Jaké údaje zpracováváme",
+      blocks: [
+        {
+          type: "list",
+          items: [
+            "**Identifikační a kontaktní údaje:** jméno a příjmení / název, e-mail, telefon, IČO, sídlo / adresa.",
+            "**Přihlašovací údaje:** e-mail a heslo (uložené v podobě bezpečného otisku).",
+            "**Údaje o aktivitě:** poptávky, nabídky, zprávy, recenze, příspěvky, transakce.",
+            "**Platební údaje:** historie plateb a faktur (údaje platební karty zpracovává přímo platební brána, nemáme k nim přístup).",
+            "**Údaje pro ověření:** IČO a data z ARES, údaje o ověřovací platbě z bankovního účtu.",
+            "**Technické údaje:** IP adresa (zpravidla v podobě otisku), typ prohlížeče, cookies, identifikátory zařízení pro push notifikace.",
+          ],
+        },
+      ],
     },
     {
       id: "ucely",
-      title: "3. Účely zpracování",
-      icon: "🎯",
-      content: `Vaše osobní údaje zpracováváme pro tyto účely:
-
-- Poskytování služeb platformy (propojení zákazníků a fachmanů)
-- Správa uživatelského účtu
-- Komunikace s uživateli (notifikace, podpora)
-- Zlepšování služeb a analýza používání
-- Plnění právních povinností
-- Zasílání obchodních sdělení (pouze se souhlasem)`
+      title: "4. Účely a právní základy zpracování",
+      blocks: [
+        {
+          type: "table",
+          head: ["Účel", "Právní základ (GDPR)"],
+          rows: [
+            ["Poskytování platformy, správa účtu, propojení zákazníků a fachmanů", "Plnění smlouvy — čl. 6 odst. 1 písm. b)"],
+            ["Zpracování plateb a vedení účetnictví", "Plnění smlouvy a právní povinnost — čl. 6 odst. 1 písm. b) a c)"],
+            ["Ověření fachmana (ARES, bankovní ověření)", "Plnění smlouvy a oprávněný zájem — čl. 6 odst. 1 písm. b) a f)"],
+            ["Zobrazení veřejných dat z ARES (ghost profily)", "Oprávněný zájem — čl. 6 odst. 1 písm. f)"],
+            ["Moderace obsahu, prevence podvodů a zneužití (vč. kontroly insolvence ISIR)", "Oprávněný zájem a právní povinnost — čl. 6 odst. 1 písm. f) a c)"],
+            ["Provozní notifikace (e-mail, SMS, push)", "Plnění smlouvy a oprávněný zájem — čl. 6 odst. 1 písm. b) a f)"],
+            ["Zasílání newsletteru a obchodních sdělení", "Souhlas, příp. oprávněný zájem u stávajících zákazníků — čl. 6 odst. 1 písm. a) / f)"],
+            ["AI asistent a doporučování (viz čl. 6)", "Plnění smlouvy / oprávněný zájem — čl. 6 odst. 1 písm. b) / f)"],
+            ["Analytické a marketingové cookies", "Souhlas — čl. 6 odst. 1 písm. a)"],
+            ["Uplatnění a obhajoba právních nároků", "Oprávněný zájem — čl. 6 odst. 1 písm. f)"],
+          ],
+        },
+      ],
     },
     {
-      id: "zaklad",
-      title: "4. Právní základ zpracování",
-      icon: "⚖️",
-      content: `Osobní údaje zpracováváme na základě:
-
-- Plnění smlouvy – pro poskytování služeb platformy
-- Oprávněný zájem – pro zlepšování služeb a ochranu před podvody
-- Právní povinnost – pro plnění zákonných požadavků
-- Souhlas – pro zasílání marketingových sdělení`
+      id: "prijemci",
+      title: "5. Příjemci a zpracovatelé",
+      blocks: [
+        {
+          type: "p",
+          text: "Vaše údaje zpřístupňujeme jiným uživatelům jen v rozsahu nutném pro poskytnutí služby (např. fachmanovi předáme kontakt a popis zakázky poté, co reagujete na jeho nabídku). K zajištění provozu využíváme prověřené zpracovatele (subzpracovatele), kteří zpracovávají údaje dle našich pokynů a na základě smluv o zpracování. Aktuální přehled:",
+        },
+        {
+          type: "table",
+          head: ["Zpracovatel", "Účel", "Umístění / přenos"],
+          rows: [
+            ["Supabase, Inc.", "Databáze, autentizace a úložiště souborů", "EU / USA (SCC / Data Privacy Framework)"],
+            ["Vercel, Inc.", "Hosting a provoz aplikace", "EU / USA (SCC / DPF)"],
+            ["OpenAI (OpenAI Ireland Ltd. / OpenAI, L.L.C.)", "AI asistent, doporučování a automatizovaná moderace obsahu", "EU / USA (SCC / DPF)"],
+            ["Resend (Plus Five Five, Inc.)", "Odesílání transakčních e-mailů a newsletteru", "USA (SCC / DPF)"],
+            ["SMS brána (SMSbrana / Twilio)", "Odesílání SMS u prioritních poptávek", "ČR / USA dle nastavení (SCC / DPF)"],
+            [OPERATOR.paymentProvider, "Zpracování plateb", "Česká republika / EU"],
+            ["Poskytovatel push notifikací (Web Push)", "Doručování push notifikací do prohlížeče", "Dle prohlížeče / EU / USA"],
+          ],
+        },
+        {
+          type: "callout",
+          variant: "info",
+          title: "Předávání mimo EU/EHP",
+          text: "U zpracovatelů se sídlem v USA probíhá předávání na základě standardních smluvních doložek EU (SCC), případně certifikace EU–US Data Privacy Framework, s přiměřenými zárukami dle čl. 46 GDPR.",
+        },
+        {
+          type: "p",
+          text: "Údaje můžeme dále předat orgánům veřejné moci, vyžaduje-li to zákon. Údaje neprodáváme.",
+        },
+      ],
     },
     {
-      id: "doba",
-      title: "5. Doba uchovávání údajů",
-      icon: "⏱️",
-      content: `Osobní údaje uchováváme po dobu:
-
-- Po dobu trvání účtu a 3 roky po jeho zrušení
-- Fakturační údaje po dobu stanovenou zákonem (10 let)
-- Údaje zpracovávané na základě souhlasu do jeho odvolání`
-    },
-    {
-      id: "sdileni",
-      title: "6. Sdílení údajů",
-      icon: "🔗",
-      content: `Vaše osobní údaje můžeme sdílet s:
-
-- Druhými uživateli platformy (v rozsahu nutném pro poskytnutí služby)
-- Poskytovateli technických služeb (hosting, emailing)
-- Státními orgány (pokud to vyžaduje zákon)
-
-Všichni naši partneři jsou vázáni povinností mlčenlivosti a zpracovávají údaje pouze podle našich pokynů.`
+      id: "ai",
+      title: "6. Zpracování pomocí umělé inteligence",
+      blocks: [
+        {
+          type: "p",
+          text: "Platforma využívá služby OpenAI (model řady GPT) pro AI asistenta („Poradce“), doporučování fachmanů a automatizovanou moderaci obsahu. Pro tyto účely mohou být poskytovateli AI předány texty, které zadáte (např. dotaz poradci, popis poptávky, obsah příspěvku).",
+        },
+        {
+          type: "list",
+          items: [
+            "Do AI nástrojů **nevkládejte citlivé osobní údaje**, které nejsou pro daný účel nezbytné.",
+            "Automatizovaná moderace slouží jako pomocný nástroj; nemá vůči vám právní účinky bez lidského posouzení — finální rozhodnutí o obsahu činí Provozovatel (viz [Pravidla obsahu](/pravidla-obsahu)).",
+            "Provozovatel eviduje rozsah využití AI (počet a velikost dotazů) pro účely provozu a nákladů.",
+          ],
+        },
+      ],
     },
     {
       id: "ares",
-      title: "7. Data z veřejného rejstříku ARES",
-      icon: "🏛️",
-      content: `Fachmani.org zobrazuje veřejně dostupné informace o podnikatelských subjektech z rejstříku ARES (Administrativní registr ekonomických subjektů) provozovaného Ministerstvem financí ČR.
-
-Co zveřejňujeme:
-- Název subjektu / jméno podnikatele
-- IČO, právní forma
-- Sídlo (město, kraj, okres) — bez čísla popisného u FO
-- Klasifikace činnosti (CZ-NACE → odvozená kategorie)
-- Datum vzniku
-
-Právní základ: GDPR čl. 6 odst. 1 písm. f) — oprávněný zájem provozovatele a uživatelů platformy. Data ARES jsou ze zákona veřejná (zákon č. 304/2013 Sb., zákon č. 455/1991 Sb.).
-
-Tyto profily označujeme jako „Neověřeno (ARES)" — subjekt nemá aktivní účet a nepotvrdil registraci na Fachmani. Profily jsou na ${"`"}noindex${"`"} pokud subjekt vyžádá vyřazení.
-
-Námitka proti zpracování (GDPR čl. 21):
-Pokud si přejete, aby váš subjekt na Fachmani nebyl zveřejněn, vyplňte formulář na adrese /gdpr/opt-out nebo nás kontaktujte na gdpr@fachmani.org. Po ověření profil odstraníme z veřejné části (typicky do 7 dnů, definitivně z indexů vyhledávačů 1–4 týdny po dalším crawlu).`
+      title: "7. Data z veřejného rejstříku ARES (ghost profily)",
+      blocks: [
+        {
+          type: "p",
+          text: "Fachmani zobrazuje veřejně dostupné informace o podnikatelských subjektech z registru ARES provozovaného Ministerstvem financí ČR, abychom uživatelům nabídli co nejširší přehled dostupných řemeslníků a poskytovatelů služeb.",
+        },
+        {
+          type: "subsection",
+          title: "7.1 Co zveřejňujeme",
+          blocks: [
+            {
+              type: "list",
+              items: [
+                "název subjektu / jméno podnikatele;",
+                "IČO a právní formu;",
+                "sídlo v rozsahu obec, okres, kraj (u fyzických osob bez čísla popisného);",
+                "klasifikaci činnosti (CZ-NACE) a z ní odvozenou kategorii;",
+                "datum vzniku.",
+              ],
+            },
+          ],
+        },
+        {
+          type: "subsection",
+          title: "7.2 Právní základ a opatření",
+          blocks: [
+            {
+              type: "p",
+              text: "Právním základem je oprávněný zájem Provozovatele a uživatelů platformy (čl. 6 odst. 1 písm. f) GDPR). Data ARES jsou ze zákona veřejná (zákon č. 304/2013 Sb., zákon č. 455/1991 Sb.). Provedli jsme test proporcionality (balanční test) a přijali tato opatření k ochraně subjektů údajů:",
+            },
+            {
+              type: "list",
+              items: [
+                "profily označujeme jako **„Neověřeno (ARES)“** — subjekt nemá aktivní účet a nepotvrdil registraci;",
+                "u fyzických osob nezveřejňujeme přesnou adresu (jen obec/okres/kraj);",
+                "profily lze nastavit na `noindex` (nezobrazování ve vyhledávačích) na žádost subjektu;",
+                "subjekty vedené v insolvenčním rejstříku (ISIR) jsou z veřejné části filtrovány.",
+              ],
+            },
+          ],
+        },
+        {
+          type: "callout",
+          variant: "warning",
+          title: "Právo vznést námitku (čl. 21 GDPR)",
+          text: "Pokud si nepřejete, aby byl váš subjekt na Fachmani zveřejněn, vyplňte formulář na stránce [/gdpr/opt-out](/gdpr/opt-out) nebo nás kontaktujte na [gdpr@fachmani.org](mailto:gdpr@fachmani.org). Po ověření profil odstraníme z veřejné části (typicky do 7 dnů; z indexů vyhledávačů zpravidla do 1–4 týdnů po dalším procházení).",
+        },
+        {
+          type: "callout",
+          variant: "legal",
+          text: "Zveřejňování dat fyzických osob podnikajících z ARES bez jejich souhlasu je oblast s právním rizikem; přístup opíráme o oprávněný zájem a robustní opt-out. Před produkčním nasazením doporučujeme posouzení advokátem a případně formalizovaný balanční test (LIA).",
+        },
+      ],
+    },
+    {
+      id: "doba",
+      title: "8. Doba uchování údajů",
+      blocks: [
+        {
+          type: "table",
+          head: ["Kategorie", "Doba uchování"],
+          rows: [
+            ["Údaje účtu a aktivity", "Po dobu trvání účtu a 3 roky po jeho zrušení"],
+            ["Účetní a daňové doklady", "10 let (zákon o účetnictví, zákon o DPH)"],
+            ["Údaje zpracovávané na základě souhlasu (newsletter, marketing. cookies)", "Do odvolání souhlasu, nejdéle však po stanovenou dobu"],
+            ["Logy a technické údaje", "Zpravidla 6–12 měsíců"],
+            ["Ghost profily z ARES", "Po dobu aktuálnosti veřejného záznamu; po námitce odstraněny z veřejné části"],
+          ],
+        },
+      ],
     },
     {
       id: "prava",
-      title: "8. Vaše práva",
-      icon: "✋",
-      content: `V souvislosti se zpracováním osobních údajů máte tato práva:
-
-- Právo na přístup – získat informace o zpracování vašich údajů
-- Právo na opravu – opravit nepřesné nebo doplnit neúplné údaje
-- Právo na výmaz – požádat o smazání údajů („právo být zapomenut")
-- Právo na omezení zpracování – omezit způsob zpracování
-- Právo na přenositelnost – získat údaje ve strojově čitelném formátu
-- Právo vznést námitku – proti zpracování na základě oprávněného zájmu
-- Právo odvolat souhlas – kdykoli odvolat udělený souhlas
-
-Pro uplatnění svých práv nás kontaktujte na info@fachmani.cz.`
+      title: "9. Vaše práva",
+      blocks: [
+        {
+          type: "list",
+          items: [
+            "**Právo na přístup** — získat informace o zpracování a kopii údajů.",
+            "**Právo na opravu** nepřesných a doplnění neúplných údajů.",
+            "**Právo na výmaz** („právo být zapomenut“).",
+            "**Právo na omezení zpracování.**",
+            "**Právo na přenositelnost** údajů ve strojově čitelném formátu.",
+            "**Právo vznést námitku** proti zpracování na základě oprávněného zájmu (vč. ghost profilů a přímého marketingu).",
+            "**Právo odvolat souhlas** kdykoli, bez vlivu na zákonnost předchozího zpracování.",
+          ],
+        },
+        {
+          type: "p",
+          text: `Práva uplatníte na [${OPERATOR.emailGdpr}](mailto:${OPERATOR.emailGdpr}). Žádost vyřídíme bez zbytečného odkladu, nejpozději do 1 měsíce. Máte rovněž právo podat stížnost u Úřadu pro ochranu osobních údajů ([www.uoou.cz](https://www.uoou.cz)).`,
+        },
+      ],
     },
     {
       id: "cookies",
-      title: "9. Cookies",
-      icon: "🍪",
-      content: `Naše platforma používá cookies pro:
-
-- Nezbytné cookies – pro fungování webu (přihlášení, bezpečnost)
-- Analytické cookies – pro analýzu návštěvnosti (Google Analytics)
-- Marketingové cookies – pro personalizaci reklam (pouze se souhlasem)
-
-Nastavení cookies můžete změnit v nastavení vašeho prohlížeče.`
+      title: "10. Cookies a zabezpečení",
+      blocks: [
+        {
+          type: "p",
+          text: "Podrobnosti o cookies najdete v samostatném dokumentu [Zásady používání cookies](/cookies). K ochraně údajů přijímáme vhodná technická a organizační opatření (šifrování přenosu, řízení přístupů, zabezpečené prostředí poskytovatelů), která průběžně revidujeme.",
+        },
+      ],
     },
-    {
-      id: "zabezpeceni",
-      title: "10. Zabezpečení",
-      icon: "🔒",
-      content: `Přijímáme vhodná technická a organizační opatření k ochraně vašich osobních údajů před neoprávněným přístupem, ztrátou nebo zneužitím. 
+  ],
+};
 
-Používáme šifrování, zabezpečené servery a pravidelně aktualizujeme naše bezpečnostní postupy.`
-    },
-    {
-      id: "kontakt",
-      title: "11. Kontakt a stížnosti",
-      icon: "📬",
-      content: `V případě dotazů ohledně zpracování osobních údajů nás kontaktujte:
-
-Email: info@fachmani.cz
-Adresa: Fachmani Network s.r.o., Příčná 1892/4, 110 00 Praha - Nové Město
-
-Máte také právo podat stížnost u Úřadu pro ochranu osobních údajů (www.uoou.cz).`
-    }
-  ];
-
-  return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-
-      {/* Hero */}
-      <section className="relative pt-32 pb-16 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-cyan-50"></div>
-        <div className="absolute top-20 left-10 w-72 h-72 bg-emerald-200/30 rounded-full opacity-30 animate-float"></div>
-        <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-200/30 rounded-full opacity-30 animate-float animation-delay-200"></div>
-
-        <div className="max-w-4xl mx-auto px-4 relative z-10">
-          <div className={`text-center ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <span className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-              🔒 OCHRANA SOUKROMÍ
-            </span>
-            <h1 className="text-3xl lg:text-5xl font-bold text-gray-900 mb-4">
-              Zásady ochrany osobních údajů
-            </h1>
-            <p className="text-lg text-gray-600">
-              Platné od 1. ledna 2025
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Content */}
-      <section className="py-12">
-        <div className="max-w-4xl mx-auto px-4">
-          {/* Quick summary */}
-          <div className={`bg-gradient-to-br from-emerald-50 to-cyan-50 rounded-2xl p-6 mb-8 border border-emerald-100 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <h2 className="font-semibold text-gray-900 mb-3">📝 Stručně</h2>
-            <p className="text-gray-600">
-              Vaše soukromí je pro nás prioritou. Zpracováváme pouze údaje nezbytné pro fungování platformy. 
-              Vaše data nikdy neprodáváme třetím stranám. Máte plnou kontrolu nad svými údaji.
-            </p>
-          </div>
-
-          {/* Accordion */}
-          <div className="space-y-3">
-            {sections.map((section, index) => (
-              <div
-                key={section.id}
-                className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all hover:shadow-md ${
-                  mounted ? 'animate-fade-in-up' : 'opacity-0'
-                }`}
-                style={{ animationDelay: `${index * 30}ms` }}
-              >
-                <button
-                  onClick={() => setActiveSection(activeSection === section.id ? null : section.id)}
-                  className="w-full px-6 py-5 flex items-center justify-between text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{section.icon}</span>
-                    <span className="font-semibold text-gray-900">{section.title}</span>
-                  </div>
-                  <span className={`text-cyan-500 transition-transform flex-shrink-0 ${
-                    activeSection === section.id ? 'rotate-180' : ''
-                  }`}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </span>
-                </button>
-                {activeSection === section.id && (
-                  <div className="px-6 pb-5 text-gray-600 border-t border-gray-100 pt-4 whitespace-pre-line">
-                    {section.content}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Related */}
-          <div className="mt-12 p-6 bg-gray-50 rounded-2xl">
-            <h3 className="font-semibold text-gray-900 mb-4">Související dokumenty</h3>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/vop" className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 font-medium">
-                📄 Obchodní podmínky →
-              </Link>
-              <Link href="/faq" className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 font-medium">
-                ❓ Časté dotazy →
-              </Link>
-              <Link href="/kontakt" className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 font-medium">
-                📧 Kontakt →
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <Footer />
-    </div>
-  );
+export default function GDPRPage() {
+  return <LegalDocument doc={doc} />;
 }

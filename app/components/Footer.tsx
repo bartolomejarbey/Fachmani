@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { openCookieSettings } from "@/lib/cookieConsent";
 
 export default function Footer() {
   const [email, setEmail] = useState("");
@@ -168,6 +169,8 @@ export default function Footer() {
                     { href: "/kontakt", label: "Kontakt" },
                     { href: "/vop", label: "Obchodní podmínky" },
                     { href: "/gdpr", label: "Ochrana údajů" },
+                    { href: "/reklamace", label: "Reklamační řád" },
+                    { href: "/pravni", label: "Právní dokumenty" },
                   ].map((link) => (
                     <li key={link.href}>
                       <Link href={link.href} className="text-gray-400 hover:text-cyan-400 hover:translate-x-1 transition-all duration-200 inline-block">
@@ -213,12 +216,21 @@ export default function Footer() {
                 © 2026 Fachmani. Všechna práva vyhrazena.
               </p>
               <p className="text-gray-600 text-xs mt-1">
-                Provozovatel platebních služeb: ComGate Payments, a.s.
+                Provozovatel platebních služeb: Comgate a.s.
               </p>
             </div>
-            <div className="flex gap-6 text-sm">
+            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
               <Link href="/vop" className="text-gray-600 hover:text-cyan-400 transition-colors duration-200">Podmínky</Link>
               <Link href="/gdpr" className="text-gray-600 hover:text-cyan-400 transition-colors duration-200">Soukromí</Link>
+              <Link href="/cookies" className="text-gray-600 hover:text-cyan-400 transition-colors duration-200">Cookies</Link>
+              <button
+                type="button"
+                onClick={() => openCookieSettings()}
+                className="text-gray-600 hover:text-cyan-400 transition-colors duration-200"
+              >
+                Nastavení cookies
+              </button>
+              <Link href="/pravni" className="text-gray-600 hover:text-cyan-400 transition-colors duration-200">Právní dokumenty</Link>
               <Link href="/kontakt" className="text-gray-600 hover:text-cyan-400 transition-colors duration-200">Kontakt</Link>
             </div>
           </div>

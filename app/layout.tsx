@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import CookieBanner from "./components/CookieBanner";
+import ChatWidget from "./components/ChatWidget";
 
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
@@ -15,7 +16,7 @@ export const viewport: Viewport = {
   themeColor: "#06b6d4",
 };
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.fachmani.cz").replace(/\/$/, "");
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://fachmani.org").replace(/\/$/, "");
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -36,6 +37,7 @@ export default function RootLayout({
     <html lang="cs" className={inter.variable}>
       <body className="font-sans antialiased">
         {children}
+        <ChatWidget />
         <CookieBanner />
       </body>
     </html>

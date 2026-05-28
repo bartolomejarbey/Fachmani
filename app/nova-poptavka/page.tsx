@@ -131,6 +131,38 @@ function NovaPoptavkaInner() {
         if (g?.name) setGhostName(g.name);
       }
 
+      // Předvyplnění z odkazu (např. z AI asistenta) — uživatel jen zkontroluje a odešle.
+      const pTitle = searchParams.get("title");
+      const pDesc = searchParams.get("description");
+      const pLoc = searchParams.get("lokalita");
+      const pBudgetMin = searchParams.get("budgetMin");
+      const pBudgetMax = searchParams.get("budgetMax");
+      const pUrgent = searchParams.get("urgent");
+      const pKat = searchParams.get("kategorie");
+      if (pTitle) setTitle(pTitle.slice(0, 200));
+      if (pDesc) setDescription(pDesc.slice(0, 2000));
+      if (pLoc) setLocation(pLoc.slice(0, 120));
+      if (pBudgetMin && /^\d+$/.test(pBudgetMin)) setBudgetMin(pBudgetMin);
+      if (pBudgetMax && /^\d+$/.test(pBudgetMax)) setBudgetMax(pBudgetMax);
+      if (pUrgent === "1" || pUrgent === "true") setIsUrgent(true);
+      if (pKat && categoriesData) {
+        const norm = (s: string) =>
+          s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+        const target = norm(pKat);
+        const sub = categoriesData.find(
+          (c) => c.parent_id && norm(c.name) === target
+        );
+        const main = categoriesData.find(
+          (c) => !c.parent_id && norm(c.name) === target
+        );
+        if (sub) {
+          setMainCategoryId(sub.parent_id as string);
+          setCategoryId(sub.id);
+        } else if (main) {
+          setMainCategoryId(main.id);
+        }
+      }
+
       setPageLoading(false);
     }
 
