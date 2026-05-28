@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import CookieBanner from "./components/CookieBanner";
 import ChatWidget from "./components/ChatWidget";
+import ChatHeads from "./components/messenger/ChatHeads";
 
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
@@ -37,6 +38,7 @@ export default function RootLayout({
     <html lang="cs" className={inter.variable}>
       <body className="font-sans antialiased">
         {children}
+        <ChatHeads />
         <ChatWidget />
         <CookieBanner />
       </body>

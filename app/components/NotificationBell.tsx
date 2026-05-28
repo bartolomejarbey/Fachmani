@@ -165,17 +165,18 @@ export default function NotificationBell() {
     return `před ${Math.floor(seconds / 86400)} dny`;
   };
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "new_offer": return "💼";
-      case "offer_accepted": return "✅";
-      case "new_message": return "💬";
-      case "new_review": return "⭐";
-      case "new_candidate_request": return "🎯";
-      case "bank_verification_pending": return "💳";
-      default: return "🔔";
-    }
+  // Barva + emoji ikona pro typ — určuje vzhled malého kroužku v notif položce.
+  const TYPE_STYLES: Record<string, { emoji: string; bg: string }> = {
+    new_offer: { emoji: "💼", bg: "bg-cyan-100 text-cyan-700" },
+    offer_accepted: { emoji: "✅", bg: "bg-emerald-100 text-emerald-700" },
+    new_message: { emoji: "💬", bg: "bg-blue-100 text-blue-700" },
+    new_review: { emoji: "⭐", bg: "bg-amber-100 text-amber-700" },
+    new_candidate_request: { emoji: "🎯", bg: "bg-fuchsia-100 text-fuchsia-700" },
+    bank_verification_pending: { emoji: "💳", bg: "bg-orange-100 text-orange-700" },
+    auto_match: { emoji: "✨", bg: "bg-violet-100 text-violet-700" },
   };
+  const getStyle = (type: string) =>
+    TYPE_STYLES[type] ?? { emoji: "🔔", bg: "bg-gray-100 text-gray-700" };
 
   return (
     <div className="relative">
@@ -186,11 +187,22 @@ export default function NotificationBell() {
           if (next) loadNotifications(true);
         }}
         aria-label="Notifikace"
-        className="relative p-2 text-gray-600 hover:text-gray-900"
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
       >
-        <span className="text-xl">🔔</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-5 w-5"
+        >
+          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+        </svg>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+          <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-md ring-2 ring-white">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -204,91 +216,127 @@ export default function NotificationBell() {
             onClick={() => setShowDropdown(false)}
           />
 
-          {/* Dropdown */}
-          <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border z-20">
-            <div className="p-3 border-b flex justify-between items-center gap-2">
-              <h3 className="font-semibold">Notifikace</h3>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => loadNotifications(false)}
-                  disabled={isRefreshing}
-                  aria-label="Obnovit notifikace"
-                  className="text-gray-500 hover:text-gray-900 disabled:opacity-50"
-                  title="Obnovit"
-                >
-                  <span className={isRefreshing ? "inline-block animate-spin" : "inline-block"}>
-                    ↻
-                  </span>
-                </button>
-                {unreadCount > 0 && (
+          {/* Dropdown panel */}
+          <div className="absolute right-0 z-20 mt-3 w-[22rem] origin-top-right overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-gray-900/10 animate-fade-in-up">
+            {/* Hlavička s gradientem */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-3 text-white">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-base font-bold">Notifikace</h3>
+                  <p className="text-[11px] text-white/80">
+                    {unreadCount > 0
+                      ? `${unreadCount} nepřečtená${unreadCount > 1 ? "ch" : ""}`
+                      : "Vše přečteno"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
                   <button
-                    onClick={markAllAsRead}
-                    className="text-sm text-blue-600 hover:underline"
+                    onClick={() => loadNotifications(false)}
+                    disabled={isRefreshing}
+                    aria-label="Obnovit notifikace"
+                    title="Obnovit"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-white/80 transition hover:bg-white/20 hover:text-white disabled:opacity-50"
                   >
-                    Označit vše
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+                    >
+                      <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
+                      <path d="M21 3v5h-5" />
+                    </svg>
                   </button>
-                )}
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-white/25"
+                    >
+                      Označit vše
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="max-h-96 overflow-y-auto">
+            {/* Seznam */}
+            <div className="max-h-[28rem] overflow-y-auto">
               {notifications.length === 0 ? (
-                <div className="p-4 text-center text-gray-500">
-                  Žádné notifikace
+                <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                  <div className="text-3xl opacity-60">🔕</div>
+                  <p className="text-sm font-medium text-gray-700">Žádné notifikace</p>
+                  <p className="text-xs text-gray-400">Sem padají nové nabídky, zprávy a recenze.</p>
                 </div>
               ) : (
-                notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`p-3 border-b hover:bg-gray-50 ${
-                      !notification.is_read ? "bg-blue-50" : ""
-                    }`}
-                  >
-                    {notification.link ? (
-                      <Link
-                        href={notification.link}
-                        onClick={() => {
-                          markAsRead(notification.id);
-                          setShowDropdown(false);
-                        }}
-                        className="block"
+                notifications.map((notification) => {
+                  const style = getStyle(notification.type);
+                  const inner = (
+                    <div className="flex gap-3">
+                      <span
+                        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-base ${style.bg}`}
+                        aria-hidden="true"
                       >
-                        <div className="flex gap-3">
-                          <span className="text-xl">{getIcon(notification.type)}</span>
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{notification.title}</p>
-                            {notification.message && (
-                              <p className="text-sm text-gray-600 line-clamp-2">
-                                {notification.message}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1">
-                              {getTimeAgo(notification.created_at)}
-                            </p>
-                          </div>
-                        </div>
-                      </Link>
-                    ) : (
-                      <div
-                        className="flex gap-3 cursor-pointer"
-                        onClick={() => markAsRead(notification.id)}
-                      >
-                        <span className="text-xl">{getIcon(notification.type)}</span>
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{notification.title}</p>
-                          {notification.message && (
-                            <p className="text-sm text-gray-600 line-clamp-2">
-                              {notification.message}
-                            </p>
-                          )}
-                          <p className="text-xs text-gray-400 mt-1">
-                            {getTimeAgo(notification.created_at)}
+                        {style.emoji}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p
+                            className={`text-sm leading-snug ${
+                              notification.is_read
+                                ? "font-medium text-gray-700"
+                                : "font-semibold text-gray-900"
+                            }`}
+                          >
+                            {notification.title}
                           </p>
+                          {!notification.is_read && (
+                            <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-cyan-500" />
+                          )}
                         </div>
+                        {notification.message && (
+                          <p className="mt-0.5 line-clamp-2 break-words text-xs leading-relaxed text-gray-500">
+                            {notification.message}
+                          </p>
+                        )}
+                        <p className="mt-1 text-[11px] text-gray-400">
+                          {getTimeAgo(notification.created_at)}
+                        </p>
                       </div>
-                    )}
-                  </div>
-                ))
+                    </div>
+                  );
+                  return (
+                    <div
+                      key={notification.id}
+                      className={`border-b border-gray-100 last:border-b-0 ${
+                        !notification.is_read ? "bg-cyan-50/40" : ""
+                      } transition-colors hover:bg-gray-50`}
+                    >
+                      {notification.link ? (
+                        <Link
+                          href={notification.link}
+                          onClick={() => {
+                            markAsRead(notification.id);
+                            setShowDropdown(false);
+                          }}
+                          className="block px-4 py-3"
+                        >
+                          {inner}
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => markAsRead(notification.id)}
+                          className="w-full px-4 py-3 text-left"
+                        >
+                          {inner}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
