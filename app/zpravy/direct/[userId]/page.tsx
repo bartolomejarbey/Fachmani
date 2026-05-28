@@ -187,7 +187,7 @@ export default function DirectChatPage() {
     return (
       <div className="flex min-h-screen flex-col bg-gray-50">
         <Navbar />
-        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-3 py-4 sm:px-6">
+        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-3 pt-24 pb-4 sm:px-6 sm:pt-28">
           <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-gray-100">
             <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-3 text-white">
               <Link

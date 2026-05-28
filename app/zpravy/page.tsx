@@ -139,7 +139,7 @@ export default function Zpravy() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-3xl px-4 pt-28 pb-12 sm:px-6 sm:pt-32">
         {/* Hlavička */}
         <div className="mb-6">
           <div className="flex items-end justify-between gap-3">
