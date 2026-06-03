@@ -1198,7 +1198,7 @@ function PoptavkaDetail() {
                   isTrialExpired() ? (
                     <div className={`bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
                       <p className="text-orange-800 font-semibold mb-1">
-                        Trial vypršel
+                        Zkušební období vypršelo
                       </p>
                       <p className="text-orange-700 text-sm mb-2">
                         Vaše bezplatné období skončilo. Pro pokračování v posílání nabídek si pořiďte Premium.
@@ -1232,7 +1232,7 @@ function PoptavkaDetail() {
                       </p>
                       {userProfile.trial_until && (
                         <p className="text-cyan-700 text-xs mb-1">
-                          Trial do: {new Date(userProfile.trial_until).toLocaleDateString("cs-CZ")}
+                          Zkušební období do: {new Date(userProfile.trial_until).toLocaleDateString("cs-CZ")}
                         </p>
                       )}
                       <Link

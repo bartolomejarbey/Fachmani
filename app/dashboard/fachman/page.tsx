@@ -321,7 +321,7 @@ export default function FachmanDashboard() {
                   : "bg-white border-gray-100"
           }`}>
             <p className="text-gray-500 text-sm mb-1">
-              {isPremium ? "Neomezené reakce" : "Trial reakce"}
+              {isPremium ? "Neomezené reakce" : "Zkušební reakce"}
             </p>
             <p className={`text-3xl font-bold ${
               isPremium
@@ -357,7 +357,7 @@ export default function FachmanDashboard() {
                     ? "text-amber-800"
                     : "text-cyan-800"
                 }`}>
-                  Trial: zbývá {trialOffersLeft} {trialOffersLeft === 1 ? "reakce" : (trialOffersLeft >= 2 && trialOffersLeft <= 4 ? "reakce" : "reakcí")}
+                  Zkušební období: zbývá {trialOffersLeft} {trialOffersLeft === 1 ? "reakce" : (trialOffersLeft >= 2 && trialOffersLeft <= 4 ? "reakce" : "reakcí")}
                   {trialDaysLeft !== null && (
                     <> a {trialDaysLeft} {trialDaysLeft === 1 ? "den" : (trialDaysLeft >= 2 && trialDaysLeft <= 4 ? "dny" : "dní")}</>
                   )}
@@ -367,7 +367,7 @@ export default function FachmanDashboard() {
                     ? "text-amber-700"
                     : "text-cyan-700"
                 }`}>
-                  Po vyčerpání trial období přejdete na Premium pro neomezené reakce a další výhody.
+                  Po vyčerpání zkušebního období přejdete na Premium pro neomezené reakce a další výhody.
                 </p>
               </div>
               <Link
@@ -391,10 +391,10 @@ export default function FachmanDashboard() {
               <span className="text-2xl">⏳</span>
               <div className="flex-1">
                 <h3 className="font-semibold text-orange-800">
-                  Trial vypršel — máte ještě {graceDaysLeft} {graceDaysLeft === 1 ? "den" : "dní"} grace
+                  Zkušební období vypršelo — zbývá ještě {graceDaysLeft} {graceDaysLeft === 1 ? "den" : "dní"} ochranné lhůty
                 </h3>
                 <p className="text-orange-700 text-sm">
-                  Trial období skončilo, ale ještě po dobu {trialGraceDays} dnů můžete reagovat na poptávky.
+                  Zkušební období skončilo, ale ještě po dobu {trialGraceDays} dnů můžete reagovat na poptávky.
                   Pro plný přístup bez přerušení aktivujte Premium.
                 </p>
                 <Link
@@ -417,12 +417,12 @@ export default function FachmanDashboard() {
                 <h3 className="font-semibold text-red-800">
                   {trialOffersExhausted
                     ? `Vyčerpáno ${trialOffersLimit} reakcí`
-                    : "Trial i grace období vypršely"}
+                    : "Zkušební období i ochranná lhůta vypršely"}
                 </h3>
                 <p className="text-red-700 text-sm">
                   {trialOffersExhausted
-                    ? `Vyčerpali jste všech ${trialOffersLimit} trial reakcí. Pro neomezené reakce přejděte na Premium.`
-                    : `Vaše trial období i ${trialGraceDays}-denní grace skončily. Pro pokračování přejděte na Premium.`}
+                    ? `Vyčerpali jste všech ${trialOffersLimit} zkušebních reakcí. Pro neomezené reakce přejděte na Premium.`
+                    : `Vaše zkušební období i ${trialGraceDays}denní ochranná lhůta skončily. Pro pokračování přejděte na Premium.`}
                 </p>
                 <Link
                   href="/predplatne"
@@ -556,7 +556,7 @@ export default function FachmanDashboard() {
                           </Link>
                         ) : (
                           <span className="flex-1 lg:flex-none text-center px-4 py-2 bg-gray-200 text-gray-500 rounded-xl cursor-not-allowed font-medium">
-                            {trialExpired ? "Trial vypršel" : "Trial vyčerpán"}
+                            {trialExpired ? "Zkušební vypršelo" : "Zkušební vyčerpáno"}
                           </span>
                         )}
                       </div>

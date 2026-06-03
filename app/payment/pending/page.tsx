@@ -9,17 +9,17 @@ export default function PaymentPendingPage() {
         <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <span className="text-4xl">⏳</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Platba se zpracovava</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Platba se zpracovává</h1>
         <p className="text-gray-600 mb-6">
-          Tvoje platba se zpracovava. Dame ti vedet jakmile bude potvrzena.
-          Obvykle to trva jen par minut.
+          Vaše platba se zpracovává. Dáme vám vědět, jakmile bude potvrzena.
+          Obvykle to trvá jen pár minut.
         </p>
         <div className="space-y-3">
           <Link
             href="/dashboard/fachman/penezenka"
             className="block w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
           >
-            Zpet do penezenky
+            Zpět do peněženky
           </Link>
           <Link
             href="/dashboard/fachman"

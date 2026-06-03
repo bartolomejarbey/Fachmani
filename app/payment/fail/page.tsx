@@ -11,7 +11,7 @@ export default function PaymentFailPage() {
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Platba selhala</h1>
         <p className="text-gray-600 mb-6">
-          Platba nebyla zpracovana. Zkus to prosim znovu nebo zvol jiny zpusob platby.
+          Platba nebyla zpracována. Zkuste to prosím znovu nebo zvolte jiný způsob platby.
         </p>
         <div className="space-y-3">
           <Link
@@ -24,7 +24,7 @@ export default function PaymentFailPage() {
             href="/dashboard/fachman"
             className="block w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
           >
-            Zpet na dashboard
+            Zpět na dashboard
           </Link>
         </div>
       </div>
