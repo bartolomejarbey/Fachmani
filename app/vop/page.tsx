@@ -255,6 +255,10 @@ const doc: LegalDoc = {
             },
             {
               type: "p",
+              text: "Online platby pro nás zajišťuje platební brána Comgate. Poskytovatel služby, společnost Comgate a.s. je licencovaná Platební instituce působící pod dohledem České národní banky. Platby probíhající skrze platební bránu jsou plně zabezpečeny a veškeré informace jsou šifrovány. Další informace a kontakty na [www.comgate.eu](https://www.comgate.eu).",
+            },
+            {
+              type: "p",
               text: "Provozovatel vystaví fachmanovi daňový doklad (fakturu) k uhrazeným platbám a zpřístupní jej v aplikaci nebo zašle e-mailem.",
             },
           ],

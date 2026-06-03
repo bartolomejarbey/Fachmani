@@ -93,12 +93,12 @@ export default function AdminPoptavky() {
 
     if (filter === "active") {
       query = query.eq("status", "active");
-    } else if (filter === "completed") {
-      query = query.eq("status", "completed");
-    } else if (filter === "expired") {
-      query = query.eq("status", "expired");
-    } else if (filter === "cancelled") {
-      query = query.eq("status", "cancelled");
+    } else if (filter === "closed_selected") {
+      query = query.eq("status", "closed_selected");
+    } else if (filter === "closed_expired") {
+      query = query.eq("status", "closed_expired");
+    } else if (filter === "archived") {
+      query = query.eq("status", "archived");
     } else if (filter === "moderation") {
       query = query.in("moderation_status", ["pending", "flagged"]);
     }
@@ -142,10 +142,16 @@ export default function AdminPoptavky() {
   };
 
   const handleStatusChange = async (requestId: string, newStatus: string) => {
-    await supabase
+    const { error } = await supabase
       .from("requests")
       .update({ status: newStatus })
       .eq("id", requestId);
+
+    if (error) {
+      alert(`Nepodařilo se změnit stav poptávky: ${error.message}`);
+      loadRequests();
+      return;
+    }
 
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("admin_activity_log").insert({
@@ -263,12 +269,14 @@ export default function AdminPoptavky() {
     switch (status) {
       case "active":
         return { label: "Aktivní", color: "bg-emerald-500/20 text-emerald-400" };
-      case "completed":
+      case "closed_selected":
         return { label: "Dokončeno", color: "bg-blue-500/20 text-blue-400" };
-      case "expired":
+      case "closed_expired":
         return { label: "Vypršelo", color: "bg-orange-500/20 text-orange-400" };
-      case "cancelled":
+      case "archived":
         return { label: "Zrušeno", color: "bg-red-500/20 text-red-400" };
+      case "draft":
+        return { label: "Koncept", color: "bg-slate-500/20 text-slate-400" };
       default:
         return { label: status, color: "bg-slate-500/20 text-slate-400" };
     }
@@ -312,9 +320,9 @@ export default function AdminPoptavky() {
             {[
               { key: "all", label: "Všechny" },
               { key: "active", label: "🟢 Aktivní" },
-              { key: "completed", label: "✅ Dokončené" },
-              { key: "expired", label: "⏰ Vypršelé" },
-              { key: "cancelled", label: "❌ Zrušené" },
+              { key: "closed_selected", label: "✅ Dokončené" },
+              { key: "closed_expired", label: "⏰ Vypršelé" },
+              { key: "archived", label: "❌ Zrušené" },
               { key: "moderation", label: "🛡️ Moderace" },
             ].map((f) => (
               <button
@@ -336,8 +344,8 @@ export default function AdminPoptavky() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { label: "Aktivní (str.)", value: requests.filter((r) => r.status === "active").length, color: "text-emerald-400" },
-            { label: "Dokončené (str.)", value: requests.filter((r) => r.status === "completed").length, color: "text-blue-400" },
-            { label: "Vypršelé (str.)", value: requests.filter((r) => r.status === "expired").length, color: "text-orange-400" },
+            { label: "Dokončené (str.)", value: requests.filter((r) => r.status === "closed_selected").length, color: "text-blue-400" },
+            { label: "Vypršelé (str.)", value: requests.filter((r) => r.status === "closed_expired").length, color: "text-orange-400" },
             { label: "S nabídkami (str.)", value: requests.filter((r) => (r.offers_count || 0) > 0).length, color: "text-purple-400" },
           ].map((stat, i) => (
             <div key={i} className="bg-slate-800/50 border border-white/5 rounded-xl p-4 text-center">
@@ -477,9 +485,9 @@ export default function AdminPoptavky() {
                               className="px-3 py-1.5 bg-slate-700 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
                             >
                               <option value="active">Aktivní</option>
-                              <option value="completed">Dokončeno</option>
-                              <option value="expired">Vypršelo</option>
-                              <option value="cancelled">Zrušeno</option>
+                              <option value="closed_selected">Dokončeno</option>
+                              <option value="closed_expired">Vypršelo</option>
+                              <option value="archived">Zrušeno</option>
                             </select>
                             <button
                               onClick={() => handleDelete(request.id)}

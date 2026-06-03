@@ -236,6 +236,22 @@ export default function Footer() {
           </div>
         </div>
 
+        {/* Platební metody — Comgate */}
+        <div className="border-t border-white/5">
+          <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col items-center gap-4">
+            <p className="text-xs uppercase tracking-widest text-gray-500">
+              Bezpečné online platby zajišťuje
+            </p>
+            <Image
+              src="/platby-comgate-tmava.png"
+              alt="Online platby zajišťuje platební brána Comgate — Visa, Mastercard, Google Pay, Apple Pay"
+              width={2200}
+              height={200}
+              className="h-7 md:h-9 w-auto opacity-90"
+            />
+          </div>
+        </div>
+
         {/* Spodní lišta */}
         <div className="border-t border-white/10">
           <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
