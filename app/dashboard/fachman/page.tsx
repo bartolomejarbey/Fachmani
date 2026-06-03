@@ -93,6 +93,12 @@ export default function FachmanDashboard() {
       return;
     }
 
+    // První vstup po registraci → onboarding (gate dle onboarded_at).
+    if (!profileData.onboarded_at) {
+      router.replace("/onboarding");
+      return;
+    }
+
     setProfile(profileData);
 
     // Načteme nastavení platformy

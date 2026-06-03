@@ -107,6 +107,9 @@ export default function CookieBanner() {
         role="dialog"
         aria-modal={showDetails}
         aria-label="Nastavení cookies"
+        // Explicitní `bottom` inline — Tailwind `bottom-*` utilita se na tomto
+        // fixed elementu neaplikovala (banner padal na konec stránky mimo viewport).
+        style={{ bottom: showDetails ? 0 : "1rem" }}
         className={`fixed z-[61] ${
           showDetails
             ? "inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4"
@@ -114,26 +117,21 @@ export default function CookieBanner() {
         }`}
       >
         <div
-          className={`relative flex max-h-[calc(100dvh-2rem)] flex-col rounded-3xl bg-white shadow-2xl ring-1 ring-gray-900/5 animate-fade-in-up ${
+          className={`relative flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-gray-900/5 animate-fade-in-up ${
             showDetails ? "w-full sm:max-w-lg sm:max-h-[min(90vh,42rem)]" : ""
           }`}
         >
-          {/* Dekorativní gradient nahoře — má vlastní clip vrstvu, aby nepřebíjela scroll obsahu */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-28 overflow-hidden rounded-t-3xl">
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500 via-blue-500 to-emerald-400 opacity-90" />
-            <div className="absolute -top-10 -right-8 text-[7rem] leading-none select-none opacity-20 rotate-12">
+          {/* Gradientová hlavička — bílý text výhradně na modrém pruhu */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-cyan-500 via-blue-500 to-emerald-400 px-6 py-5 sm:px-7">
+            <div className="pointer-events-none absolute -top-10 -right-8 select-none text-[7rem] leading-none opacity-20 rotate-12">
               🍪
             </div>
-          </div>
-
-          <div className="relative overflow-y-auto p-6 sm:p-7">
-            {/* Hlavička */}
-            <div className="flex items-start gap-3 mb-3">
+            <div className="relative flex items-center gap-3">
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-2xl shadow-lg ring-1 ring-gray-900/5">
                 🍪
               </div>
-              <div className="pt-0.5">
-                <h2 className="text-lg font-bold text-white drop-shadow-sm">
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold leading-tight text-white drop-shadow-sm">
                   Máme rádi sušenky
                 </h2>
                 <p className="text-xs font-medium text-white/90 drop-shadow-sm">
@@ -141,8 +139,11 @@ export default function CookieBanner() {
                 </p>
               </div>
             </div>
+          </div>
 
-            <p className="mt-4 text-sm leading-relaxed text-gray-600">
+          {/* Tělo — vždy na bílém pozadí */}
+          <div className="overflow-y-auto p-6 sm:p-7">
+            <p className="text-sm leading-relaxed text-gray-600">
               Nezbytné cookies používáme vždy, aby web fungoval (přihlášení,
               bezpečnost). Pro analytiku a marketing potřebujeme váš souhlas.
               Můžete přijmout vše, odmítnout nepovinné, nebo si vybrat.{" "}

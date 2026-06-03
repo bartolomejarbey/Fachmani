@@ -13,6 +13,7 @@ type Profile = {
   full_name: string;
   email: string;
   role: string;
+  onboarded_at?: string | null;
 };
 
 type Request = {
@@ -54,6 +55,12 @@ export default function Dashboard() {
       .single();
 
     if (profileData) {
+      // První vstup po registraci → onboarding (gate dle onboarded_at).
+      if (!profileData.onboarded_at) {
+        router.replace("/onboarding");
+        return;
+      }
+
       setProfile(profileData);
 
       if (profileData.role === "provider") {
