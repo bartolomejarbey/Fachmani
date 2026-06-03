@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+
+// Service-role klient pro zápis do wallets/wallet_transactions (RLS: jen service_role).
+function adminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  )
+}
 
 // TODO: Tyto ceny duplikují system_settings.pricing — admin změna v UI nezasáhne
 // API. Prozatím držet v sync ručně, nebo přepnout na fetch ze system_settings.
@@ -40,7 +50,9 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Neautorizováno' }, { status: 401 })
 
-    const { data: wallet } = await supabase
+    const admin = adminClient()
+
+    const { data: wallet } = await admin
       .from('wallets')
       .select('*')
       .eq('user_id', user.id)
@@ -61,7 +73,7 @@ export async function POST(request: Request) {
 
     // Atomic update: only deduct if balance is still sufficient (prevents race condition)
     const newBalance = wallet.balance_kc - amount
-    const { data: updated, error: updateError } = await supabase
+    const { data: updated, error: updateError } = await admin
       .from('wallets')
       .update({
         balance_kc: newBalance,
@@ -80,7 +92,7 @@ export async function POST(request: Request) {
       }, { status: 402 })
     }
 
-    await supabase.from('wallet_transactions').insert({
+    await admin.from('wallet_transactions').insert({
       wallet_id: wallet.id,
       user_id: user.id,
       type,
@@ -93,7 +105,7 @@ export async function POST(request: Request) {
     // Pro extra_request povolíme jednu poptávku navíc dnes (nadrámec daily limitu).
     // Bez tohoto volání by trigger check_customer_request_limit nadále blokoval insert.
     if (type === 'extra_request') {
-      await supabase.rpc('grant_extra_request', { p_user_id: user.id })
+      await admin.rpc('grant_extra_request', { p_user_id: user.id })
     }
 
     return NextResponse.json({

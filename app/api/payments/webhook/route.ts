@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 import { verifyComgatePayment } from '@/lib/comgate'
 
 export async function POST(request: Request) {
@@ -21,11 +20,12 @@ export async function POST(request: Request) {
       return new NextResponse('Verification failed', { status: 400 })
     }
 
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
+    // Webhook volá Comgate server-to-server (žádná uživatelská session) →
+    // service-role klient, jinak by RLS zablokovala zápis do payments/wallets.
+    const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
     )
 
     const { data: payment } = await supabase
