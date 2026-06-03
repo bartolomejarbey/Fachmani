@@ -39,25 +39,25 @@ function fmtDate(v: string | Date | null | undefined): string {
 
 const PHASE_COPY: Record<TrialEmailPhase, { subject: string; headline: string; body: string }> = {
   warning: {
-    subject: "Vaše trial období na Fachmani končí za 7 dní",
-    headline: "Trial vám brzy vyprší",
+    subject: "Vaše zkušební období na Fachmani končí za 7 dní",
+    headline: "Zkušební období vám brzy vyprší",
     body:
-      "Trial období končí za 7 dní. Pokud chcete dál reagovat na poptávky bez omezení, " +
-      "přejděte na Premium ještě před koncem trial — vyhnete se přerušení.",
+      "Zkušební období končí za 7 dní. Pokud chcete dál reagovat na poptávky bez omezení, " +
+      "přejděte na Premium ještě před jeho koncem — vyhnete se přerušení.",
   },
   grace: {
-    subject: "Trial vypršel — máte 7 dní grace období",
-    headline: "Trial vypršel, ale ještě máte 7 dní",
+    subject: "Zkušební období vypršelo — máte 7 dní navíc",
+    headline: "Zkušební období vypršelo, ale ještě máte 7 dní",
     body:
-      "Trial období vypršelo. Aktivovali jsme 7-denní grace — během této doby ještě " +
+      "Zkušební období vypršelo. Aktivovali jsme 7denní ochrannou lhůtu — během této doby ještě " +
       "můžete reagovat na poptávky. Pro plný přístup bez přerušení přejděte na Premium.",
   },
   blocked: {
-    subject: "Grace období vypršelo — pro pokračování aktivujte Premium",
-    headline: "Trial i grace vypršelo",
+    subject: "Ochranná lhůta vypršela — pro pokračování aktivujte Premium",
+    headline: "Zkušební období i ochranná lhůta vypršely",
     body:
-      "Trial i 7-denní grace období skončilo. Pro reagování na poptávky musíte " +
-      "aktivovat Premium. Vaše profil zůstává viditelný, ale nemůžete posílat nabídky.",
+      "Zkušební období i 7denní ochranná lhůta skončily. Pro reagování na poptávky musíte " +
+      "aktivovat Premium. Váš profil zůstává viditelný, ale nemůžete posílat nabídky.",
   },
 };
 
@@ -86,8 +86,8 @@ export function renderTrialEmail(input: TrialEmailInput): RenderedTrialEmail {
           </td></tr>
           <tr><td style="padding:8px 28px 0 28px;">
             <p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">${escapeHtml(copy.body)}</p>
-            ${trialEnds ? `<p style="margin:12px 0 0 0;font-size:13px;color:#64748b;">Trial ${input.phase === "warning" ? "končí" : "skončil"}: <strong>${escapeHtml(trialEnds)}</strong></p>` : ""}
-            ${input.phase === "grace" && graceEnds ? `<p style="margin:4px 0 0 0;font-size:13px;color:#64748b;">Grace končí: <strong>${escapeHtml(graceEnds)}</strong></p>` : ""}
+            ${trialEnds ? `<p style="margin:12px 0 0 0;font-size:13px;color:#64748b;">Zkušební období ${input.phase === "warning" ? "končí" : "skončilo"}: <strong>${escapeHtml(trialEnds)}</strong></p>` : ""}
+            ${input.phase === "grace" && graceEnds ? `<p style="margin:4px 0 0 0;font-size:13px;color:#64748b;">Ochranná lhůta končí: <strong>${escapeHtml(graceEnds)}</strong></p>` : ""}
           </td></tr>
           <tr><td style="padding:20px 28px;">
             <a href="${escapeHtml(input.upgradeUrl)}" style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 24px;border-radius:10px;">Aktivovat Premium →</a>
