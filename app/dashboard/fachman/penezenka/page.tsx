@@ -310,6 +310,7 @@ export default function PenezenkaPage() {
         )}
 
         {/* Pricing Info */}
+        {!iosNative && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-8">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Ceník akcí</h2>
           <div className="grid sm:grid-cols-3 gap-4">
@@ -330,6 +331,7 @@ export default function PenezenkaPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Transaction History */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-8">
