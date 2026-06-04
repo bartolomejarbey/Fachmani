@@ -16,6 +16,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [outcome, setOutcome] = useState<"" | "created" | "exists">("");
+  const [agreed, setAgreed] = useState(false); // aktivní souhlas (App Store 1.2 EULA)
 
   useEffect(() => {
     setMounted(true);
@@ -227,9 +228,26 @@ export default function Register() {
                   />
                 </div>
 
+                <label className="flex items-start gap-3 text-sm text-gray-600 mb-3">
+                  <input
+                    type="checkbox"
+                    checked={agreed}
+                    onChange={(e) => setAgreed(e.target.checked)}
+                    required
+                    className="mt-1 h-4 w-4 flex-shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>
+                    Souhlasím s <Link href="/vop" className="text-blue-600 hover:underline">obchodními podmínkami</Link>,{" "}
+                    <Link href="/pravidla-obsahu" className="text-blue-600 hover:underline">pravidly obsahu</Link> a{" "}
+                    <Link href="/gdpr" className="text-blue-600 hover:underline">zpracováním osobních údajů</Link>.
+                    Beru na vědomí <strong>nulovou toleranci</strong> k závadnému obsahu a zneužívajícímu
+                    chování; nevhodný obsah i uživatele lze nahlásit a blokovat.
+                  </span>
+                </label>
+
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !agreed}
                   className="w-full gradient-bg text-white py-4 rounded-xl font-semibold hover:shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
                   {loading ? (

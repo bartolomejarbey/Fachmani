@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import { isIOSNative } from "@/lib/native";
 
 type Profile = {
   id: string;
@@ -56,6 +57,9 @@ type PlatformSettings = {
 
 export default function FachmanDashboard() {
   const router = useRouter();
+  // App Store 3.1.1: na iOS skrýt všechny CTA na nákup Premium (digitální funkce)
+  const [iosNative, setIosNative] = useState(false);
+  useEffect(() => { setIosNative(isIOSNative()); }, []);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [requests, setRequests] = useState<Request[]>([]);
   const [myOffers, setMyOffers] = useState<Offer[]>([]);
@@ -334,7 +338,7 @@ export default function FachmanDashboard() {
             }`}>
               {isPremium ? "∞" : `${trialOffersLeft}/${trialOffersLimit}`}
             </p>
-            {!isPremium && (
+            {!isPremium && !iosNative && (
               <Link href="/cenik" className="text-cyan-600 text-sm font-medium hover:underline">
                 Upgradovat →
               </Link>
@@ -370,6 +374,7 @@ export default function FachmanDashboard() {
                   Po vyčerpání zkušebního období přejdete na Premium pro neomezené reakce a další výhody.
                 </p>
               </div>
+              {!iosNative && (
               <Link
                 href="/cenik"
                 className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap ${
@@ -380,6 +385,7 @@ export default function FachmanDashboard() {
               >
                 Upgradovat
               </Link>
+              )}
             </div>
           </div>
         )}
@@ -397,12 +403,14 @@ export default function FachmanDashboard() {
                   Zkušební období skončilo, ale ještě po dobu {trialGraceDays} dnů můžete reagovat na poptávky.
                   Pro plný přístup bez přerušení aktivujte Premium.
                 </p>
+                {!iosNative && (
                 <Link
                   href="/predplatne"
                   className="inline-block mt-2 bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-orange-700"
                 >
                   Aktivovat Premium
                 </Link>
+                )}
               </div>
             </div>
           </div>
@@ -424,12 +432,14 @@ export default function FachmanDashboard() {
                     ? `Vyčerpali jste všech ${trialOffersLimit} zkušebních reakcí. Pro neomezené reakce přejděte na Premium.`
                     : `Vaše zkušební období i ${trialGraceDays}denní ochranná lhůta skončily. Pro pokračování přejděte na Premium.`}
                 </p>
+                {!iosNative && (
                 <Link
                   href="/predplatne"
                   className="inline-block mt-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700"
                 >
                   Přejít na Premium
                 </Link>
+                )}
               </div>
             </div>
           </div>

@@ -7,12 +7,15 @@ import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 import { useSettings } from "@/lib/useSettings";
 import { supabase } from "@/lib/supabase";
+import { isIOSNative } from "@/lib/native";
 
 export default function Cenik() {
   const { settings, loaded: settingsLoaded } = useSettings();
   const [providerHref, setProviderHref] = useState<string>("/auth/register?role=provider");
   const [premiumHref, setPremiumHref] = useState<string>("/auth/register?role=provider&plan=premium");
   const [businessHref, setBusinessHref] = useState<string>("/auth/register?role=provider&plan=business");
+  const [iosNative, setIosNative] = useState(false);
+  useEffect(() => { setIosNative(isIOSNative()); }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +67,26 @@ export default function Cenik() {
     const quarterlyPerMonth = subscriptions.premium_quarterly;
     return Math.round((1 - quarterlyPerMonth / monthlyTotal) * 100);
   };
+
+  // App Store 3.1.1 / anti-steering: na iOS neukazujeme ceny ani nákup digitálních tarifů.
+  if (iosNative) {
+    return (
+      <div className="min-h-screen bg-white">
+        <Navbar />
+        <section className="pt-32 pb-24 px-4">
+          <div className="max-w-xl mx-auto text-center">
+            <h1 className="text-3xl font-bold text-gray-900 mb-3">Tarify</h1>
+            <p className="text-gray-600">
+              Předplatné a placené tarify nejsou v aplikaci k dispozici. Všechny základní funkce
+              Fachmani — zadávání poptávek, prohlížení nabídek, komunikaci i recenze — používáte
+              v aplikaci zdarma.
+            </p>
+          </div>
+        </section>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">

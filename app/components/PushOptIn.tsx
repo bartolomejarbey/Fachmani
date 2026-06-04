@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isIOSNative } from "@/lib/native";
 
 // S4.F4 — UI komponenta pro správu Web Push subscription.
 // Render v profilu fachmana / dashboardu. Kontroluje podporu prohlížeče,
@@ -22,11 +23,14 @@ export default function PushOptIn() {
   const [status, setStatus] = useState<Status>("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Na iOS (Capacitor) web push (VAPID) v WKWebView nefunguje → skrýt; push řeší nativní APNs.
+  const [native, setNative] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (typeof window === "undefined") return;
+      if (isIOSNative()) { if (!cancelled) setNative(true); return; }
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
         if (!cancelled) setStatus("unsupported");
         return;
@@ -119,6 +123,8 @@ export default function PushOptIn() {
       setBusy(false);
     }
   };
+
+  if (native) return null;
 
   if (status === "loading") {
     return <div className="text-sm text-gray-500">Načítám stav push notifikací…</div>;

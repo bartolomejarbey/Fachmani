@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
+import DeleteAccountSection from "@/app/components/DeleteAccountSection";
 
 type Profile = {
   id: string;
@@ -295,6 +296,10 @@ export default function Dashboard() {
             <h3 className="font-semibold text-gray-900 group-hover:text-cyan-600 transition-colors">Zprávy</h3>
             <p className="text-gray-500 text-sm">Komunikace</p>
           </Link>
+        </div>
+
+        <div className="mt-10">
+          <DeleteAccountSection />
         </div>
       </div>
 

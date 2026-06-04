@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useSettings } from "@/lib/useSettings";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import { isIOSNative } from "@/lib/native";
 
 type Profile = {
   id: string;
@@ -29,6 +30,9 @@ export default function Predplatne() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  // App Store 3.1.1: na iOS skrýváme nákup předplatného (digitální funkce)
+  const [iosNative, setIosNative] = useState(false);
+  useEffect(() => { setIosNative(isIOSNative()); }, []);
 
   useEffect(() => {
     async function loadProfile() {
@@ -298,6 +302,8 @@ export default function Predplatne() {
             </ul>
             {profile?.subscription_type === "premium" ? (
               <span className="block text-center text-gray-500 py-2.5 font-semibold">Aktuální plán</span>
+            ) : iosNative ? (
+              <span className="block text-center text-gray-400 py-2.5 text-sm">Předplatné není v aplikaci dostupné</span>
             ) : (
               <button
                 onClick={() => handleUpgrade("premium")}
@@ -327,6 +333,8 @@ export default function Predplatne() {
             </ul>
             {profile?.subscription_type === "business" ? (
               <span className="block text-center text-gray-500 py-2.5 font-semibold">Aktuální plán</span>
+            ) : iosNative ? (
+              <span className="block text-center text-gray-400 py-2.5 text-sm">Předplatné není v aplikaci dostupné</span>
             ) : (
               <button
                 onClick={() => handleUpgrade("business")}

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import { isIOSNative } from "@/lib/native";
 import { Icons } from "@/app/components/Icons";
 import ReviewForm from "@/app/components/ReviewForm";
 import CustomerReviewForm from "@/app/components/CustomerReviewForm";
@@ -119,6 +120,8 @@ function PoptavkaDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [showInsufficientCredit, setShowInsufficientCredit] = useState(false);
+  const [iosNative, setIosNative] = useState(false);
+  useEffect(() => { setIosNative(isIOSNative()); }, []);
   const [creditShortfall, setCreditShortfall] = useState(0);
   const [offerImages, setOfferImages] = useState<{ blob: Blob; preview: string }[]>([]);
   const [cropperSrc, setCropperSrc] = useState<string | null>(null);
@@ -1319,18 +1322,26 @@ function PoptavkaDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl p-6 max-w-sm mx-4 shadow-2xl">
             <div className="text-center">
-              <div className="text-4xl mb-3">💰</div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Nedostatek kreditu</h3>
+              <div className="text-4xl mb-3">{iosNative ? "📨" : "💰"}</div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">
+                {iosNative ? "Limit nabídek" : "Nedostatek kreditu"}
+              </h3>
               <p className="text-gray-600 text-sm mb-4">
-                Pro odeslani nabidky potrebujes jeste <strong>{creditShortfall} Kc</strong>. Dobij si penezenku.
+                {iosNative ? (
+                  "Dosáhli jste limitu bezplatných nabídek pro tento měsíc. Zkuste to prosím později."
+                ) : (
+                  <>Pro odeslani nabidky potrebujes jeste <strong>{creditShortfall} Kc</strong>. Dobij si penezenku.</>
+                )}
               </p>
               <div className="space-y-2">
-                <Link
-                  href="/dashboard/fachman/penezenka"
-                  className="block w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
-                >
-                  Dobit penezenku
-                </Link>
+                {!iosNative && (
+                  <Link
+                    href="/dashboard/fachman/penezenka"
+                    className="block w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                  >
+                    Dobit penezenku
+                  </Link>
+                )}
                 <button
                   onClick={() => setShowInsufficientCredit(false)}
                   className="block w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"

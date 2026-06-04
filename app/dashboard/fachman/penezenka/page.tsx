@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import { isIOSNative } from "@/lib/native";
 
 type Wallet = {
   id: string;
@@ -45,6 +46,9 @@ export default function PenezenkaPage() {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [premium, setPremium] = useState<PremiumSub | null>(null);
+  // App Store 3.1.1: na iOS skrýváme nákup digitálních funkcí (Comgate dobíjení + Premium)
+  const [iosNative, setIosNative] = useState(false);
+  useEffect(() => { setIosNative(isIOSNative()); }, []);
   const [loading, setLoading] = useState(true);
   const [selectedAmount, setSelectedAmount] = useState<number>(1000);
   const [customAmount, setCustomAmount] = useState("");
@@ -178,6 +182,7 @@ export default function PenezenkaPage() {
           </div>
         </div>
 
+        {!iosNative && (
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Topup Section */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -302,6 +307,7 @@ export default function PenezenkaPage() {
             )}
           </div>
         </div>
+        )}
 
         {/* Pricing Info */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-8">

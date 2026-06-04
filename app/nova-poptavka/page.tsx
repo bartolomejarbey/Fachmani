@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import { isIOSNative } from "@/lib/native";
 import ImageCropper from "@/app/components/ImageCropper";
 import { iconAsTextPrefix } from "@/app/components/CategoryIcon";
 
@@ -295,6 +296,12 @@ function NovaPoptavkaInner() {
       quota.dailyExtras === 0;
 
     if (needsPaidExtra) {
+      // App Store 3.1.1: na iOS neúčtujeme placené extra poptávky (in-app měna) ani nenavádíme na peněženku.
+      if (isIOSNative()) {
+        setError("Dosáhli jste denního limitu bezplatných poptávek. Další poptávku můžete zadat zítra.");
+        setLoading(false);
+        return;
+      }
       try {
         const spendRes = await fetch("/api/wallet/spend", {
           method: "POST",
