@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { isIosAppFromRequest } from "@/lib/native-server";
 
 const SYSTEM_PROMPT = `Jsi AI asistent platformy Fachmani.org. Tvým úkolem je POMÁHAT UŽIVATELŮM NAJÍT KONKRÉTNÍHO FACHMANA z naší databáze. NEJSI obecný poradce.
 
@@ -66,6 +67,10 @@ Tohle je PŘESNĚ tvoje práce! Nepovažuj to za off-topic. Začni flow od kroku
 
 export async function POST(request: Request) {
   try {
+    // App Store: generativní AI je v iOS aplikaci vypnutá (1.2 / 4.7 / 5.1.2).
+    if (isIosAppFromRequest(request)) {
+      return NextResponse.json({ error: "Tato funkce není v aplikaci dostupná." }, { status: 404 });
+    }
     const { messages, sessionId } = await request.json();
 
     if (!Array.isArray(messages) || messages.length === 0) {

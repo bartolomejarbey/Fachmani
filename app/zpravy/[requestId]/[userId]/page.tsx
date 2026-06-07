@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Avatar from "@/app/components/Avatar";
+import BlockButton from "@/app/components/BlockButton";
+import ReportButton from "@/app/components/ReportButton";
 
 type Message = {
   id: string;
@@ -175,7 +177,12 @@ export default function ChatPage() {
     });
 
     if (error) {
-      alert("Zprávu se nepodařilo odeslat.");
+      const blocked = error.message?.includes("BLOCKED") || error.code === "23514";
+      alert(
+        blocked
+          ? "Zprávu nelze odeslat — jeden z vás druhého zablokoval."
+          : "Zprávu se nepodařilo odeslat.",
+      );
       setSending(false);
       return;
     }
@@ -238,6 +245,16 @@ export default function ChatPage() {
               >
                 {request?.title ? `📋 ${request.title}` : "Otevřít poptávku →"}
               </Link>
+            </div>
+            {/* App Store 1.2 — blokování / nahlášení uživatele */}
+            <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+              <BlockButton targetUserId={otherUserId} targetName={otherUser?.full_name} />
+              <ReportButton
+                targetType="profile"
+                targetId={otherUserId}
+                targetOwnerId={otherUserId}
+                label="Nahlásit"
+              />
             </div>
           </div>
         </div>

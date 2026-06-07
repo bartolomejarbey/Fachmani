@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { isIosAppFromRequest } from "@/lib/native-server";
 
 export async function POST(request: Request) {
   try {
+    // App Store: generativní AI je v iOS aplikaci vypnutá (1.2 / 4.7 / 5.1.2).
+    if (isIosAppFromRequest(request)) {
+      return NextResponse.json({ error: "Tato funkce není v aplikaci dostupná." }, { status: 404 });
+    }
     const { conversationContext } = await request.json();
 
     if (!conversationContext || typeof conversationContext !== 'string') {

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import Navbar from "@/app/components/Navbar";
+import { isIOSNative } from "@/lib/native";
 
 type Message = {
   id: string;
@@ -50,6 +52,17 @@ export default function PoradcePage() {
   const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const router = useRouter();
+
+  // App Store: AI poradce (nemoderovaná generativní AI) je v iOS aplikaci vypnutý —
+  // přesměrujeme na katalog reálných fachmanů.
+  const [iosBlocked, setIosBlocked] = useState(false);
+  useEffect(() => {
+    if (isIOSNative()) {
+      setIosBlocked(true);
+      router.replace("/fachmani");
+    }
+  }, [router]);
 
   useEffect(() => {
     const el = chatContainerRef.current;
@@ -157,6 +170,8 @@ export default function PoradcePage() {
       sendMessage(input);
     }
   };
+
+  if (iosBlocked) return null;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-purple-50 via-white to-cyan-50">

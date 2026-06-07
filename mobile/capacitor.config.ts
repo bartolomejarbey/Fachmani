@@ -25,6 +25,8 @@ const config: CapacitorConfig = {
     backgroundColor: '#ffffff',
     // necháváme false — nepotřebujeme Service Worker / WKAppBoundDomains omezení
     limitsNavigationsToAppBoundDomains: false,
+    // Marker v User-Agent → server (SSR) pozná iOS aplikaci a vypne ghost/seed/AI obsah.
+    appendUserAgent: 'FachmaniApp-iOS',
   },
   plugins: {
     PushNotifications: { presentationOptions: ['badge', 'sound', 'alert'] },

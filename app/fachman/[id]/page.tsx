@@ -6,6 +6,9 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import CategoryIcon from "@/app/components/CategoryIcon";
 import { formatLocation } from "@/app/types/location";
+import { isIosAppRequest } from "@/lib/native-server";
+import ReportButton from "@/app/components/ReportButton";
+import BlockButton from "@/app/components/BlockButton";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.fachmani.cz").replace(/\/$/, "");
 
@@ -20,6 +23,7 @@ type Review = {
   rating: number;
   comment: string;
   customer_name: string;
+  customer_id?: string | null;
   created_at: string;
 };
 
@@ -62,6 +66,9 @@ async function fetchFachman(id: string): Promise<FachmanDetail | null> {
   const supabase = await createSupabaseServer();
   const isSeed = id.startsWith("seed_");
   const realId = isSeed ? id.replace("seed_", "") : id;
+
+  // App Store: fiktivní (seed) profily se v iOS aplikaci nezobrazují → 404.
+  if (isSeed && (await isIosAppRequest())) return null;
 
   if (isSeed) {
     const { data: seedData } = await supabase
@@ -137,7 +144,7 @@ async function fetchFachman(id: string): Promise<FachmanDetail | null> {
     supabase.from("provider_categories").select("categories(id, name, icon)").eq("provider_id", realId),
     supabase
       .from("reviews")
-      .select("id, rating, rating_quality, rating_communication, rating_price, comment, created_at, profiles:customer_id(full_name)")
+      .select("id, rating, rating_quality, rating_communication, rating_price, comment, created_at, customer_id, profiles:customer_id(full_name)")
       .eq("provider_id", realId)
       .order("created_at", { ascending: false }),
     supabase
@@ -159,6 +166,7 @@ async function fetchFachman(id: string): Promise<FachmanDetail | null> {
     rating_price: number | null;
     comment: string | null;
     created_at: string;
+    customer_id: string | null;
     profiles: { full_name?: string } | null;
   }>;
 
@@ -167,6 +175,7 @@ async function fetchFachman(id: string): Promise<FachmanDetail | null> {
     rating: r.rating,
     comment: r.comment ?? "",
     customer_name: r.profiles?.full_name ?? "Zákazník",
+    customer_id: r.customer_id ?? null,
     created_at: r.created_at,
   }));
 
@@ -556,9 +565,16 @@ export default async function FachmanDetailPage({
                         {review.comment && (
                           <p className="text-gray-600 text-sm">{review.comment}</p>
                         )}
-                        <p className="text-gray-400 text-xs mt-2">
-                          {new Date(review.created_at).toLocaleDateString("cs-CZ")}
-                        </p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <p className="text-gray-400 text-xs">
+                            {new Date(review.created_at).toLocaleDateString("cs-CZ")}
+                          </p>
+                          <ReportButton
+                            targetType="review"
+                            targetId={review.id}
+                            targetOwnerId={review.customer_id ?? null}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -598,6 +614,19 @@ export default async function FachmanDetailPage({
                 <p className="text-gray-500 text-sm text-center mt-4">
                   Registrován od {new Date(fachman.created_at).toLocaleDateString("cs-CZ")}
                 </p>
+
+                {/* App Store 1.2 — nahlášení / blokování uživatele (jen reálné profily) */}
+                {!fachman.id.startsWith("seed_") && (
+                  <div className="mt-4 flex items-center justify-center gap-4 border-t border-gray-100 pt-4">
+                    <ReportButton
+                      targetType="profile"
+                      targetId={fachman.id}
+                      targetOwnerId={fachman.id}
+                      label="Nahlásit profil"
+                    />
+                    <BlockButton targetUserId={fachman.id} targetName={fachman.full_name} />
+                  </div>
+                )}
               </div>
             </div>
           </div>

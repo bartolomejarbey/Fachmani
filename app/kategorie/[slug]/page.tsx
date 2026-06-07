@@ -8,6 +8,7 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 import CategoryIcon from "@/app/components/CategoryIcon";
+import { isIOSNative } from "@/lib/native";
 
 type Category = {
   id: string;
@@ -244,12 +245,17 @@ export default function KategorieDetail() {
       });
     }
 
+    // App Store: na iOS nezobrazujeme fiktivní (seed) ani ghost (ARES) profily.
+    const onIosApp = isIOSNative();
+
     // 2. FIKTIVNÍ fachmani (pro main: v hlavní i jejích subs; pro sub: jen v té sub)
-    const { data: seedData } = await supabase
-      .from("seed_providers")
-      .select("*")
-      .eq("is_active", true)
-      .overlaps("category_ids", categoryIds);
+    const { data: seedData } = onIosApp
+      ? { data: null }
+      : await supabase
+          .from("seed_providers")
+          .select("*")
+          .eq("is_active", true)
+          .overlaps("category_ids", categoryIds);
 
     seedData?.forEach(seed => {
       allProviders.push({
@@ -272,15 +278,17 @@ export default function KategorieDetail() {
 
     // 3. GHOST fachmani (ARES) — limit 200 pro výkon klientského loadu.
     // Bio = právní forma (s.r.o., a.s., …), location = město z legal_address.
-    const { data: ghostData } = await supabase
-      .from("ghost_subjects")
-      .select("ico, name, legal_form, legal_address")
-      .is("claimed_at", null)
-      .eq("is_active", true)
-      .eq("gdpr_suppressed", false)
-      .overlaps("category_ids", categoryIds)
-      .order("ico", { ascending: true })
-      .limit(200);
+    const { data: ghostData } = onIosApp
+      ? { data: null }
+      : await supabase
+          .from("ghost_subjects")
+          .select("ico, name, legal_form, legal_address")
+          .is("claimed_at", null)
+          .eq("is_active", true)
+          .eq("gdpr_suppressed", false)
+          .overlaps("category_ids", categoryIds)
+          .order("ico", { ascending: true })
+          .limit(200);
 
     ghostData?.forEach((g) => {
       const city = (g.legal_address as { city?: string } | null)?.city ?? null;

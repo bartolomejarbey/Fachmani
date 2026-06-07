@@ -5,6 +5,7 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
+import { isIosAppRequest } from "@/lib/native-server";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.fachmani.cz").replace(/\/$/, "");
 
@@ -35,6 +36,8 @@ type GhostRow = {
 
 async function fetchGhost(ico: string): Promise<GhostRow | null> {
   if (!/^[0-9]{8}$/.test(ico)) return null;
+  // App Store: ghost profily (firmy z ARES bez souhlasu) se v iOS aplikaci nezobrazují → 404.
+  if (await isIosAppRequest()) return null;
   const supabase = await createSupabaseServer();
   const { data } = await supabase
     .from("ghost_subjects")

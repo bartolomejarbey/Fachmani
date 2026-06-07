@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { isIosAppFromRequest } from "@/lib/native-server";
 
 /**
  * /api/ai/assistant
@@ -240,6 +241,11 @@ function buildPoptavkaLink(args: {
 
 export async function POST(request: Request) {
   try {
+    // App Store: nemoderovaná generativní AI je na iOS vypnutá (1.2 / 4.7 / 5.1.2).
+    // ChatWidget se na iOS vůbec nezobrazí, ale endpoint odmítáme i serverově.
+    if (isIosAppFromRequest(request)) {
+      return NextResponse.json({ error: "Tato funkce není v aplikaci dostupná." }, { status: 404 });
+    }
     const { messages, sessionId } = await request.json();
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: "Invalid input" }, { status: 400 });

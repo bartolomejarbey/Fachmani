@@ -43,3 +43,10 @@ next-env.d.ts
 # supabase CLI local state
 supabase/.temp/
 supabase/.branches/
+
+# Local tooling / session artifacts (not for VCS)
+.claude/
+.playwright-mcp/
+/fachmani-current.png
+/fachmani-after-changes.png
+/feed-after-images.png

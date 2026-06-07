@@ -12,6 +12,7 @@ import { Icons } from "@/app/components/Icons";
 import CategoryIcon from "@/app/components/CategoryIcon";
 import FachmaniFilters from "./FachmaniFilters";
 import PaginationLinks from "./PaginationLinks";
+import { isIosAppRequest } from "@/lib/native-server";
 
 const PAGE_SIZE = 12;
 
@@ -84,6 +85,9 @@ function clampPage(raw: string | undefined, totalPages: number): number {
 export default async function FachmaniPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const supabase = await createSupabaseServer();
+  // App Store: v iOS aplikaci nezobrazujeme fiktivní (seed) ani ghost (ARES) profily —
+  // jen reálné registrované uživatele. onIosApp vypne oba bloky níže.
+  const onIosApp = await isIosAppRequest();
 
   // --- LOOKUPS (kategorie, kraje, okresy) ---
   // Tahnuto z `lib/cachedLookups` — unstable_cache 1h, šetří ~150 ms na každý request.
@@ -200,7 +204,10 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
   }
 
   // --- SEED providers ---
-  const { data: seedData } = await supabase.from("seed_providers").select("*").eq("is_active", true);
+  // App Store: na iOS seed (fiktivní/ARES) profily vůbec nenačítáme.
+  const { data: seedData } = onIosApp
+    ? { data: null }
+    : await supabase.from("seed_providers").select("*").eq("is_active", true);
   if (seedData) {
     seedData.forEach((seed) => {
       const seedCategories = (seed.category_ids as string[] | null)
@@ -299,7 +306,8 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
   // z migrace 20260504110000_ghost_search_trgm.sql). Pod 3 znaky trgm není selektivní
   // → segment přeskočíme aby se vyhnulo full-scan.
   const ghostSearchActive = searchText.length >= 3;
-  const ghostsDisabled = verifiedOnly || (!!searchText && !ghostSearchActive);
+  // onIosApp → ghost (ARES) profily se v aplikaci nikdy nedotahují (App Store).
+  const ghostsDisabled = onIosApp || verifiedOnly || (!!searchText && !ghostSearchActive);
   // Sanitize: v `.or()` raw stringu jsou čárky/závorky řídicí znaky → nahradit mezerou.
   const ghostSearchTerm = ghostSearchActive ? searchText.replace(/[,(){}*]/g, " ").trim() : "";
   const ghostSearchOr = ghostSearchTerm

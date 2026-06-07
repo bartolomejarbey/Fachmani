@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { isIOSNative } from "@/lib/native";
 
 type Fachman = {
   name: string;
@@ -36,6 +37,9 @@ export default function ChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // App Store: nemoderovaná generativní AI se na iOS nezobrazuje (1.2 / 4.7 / 5.1.2)
+  const [hideOnIos, setHideOnIos] = useState(false);
+  useEffect(() => { if (isIOSNative()) setHideOnIos(true); }, []);
   const sessionId = useRef<string>(
     typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(Date.now())
   );
@@ -103,6 +107,8 @@ export default function ChatWidget() {
       send(input);
     }
   };
+
+  if (hideOnIos) return null;
 
   return (
     <>

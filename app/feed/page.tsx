@@ -7,6 +7,7 @@ import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import Pagination from "@/app/components/Pagination";
+import BlockButton from "@/app/components/BlockButton";
 
 type ReactionSummary = {
   emoji: string;
@@ -135,6 +136,16 @@ export default function FeedPage() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
+    // App Store 1.2 — skryj příspěvky autorů, které jsem zablokoval.
+    let blockedIds: string[] = [];
+    if (user) {
+      const { data: blk } = await supabase
+        .from("blocked_users")
+        .select("blocked_id")
+        .eq("blocker_id", user.id);
+      blockedIds = (blk ?? []).map((b) => b.blocked_id as string);
+    }
+
     const from = (page - 1) * ITEMS_PER_PAGE;
     const to = from + ITEMS_PER_PAGE - 1;
 
@@ -155,12 +166,17 @@ export default function FeedPage() {
 
     if (postsData) {
       type PostRow = Record<string, unknown> & {
+        user_id?: string;
         post_likes?: { user_id: string; profiles?: { full_name: string } | null }[];
         post_comments?: { id: string; content: string; created_at: string; profiles: { full_name: string; avatar_url: string | null } }[];
         post_reactions?: { user_id: string; emoji: string; profiles?: { full_name: string } | null }[];
       };
 
-      const postsWithDetails = postsData.map((post: PostRow) => {
+      const visiblePosts = blockedIds.length
+        ? (postsData as PostRow[]).filter((p) => !blockedIds.includes(p.user_id as string))
+        : (postsData as PostRow[]);
+
+      const postsWithDetails = visiblePosts.map((post: PostRow) => {
         const likes = post.post_likes || [];
         const comments = post.post_comments || [];
         const reactions = post.post_reactions || [];
@@ -606,19 +622,23 @@ export default function FeedPage() {
                           </button>
                         </div>
                       ) : currentUser ? (
-                        <button
-                          onClick={() => !reportedPostIds.has(post.id) && setReportingPost(post.id)}
-                          disabled={reportedPostIds.has(post.id)}
-                          className={`p-2 rounded-lg transition-colors text-sm ${
-                            reportedPostIds.has(post.id)
-                              ? "text-gray-300 cursor-not-allowed"
-                              : "text-gray-400 hover:text-red-600 hover:bg-red-50"
-                          }`}
-                          title={reportedPostIds.has(post.id) ? "Již nahlášeno" : "Nahlásit příspěvek"}
-                          aria-label="Nahlásit příspěvek"
-                        >
-                          🚩
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => !reportedPostIds.has(post.id) && setReportingPost(post.id)}
+                            disabled={reportedPostIds.has(post.id)}
+                            className={`p-2 rounded-lg transition-colors text-sm ${
+                              reportedPostIds.has(post.id)
+                                ? "text-gray-300 cursor-not-allowed"
+                                : "text-gray-400 hover:text-red-600 hover:bg-red-50"
+                            }`}
+                            title={reportedPostIds.has(post.id) ? "Již nahlášeno" : "Nahlásit příspěvek"}
+                            aria-label="Nahlásit příspěvek"
+                          >
+                            🚩
+                          </button>
+                          {/* App Store 1.2 — blokování autora příspěvku */}
+                          <BlockButton targetUserId={post.user_id} targetName={post.profiles?.full_name} />
+                        </div>
                       ) : null}
                     </div>
                   </div>

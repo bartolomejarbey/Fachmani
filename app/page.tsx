@@ -7,6 +7,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import CategoryIcon from "./components/CategoryIcon";
 import { useSettings } from "@/lib/useSettings";
+import { isIOSNative } from "@/lib/native";
 
 type ProviderAvatar = {
   id: string;
@@ -94,8 +95,13 @@ export default function Home() {
         .eq("status", "completed"),
     ]);
 
+    // App Store: v iOS aplikaci počítáme jen reálné registrované poskytovatele
+    // (seed/ghost se v aplikaci nezobrazují, takže je ani nezahrnujeme do statistiky).
+    const native = isIOSNative();
     setStats({
-      providers: (realProviders || 0) + (seedProviders || 0) + (ghostSubjects || 0),
+      providers: native
+        ? (realProviders || 0)
+        : (realProviders || 0) + (seedProviders || 0) + (ghostSubjects || 0),
       requests: activeRequests || 0,
       completed: completedRequests || 0,
       // avgRating: hero-only display value. Plný load reviews tabulky kvůli
