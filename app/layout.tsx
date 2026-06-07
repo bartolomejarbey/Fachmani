@@ -4,6 +4,7 @@ import "./globals.css";
 import CookieBanner from "./components/CookieBanner";
 import ChatWidget from "./components/ChatWidget";
 import ChatHeads from "./components/messenger/ChatHeads";
+import NativePushRegistrar from "./components/NativePushRegistrar";
 
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
@@ -41,6 +42,7 @@ export default function RootLayout({
         <ChatHeads />
         <ChatWidget />
         <CookieBanner />
+        <NativePushRegistrar />
       </body>
     </html>
   );

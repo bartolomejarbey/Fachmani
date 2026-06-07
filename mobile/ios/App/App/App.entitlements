@@ -2,8 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- APNs push. Xcode při Archive pro App Store + distribuční profil povýší na production. -->
+	<!-- APNs push. 'production' je povinné pro App Store / TestFlight (token-based .p8).
+	     Pro lokální Xcode debug testování dočasně přepni na 'development' a v serveru
+	     nastav APNS_ENVIRONMENT=sandbox. -->
 	<key>aps-environment</key>
-	<string>development</string>
+	<string>production</string>
 </dict>
 </plist>
