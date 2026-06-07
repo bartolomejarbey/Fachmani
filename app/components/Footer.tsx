@@ -1,16 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { openCookieSettings } from "@/lib/cookieConsent";
 import { OPERATOR } from "@/app/components/legal/operator";
+import { isIOSNative } from "@/lib/native";
 
 export default function Footer() {
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const [subscribeError, setSubscribeError] = useState("");
+  // App Store: skryjeme „Ceník" v aplikaci (žádné navádění k nákupu, 3.1.1).
+  const [isIos, setIsIos] = useState(false);
+  useEffect(() => setIsIos(isIOSNative()), []);
 
   const handleNewsletter = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,7 +180,7 @@ export default function Footer() {
                     { href: "/cenik", label: "Ceník" },
                     { href: "/auth/register?role=provider", label: "Registrace fachmana" },
                     { href: "/overeni", label: "Ověření identity" },
-                  ].map((link) => (
+                  ].filter((link) => !isIos || link.href !== "/cenik").map((link) => (
                     <li key={link.href}>
                       <Link href={link.href} className="text-gray-400 hover:text-cyan-400 hover:translate-x-1 transition-all duration-200 inline-block">
                         {link.label}

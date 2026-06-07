@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import NotificationBell from "./NotificationBell";
 import WalletBalance from "./wallet/WalletBalance";
+import { isIOSNative } from "@/lib/native";
 
 export default function Navbar() {
   const router = useRouter();
@@ -17,6 +18,10 @@ export default function Navbar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  // App Store: v iOS aplikaci skrýváme Ceník/Peněženku (žádné navádění k nákupu, 3.1.1)
+  // a Poradce (nemoderovaná AI).
+  const [isIos, setIsIos] = useState(false);
+  useEffect(() => setIsIos(isIOSNative()), []);
 
   useEffect(() => {
     async function checkUser() {
@@ -62,7 +67,8 @@ export default function Navbar() {
     { href: "/feed", label: "Feed", icon: "📸", isNew: true },
     { href: "/poradce", label: "Poradce", icon: "🤖" },
     { href: "/cenik", label: "Ceník", icon: "💎" },
-  ];
+    // Na iOS skryjeme Ceník (navádění k nákupu) a Poradce (AI).
+  ].filter((l) => !isIos || (l.href !== "/cenik" && l.href !== "/poradce"));
 
   const isActive = (href: string) => pathname === href;
 
@@ -125,7 +131,7 @@ export default function Navbar() {
                 </div>
               ) : isLoggedIn ? (
                 <div className="flex items-center gap-2">
-                  {userRole === "provider" && <WalletBalance />}
+                  {userRole === "provider" && !isIos && <WalletBalance />}
                   <NotificationBell />
                   
                   <Link
@@ -168,10 +174,12 @@ export default function Navbar() {
                             <span className="text-lg">👤</span>
                             <span className="text-sm font-medium">Můj profil</span>
                           </Link>
-                          <Link href="/dashboard/fachman/penezenka" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
-                            <span className="text-lg">💰</span>
-                            <span className="text-sm font-medium">Peněženka</span>
-                          </Link>
+                          {!isIos && (
+                            <Link href="/dashboard/fachman/penezenka" className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors">
+                              <span className="text-lg">💰</span>
+                              <span className="text-sm font-medium">Peněženka</span>
+                            </Link>
+                          )}
                         </>
                       )}
                       
@@ -302,14 +310,16 @@ export default function Navbar() {
                         <span className="text-xl">👤</span>
                         <span className="font-semibold">Můj profil</span>
                       </Link>
-                      <Link
-                        href="/dashboard/fachman/penezenka"
-                        onClick={() => setIsOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3.5 text-gray-700 hover:bg-gray-50 rounded-2xl transition-all"
-                      >
-                        <span className="text-xl">💰</span>
-                        <span className="font-semibold">Peněženka</span>
-                      </Link>
+                      {!isIos && (
+                        <Link
+                          href="/dashboard/fachman/penezenka"
+                          onClick={() => setIsOpen(false)}
+                          className="flex items-center gap-3 px-4 py-3.5 text-gray-700 hover:bg-gray-50 rounded-2xl transition-all"
+                        >
+                          <span className="text-xl">💰</span>
+                          <span className="font-semibold">Peněženka</span>
+                        </Link>
+                      )}
                     </>
                   )}
 

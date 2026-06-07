@@ -8,6 +8,7 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import Pagination from "@/app/components/Pagination";
 import BlockButton from "@/app/components/BlockButton";
+import { isIOSNative } from "@/lib/native";
 
 type ReactionSummary = {
   emoji: string;
@@ -91,6 +92,9 @@ export default function FeedPage() {
   const [reportComment, setReportComment] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportedPostIds, setReportedPostIds] = useState<Set<string>>(new Set());
+  // App Store: na iOS žádné navádění k nákupu (3.1.1) — skryjeme Premium upsell.
+  const [isIos, setIsIos] = useState(false);
+  useEffect(() => setIsIos(isIOSNative()), []);
 
   useEffect(() => {
     loadUser();
@@ -489,9 +493,11 @@ export default function FeedPage() {
                   {feedQuota.remaining === 0 ? (
                     <>
                       Free limit vyčerpán ({feedQuota.limit} příspěvků / 30 dní).{" "}
-                      <Link href="/predplatne" className="text-cyan-700 font-semibold underline">
-                        Aktivovat Premium pro neomezené příspěvky →
-                      </Link>
+                      {!isIos && (
+                        <Link href="/predplatne" className="text-cyan-700 font-semibold underline">
+                          Aktivovat Premium pro neomezené příspěvky →
+                        </Link>
+                      )}
                     </>
                   ) : (
                     <>

@@ -1,12 +1,17 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { useSettings } from "@/lib/useSettings";
+import { isIOSNative } from "@/lib/native";
 
 export default function ProFachmany() {
   const { settings } = useSettings();
+  // App Store 3.1.1: na iOS skryjeme cenové plány i odkaz na ceník (žádné navádění k nákupu).
+  const [isIos, setIsIos] = useState(false);
+  useEffect(() => setIsIos(isIOSNative()), []);
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -28,12 +33,14 @@ export default function ProFachmany() {
               >
                 Zaregistrovat se zdarma
               </Link>
-              <Link
-                href="/cenik"
-                className="border-2 border-white text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-green-700"
-              >
-                Zobrazit ceník
-              </Link>
+              {!isIos && (
+                <Link
+                  href="/cenik"
+                  className="border-2 border-white text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-green-700"
+                >
+                  Zobrazit ceník
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -172,7 +179,8 @@ export default function ProFachmany() {
         </div>
       </section>
 
-      {/* Cenové plány */}
+      {/* Cenové plány — na iOS skryté (App Store 3.1.1) */}
+      {!isIos && (
       <section className="py-16">
         <div className="max-w-7xl mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-4">Jednoduchý ceník</h2>
@@ -242,6 +250,7 @@ export default function ProFachmany() {
           </p>
         </div>
       </section>
+      )}
 
       {/* CTA */}
       <section className="py-16 bg-green-600 text-white">

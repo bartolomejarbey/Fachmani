@@ -1204,14 +1204,18 @@ function PoptavkaDetail() {
                         Zkušební období vypršelo
                       </p>
                       <p className="text-orange-700 text-sm mb-2">
-                        Vaše bezplatné období skončilo. Pro pokračování v posílání nabídek si pořiďte Premium.
+                        {iosNative
+                          ? "Vaše bezplatné období skončilo."
+                          : "Vaše bezplatné období skončilo. Pro pokračování v posílání nabídek si pořiďte Premium."}
                       </p>
-                      <Link
-                        href="/predplatne"
-                        className="inline-block bg-gradient-to-r from-purple-500 to-cyan-500 text-white text-sm font-bold px-4 py-2 rounded-xl hover:shadow-lg transition-all"
-                      >
-                        Pořídit Premium →
-                      </Link>
+                      {!iosNative && (
+                        <Link
+                          href="/predplatne"
+                          className="inline-block bg-gradient-to-r from-purple-500 to-cyan-500 text-white text-sm font-bold px-4 py-2 rounded-xl hover:shadow-lg transition-all"
+                        >
+                          Pořídit Premium →
+                        </Link>
+                      )}
                     </div>
                   ) : isTrialExhausted() ? (
                     <div className={`bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
@@ -1219,14 +1223,18 @@ function PoptavkaDetail() {
                         Bezplatné nabídky vyčerpány
                       </p>
                       <p className="text-orange-700 text-sm mb-2">
-                        Využili jste všech {trialOffersLimit} bezplatných nabídek během trialu. Pokračujte s Premium.
+                        {iosNative
+                          ? `Využili jste všech ${trialOffersLimit} bezplatných nabídek během trialu.`
+                          : `Využili jste všech ${trialOffersLimit} bezplatných nabídek během trialu. Pokračujte s Premium.`}
                       </p>
-                      <Link
-                        href="/predplatne"
-                        className="inline-block bg-gradient-to-r from-purple-500 to-cyan-500 text-white text-sm font-bold px-4 py-2 rounded-xl hover:shadow-lg transition-all"
-                      >
-                        Pořídit Premium →
-                      </Link>
+                      {!iosNative && (
+                        <Link
+                          href="/predplatne"
+                          className="inline-block bg-gradient-to-r from-purple-500 to-cyan-500 text-white text-sm font-bold px-4 py-2 rounded-xl hover:shadow-lg transition-all"
+                        >
+                          Pořídit Premium →
+                        </Link>
+                      )}
                     </div>
                   ) : (
                     <div className={`bg-cyan-50 border-2 border-cyan-200 rounded-2xl p-4 ${mounted ? 'animate-fade-in-up animation-delay-200' : 'opacity-0'}`}>
@@ -1238,12 +1246,14 @@ function PoptavkaDetail() {
                           Zkušební období do: {new Date(userProfile.trial_until).toLocaleDateString("cs-CZ")}
                         </p>
                       )}
-                      <Link
-                        href="/predplatne"
-                        className="text-cyan-700 text-sm hover:underline font-semibold"
-                      >
-                        Upgradovat na Premium →
-                      </Link>
+                      {!iosNative && (
+                        <Link
+                          href="/predplatne"
+                          className="text-cyan-700 text-sm hover:underline font-semibold"
+                        >
+                          Upgradovat na Premium →
+                        </Link>
+                      )}
                     </div>
                   )
                 )}
@@ -1299,12 +1309,18 @@ function PoptavkaDetail() {
                         <p className="text-orange-800 font-semibold mb-2">
                           Limit nabídek vyčerpán
                         </p>
-                        <Link
-                          href="/predplatne"
-                          className="inline-block bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all"
-                        >
-                          Upgradovat na Premium
-                        </Link>
+                        {iosNative ? (
+                          <p className="text-orange-700 text-sm">
+                            Dosáhli jste limitu bezplatných nabídek pro tento měsíc.
+                          </p>
+                        ) : (
+                          <Link
+                            href="/predplatne"
+                            className="inline-block bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all"
+                          >
+                            Upgradovat na Premium
+                          </Link>
+                        )}
                       </div>
                     )}
                   </div>

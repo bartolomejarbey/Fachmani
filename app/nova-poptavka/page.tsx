@@ -40,6 +40,9 @@ function NovaPoptavkaInner() {
     isPremium: boolean;
   } | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  // App Store: na iOS žádné navádění k nákupu / ceny (3.1.1).
+  const [isIos, setIsIos] = useState(false);
+  useEffect(() => setIsIos(isIOSNative()), []);
 
   const [title, setTitle] = useState("");
   const [mainCategoryId, setMainCategoryId] = useState("");
@@ -376,6 +379,9 @@ function NovaPoptavkaInner() {
         if (urgentIsFree) {
           void supabase.rpc("record_urgent_request", { p_user_id: user.id });
         }
+      } else if (isIOSNative()) {
+        // App Store 3.1.1: na iOS neúčtujeme prioritu z peněženky — poptávka zůstane
+        // standardní (bez priority), bez jakékoli zmínky o ceně.
       } else {
         try {
           const spendRes = await fetch("/api/wallet/spend", {
@@ -463,13 +469,21 @@ function NovaPoptavkaInner() {
         {quota && !quota.isPremium && quota.dailyUsed >= quota.dailyLimit && quota.dailyExtras === 0 && (
           <div className="bg-orange-50 border border-orange-200 text-orange-900 p-5 rounded-xl mb-6">
             <strong className="block mb-1">⚠️ Dnes jste vyčerpali bezplatnou poptávku</strong>
-            <p className="text-sm mb-3">
-              Free účet má {quota.dailyLimit}× poptávku denně (anti-zneužití). Další poptávku dnes můžete poslat za <strong>{extraRequestPrice} Kč</strong> z peněženky{walletBalance !== null ? ` (zůstatek ${walletBalance} Kč)` : ""}, nebo aktivujte <a href="/predplatne" className="underline font-semibold">Premium</a> pro neomezené poptávky. Limit se resetuje zítra.
-            </p>
-            {walletBalance !== null && walletBalance < extraRequestPrice && (
-              <a href="/predplatne" className="inline-block px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-semibold hover:bg-orange-700">
-                Dobít peněženku →
-              </a>
+            {isIos ? (
+              <p className="text-sm">
+                Denní limit poptávek je vyčerpán. Limit se resetuje zítra.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm mb-3">
+                  Free účet má {quota.dailyLimit}× poptávku denně (anti-zneužití). Další poptávku dnes můžete poslat za <strong>{extraRequestPrice} Kč</strong> z peněženky{walletBalance !== null ? ` (zůstatek ${walletBalance} Kč)` : ""}, nebo aktivujte <a href="/predplatne" className="underline font-semibold">Premium</a> pro neomezené poptávky. Limit se resetuje zítra.
+                </p>
+                {walletBalance !== null && walletBalance < extraRequestPrice && (
+                  <a href="/predplatne" className="inline-block px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-semibold hover:bg-orange-700">
+                    Dobít peněženku →
+                  </a>
+                )}
+              </>
             )}
           </div>
         )}
@@ -689,6 +703,10 @@ function NovaPoptavkaInner() {
           {(() => {
             const urgentFree = !!quota && !quota.isPremium && quota.urgentUsed < quota.urgentFreeLimit;
             const urgentFreeRemaining = quota ? Math.max(0, quota.urgentFreeLimit - quota.urgentUsed) : 0;
+            // App Store 3.1.1: na iOS nenabízíme placenou prioritu — toggle jen když je zdarma
+            // (free měsíční kvóta nebo premium).
+            const urgentAllowed = quota?.isPremium || urgentFree;
+            if (isIos && !urgentAllowed) return null;
             return (
               <label className={`block p-4 rounded-xl border-2 cursor-pointer transition-all ${
                 isUrgent
@@ -716,7 +734,9 @@ function NovaPoptavkaInner() {
                     <p className="text-sm text-gray-600 mt-1">
                       Poptávka se zobrazí na prvních místech v seznamu a fachmani na ni reagují rychleji.
                       {urgentFree
-                        ? ` Máte ${urgentFreeRemaining}× zdarma za měsíc, dál stojí ${urgentPrice} Kč.`
+                        ? (isIos
+                            ? ` Máte ${urgentFreeRemaining}× zdarma za měsíc.`
+                            : ` Máte ${urgentFreeRemaining}× zdarma za měsíc, dál stojí ${urgentPrice} Kč.`)
                         : " Cena se strhne z vaší peněženky po odeslání."}
                     </p>
                   </div>

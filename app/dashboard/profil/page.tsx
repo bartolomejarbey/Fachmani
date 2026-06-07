@@ -12,6 +12,7 @@ import IcoInput from "@/app/components/IcoInput";
 import VerifiedBadge from "@/app/components/VerifiedBadge";
 import PushOptIn from "@/app/components/PushOptIn";
 import LocationSelect from "@/app/components/LocationSelect";
+import { isIOSNative } from "@/lib/native";
 
 type Category = {
   id: string;
@@ -58,6 +59,9 @@ type ProviderProfile = {
 
 export default function FachmanProfil() {
   const router = useRouter();
+  // App Store: na iOS žádné navádění k nákupu (3.1.1) — skryjeme upgrade na vyšší tarif.
+  const [isIos, setIsIos] = useState(false);
+  useEffect(() => setIsIos(isIOSNative()), []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -826,14 +830,17 @@ export default function FachmanProfil() {
               <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-center justify-between gap-3">
                 <span>
                   Dosáhli jste limitu {categoriesLimit} {categoriesLimit === 1 ? "kategorie" : "kategorií"} pro váš tarif{" "}
-                  <strong>{profile?.subscription_type || "free"}</strong>. Pro více kategorií přejděte na vyšší tarif.
+                  <strong>{profile?.subscription_type || "free"}</strong>.
+                  {!isIos && " Pro více kategorií přejděte na vyšší tarif."}
                 </span>
-                <Link
-                  href="/cenik"
-                  className="bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap hover:bg-amber-700"
-                >
-                  Upgradovat
-                </Link>
+                {!isIos && (
+                  <Link
+                    href="/cenik"
+                    className="bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap hover:bg-amber-700"
+                  >
+                    Upgradovat
+                  </Link>
+                )}
               </div>
             )}
 

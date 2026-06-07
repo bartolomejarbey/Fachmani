@@ -36,6 +36,9 @@ type Request = {
 export default function Home() {
   const { settings } = useSettings();
   const [mounted, setMounted] = useState(false);
+  // App Store: na iOS žádné navádění k nákupu (3.1.1) — skryjeme odkaz na ceník.
+  const [isIos, setIsIos] = useState(false);
+  useEffect(() => setIsIos(isIOSNative()), []);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [stats, setStats] = useState({
     providers: 0,
@@ -626,12 +629,14 @@ export default function Home() {
                 >
                   Registrovat se zdarma
                 </Link>
-                <Link
-                  href="/cenik"
-                  className="block sm:inline-block border-2 border-white/30 text-white px-8 py-4 rounded-xl text-base font-semibold text-center hover:bg-white/10 transition-colors"
-                >
-                  Zobrazit ceník
-                </Link>
+                {!isIos && (
+                  <Link
+                    href="/cenik"
+                    className="block sm:inline-block border-2 border-white/30 text-white px-8 py-4 rounded-xl text-base font-semibold text-center hover:bg-white/10 transition-colors"
+                  >
+                    Zobrazit ceník
+                  </Link>
+                )}
               </div>
             </div>
 

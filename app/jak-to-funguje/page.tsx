@@ -1,17 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 import { useSettings } from "@/lib/useSettings";
+import { isIOSNative } from "@/lib/native";
 
 export default function JakToFunguje() {
   const { settings } = useSettings();
   const freeLimit = settings?.platform?.free_offers_per_month ?? 3;
   const premiumPrice = settings?.subscriptions?.premium_monthly ?? 499;
   const [userType, setUserType] = useState<"customer" | "provider">("customer");
+  // App Store 3.1.1: na iOS žádné ceny / navádění k nákupu.
+  const [isIos, setIsIos] = useState(false);
+  useEffect(() => setIsIos(isIOSNative()), []);
 
   return (
     <div className="min-h-screen bg-white">
@@ -324,9 +328,10 @@ export default function JakToFunguje() {
                   Začněte zdarma
                 </h2>
                 <p className="text-lg text-gray-300 mb-8 max-w-xl mx-auto">
-                  {freeLimit} nabídky měsíčně zdarma. Pro více nabídek si vyberte Premium od {premiumPrice} Kč/měsíc.
+                  {freeLimit} nabídky měsíčně zdarma.
+                  {!isIos && ` Pro více nabídek si vyberte Premium od ${premiumPrice} Kč/měsíc.`}
                 </p>
-                
+
                 <div className="flex flex-col sm:flex-row justify-center gap-4">
                   <Link
                     href="/auth/register?role=provider"
@@ -334,12 +339,14 @@ export default function JakToFunguje() {
                   >
                     Registrovat zdarma
                   </Link>
-                  <Link
-                    href="/cenik"
-                    className="inline-flex items-center justify-center gap-2 border border-white/30 text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-white/10 transition-all"
-                  >
-                    Zobrazit ceník
-                  </Link>
+                  {!isIos && (
+                    <Link
+                      href="/cenik"
+                      className="inline-flex items-center justify-center gap-2 border border-white/30 text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-white/10 transition-all"
+                    >
+                      Zobrazit ceník
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>
