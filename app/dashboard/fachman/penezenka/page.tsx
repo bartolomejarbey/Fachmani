@@ -145,6 +145,23 @@ export default function PenezenkaPage() {
     );
   }
 
+  // App Store 3.1.1: peněženka (in-app měna, dobíjení, ceny) není v iOS aplikaci
+  // dostupná — neutrální obrazovka, žádné zůstatky/ceny/nákup.
+  if (iosNative) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="max-w-md mx-auto px-4 pt-28 pb-8 text-center">
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Peněženka</h1>
+          <p className="text-gray-600 text-sm">
+            Tato sekce není v aplikaci dostupná. Spravujte ji prosím na webu fachmani.org.
+          </p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />

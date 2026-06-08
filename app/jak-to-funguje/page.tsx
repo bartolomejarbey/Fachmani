@@ -364,7 +364,9 @@ export default function JakToFunguje() {
               <div className="space-y-4">
                 {[
                   { q: "Kolik stojí registrace?", a: `Registrace je zcela zdarma. V základním tarifu můžete poslat ${freeLimit} nabídky měsíčně bez poplatků.` },
-                  { q: "Kolik nabídek mohu poslat?", a: `V tarifu Start máte ${freeLimit} nabídky měsíčně zdarma. Pro neomezené nabídky doporučujeme Premium (${premiumPrice} Kč/měsíc).` },
+                  { q: "Kolik nabídek mohu poslat?", a: isIos
+                      ? `V tarifu Start máte ${freeLimit} nabídky měsíčně zdarma.`
+                      : `V tarifu Start máte ${freeLimit} nabídky měsíčně zdarma. Pro neomezené nabídky doporučujeme Premium (${premiumPrice} Kč/měsíc).` },
                   { q: "Jak funguje verifikace profilu?", a: "Verifikace profilu je momentálně ve vývoji. Jakmile bude spuštěna, zveřejníme přesný postup i podmínky." },
                   { q: "Jak získám více zakázek?", a: "Vyplňte kompletní profil, přidejte fotky prací, sbírejte pozitivní recenze a odpovídejte rychle na poptávky." },
                 ].map((item, i) => (

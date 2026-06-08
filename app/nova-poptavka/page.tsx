@@ -496,7 +496,9 @@ function NovaPoptavkaInner() {
 
         {quota && !quota.isPremium && quota.dailyUsed < quota.dailyLimit && (
           <div className="bg-blue-50 border border-blue-200 text-blue-900 p-3 rounded-xl mb-6 text-sm">
-            🆓 Zbývá vám <strong>{quota.dailyLimit - quota.dailyUsed} z {quota.dailyLimit}</strong> bezplatných poptávek dnes. Další pak za {extraRequestPrice} Kč.
+            🆓 Zbývá vám <strong>{quota.dailyLimit - quota.dailyUsed} z {quota.dailyLimit}</strong> bezplatných poptávek dnes.
+            {/* App Store 3.1.1: cenu extra poptávky na iOS neukazujeme */}
+            {!isIos && ` Další pak za ${extraRequestPrice} Kč.`}
           </div>
         )}
 
