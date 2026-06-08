@@ -288,10 +288,12 @@ export default function Predplatne() {
               Doporučeno
             </span>
             <h3 className="font-bold text-xl mb-1 bg-gradient-to-r from-purple-600 to-cyan-600 bg-clip-text text-transparent">Premium</h3>
-            <p className="text-3xl font-extrabold mb-1 text-gray-900">
-              {settings.subscriptions.premium_monthly} Kč
-              <span className="text-sm font-normal text-gray-500">/měsíc</span>
-            </p>
+            {!iosNative && (
+              <p className="text-3xl font-extrabold mb-1 text-gray-900">
+                {settings.subscriptions.premium_monthly} Kč
+                <span className="text-sm font-normal text-gray-500">/měsíc</span>
+              </p>
+            )}
             <p className="text-xs text-gray-500 mb-4">Pro aktivní fachmany s pravidelnou poptávkou</p>
             <ul className="text-sm text-gray-700 space-y-2 mb-6">
               <li>✓ Neomezené nabídky</li>
@@ -320,10 +322,12 @@ export default function Predplatne() {
             profile?.subscription_type === "business" ? "border-purple-500" : "border-gray-100"
           }`}>
             <h3 className="font-bold text-xl mb-1 text-gray-900">Business</h3>
-            <p className="text-3xl font-extrabold mb-1 text-gray-900">
-              {settings.subscriptions.business_monthly.toLocaleString()} Kč
-              <span className="text-sm font-normal text-gray-500">/měsíc</span>
-            </p>
+            {!iosNative && (
+              <p className="text-3xl font-extrabold mb-1 text-gray-900">
+                {settings.subscriptions.business_monthly.toLocaleString()} Kč
+                <span className="text-sm font-normal text-gray-500">/měsíc</span>
+              </p>
+            )}
             <p className="text-xs text-gray-500 mb-4">Pro firmy a větší týmy</p>
             <ul className="text-sm text-gray-700 space-y-2 mb-6">
               <li>✓ Vše z Premium</li>
@@ -347,9 +351,11 @@ export default function Predplatne() {
           </div>
         </div>
 
-        <p className="text-sm text-gray-500 mt-6 text-center">
-          Platby jsou v testovacím režimu — produkční platební brána (ComGate) bude napojena po doručení API klíčů.
-        </p>
+        {!iosNative && (
+          <p className="text-sm text-gray-500 mt-6 text-center">
+            Platby jsou v testovacím režimu — produkční platební brána (ComGate) bude napojena po doručení API klíčů.
+          </p>
+        )}
       </div>
 
       <Footer />

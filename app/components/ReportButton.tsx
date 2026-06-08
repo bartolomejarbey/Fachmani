@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase";
  * Zapisuje do `content_reports` (RLS: reporter_id = auth.uid()).
  * Použití: recenze, zprávy, profily. (Feed posty mají vlastní report v app/feed.)
  */
-type TargetType = "review" | "message" | "profile";
+type TargetType = "review" | "message" | "profile" | "comment";
 
 const REASONS: { value: string; label: string }[] = [
   { value: "inappropriate", label: "Nevhodný obsah" },

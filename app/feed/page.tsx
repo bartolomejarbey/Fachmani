@@ -8,6 +8,7 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import Pagination from "@/app/components/Pagination";
 import BlockButton from "@/app/components/BlockButton";
+import ReportButton from "@/app/components/ReportButton";
 import { isIOSNative } from "@/lib/native";
 
 type ReactionSummary = {
@@ -40,6 +41,7 @@ type Comment = {
   id: string;
   content: string;
   created_at: string;
+  user_id?: string | null;
   profiles: {
     full_name: string;
     avatar_url: string | null;
@@ -159,7 +161,7 @@ export default function FeedPage() {
         *,
         profiles:user_id (full_name, role, avatar_url),
         post_likes (user_id, profiles:user_id (full_name)),
-        post_comments (id, content, created_at, profiles:user_id (full_name, avatar_url)),
+        post_comments (id, content, created_at, user_id, profiles:user_id (full_name, avatar_url)),
         post_reactions (user_id, emoji, profiles:user_id (full_name))
       `, { count: "exact" })
       .eq("moderation_status", "approved")
@@ -172,7 +174,7 @@ export default function FeedPage() {
       type PostRow = Record<string, unknown> & {
         user_id?: string;
         post_likes?: { user_id: string; profiles?: { full_name: string } | null }[];
-        post_comments?: { id: string; content: string; created_at: string; profiles: { full_name: string; avatar_url: string | null } }[];
+        post_comments?: { id: string; content: string; created_at: string; user_id: string; profiles: { full_name: string; avatar_url: string | null } }[];
         post_reactions?: { user_id: string; emoji: string; profiles?: { full_name: string } | null }[];
       };
 
@@ -336,10 +338,13 @@ export default function FeedPage() {
     if (error) {
       const msg = error.message || "";
       if (msg.includes("Vyčerpali jste") || msg.includes("free_feed_posts_per_month")) {
+        // App Store 3.1.1: na iOS bez navádění k nákupu.
         alert(
-          msg.includes("Vyčerpali")
-            ? msg
-            : "Vyčerpali jste bezplatné příspěvky pro tento měsíc. Aktivujte Premium pro neomezené přidávání.",
+          isIos
+            ? "Vyčerpali jste bezplatné příspěvky pro tento měsíc."
+            : msg.includes("Vyčerpali")
+              ? msg
+              : "Vyčerpali jste bezplatné příspěvky pro tento měsíc. Aktivujte Premium pro neomezené přidávání.",
         );
       } else {
         alert("Nepodařilo se publikovat příspěvek.");
@@ -437,6 +442,26 @@ export default function FeedPage() {
   const handleComment = async (postId: string) => {
     const comment = newComments[postId]?.trim();
     if (!currentUser || !comment) return;
+
+    // 1.2 UGC: moderace komentáře před publikací (stejně jako u příspěvků).
+    // Blokujeme jen jasně závadný obsah; při nedostupnosti moderace publikujeme
+    // (reaktivní pojistka = nahlásit/blokovat).
+    try {
+      const modRes = await fetch("/api/moderation/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: comment, kind: "feed" }),
+      });
+      if (modRes.ok) {
+        const mod = await modRes.json();
+        if (mod.flagged) {
+          alert("Komentář nelze odeslat — obsahuje obsah, který porušuje pravidla komunity.");
+          return;
+        }
+      }
+    } catch {
+      /* moderace nedostupná → publikujeme, řeší report/block */
+    }
 
     const { error } = await supabase.from("post_comments").insert({
       post_id: postId,
@@ -780,7 +805,17 @@ export default function FeedPage() {
                             <div key={comment.id} className="flex gap-3">
                               <Avatar src={comment.profiles?.avatar_url} name={comment.profiles?.full_name} size="w-8 h-8" textSize="text-sm" />
                               <div className="flex-1 bg-white rounded-xl px-4 py-2">
-                                <span className="font-semibold text-sm text-gray-900">{comment.profiles?.full_name}</span>
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="font-semibold text-sm text-gray-900">{comment.profiles?.full_name}</span>
+                                  {currentUser && comment.user_id && comment.user_id !== currentUser.id && (
+                                    <ReportButton
+                                      targetType="comment"
+                                      targetId={comment.id}
+                                      targetOwnerId={comment.user_id}
+                                      label=""
+                                    />
+                                  )}
+                                </div>
                                 <p className="text-sm text-gray-700">{comment.content}</p>
                               </div>
                             </div>

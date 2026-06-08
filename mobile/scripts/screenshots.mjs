@@ -81,5 +81,43 @@ await shot("04-kategorie", "/kategorie");
 // 5) Jak to funguje (hodnota pro zákazníka)
 await shot("05-jak-to-funguje", "/jak-to-funguje");
 
+// ---- Přihlášené obrazovky (demo zákazník) ----
+const DEMO_EMAIL = process.env.SS_EMAIL || "appstore.review@fachmani.org";
+const DEMO_PASS = process.env.SS_PASS || "FachmaniReview2026!";
+let loggedIn = false;
+try {
+  await page.goto(`${BASE}/auth/login`, { waitUntil: "networkidle", timeout: 45000 });
+  await page.fill("input[type=email]", DEMO_EMAIL);
+  await page.fill("input[type=password]", DEMO_PASS);
+  await Promise.all([
+    page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {}),
+    page.click("button[type=submit]"),
+  ]);
+  await page.waitForTimeout(3000);
+  loggedIn = !/\/auth\/login/.test(page.url());
+  console.log(loggedIn ? "✓ přihlášen" : "⚠ přihlášení se nepovedlo (zůstáno na /auth/login)");
+} catch (e) {
+  console.log("⚠ login chyba:", e.message);
+}
+
+if (loggedIn) {
+  // 6) Zadat poptávku (core flow, na iOS bez cen)
+  await shot("06-nova-poptavka", "/nova-poptavka");
+  // 7) Bezpečnost — karta „Kontaktovat" s Nahlásit profil / Blokovat (scroll na tlačítko)
+  await page.goto(`${BASE}/fachman/453897f0-fc17-4aa7-9a1c-f693d50115f9`, { waitUntil: "networkidle", timeout: 45000 }).catch(() => {});
+  await page.waitForTimeout(2500);
+  try {
+    const target = page.getByText("Nahlásit profil", { exact: false }).first();
+    await target.scrollIntoViewIfNeeded({ timeout: 5000 });
+    // posuň o kus výš, ať je vidět celá karta Kontaktovat, ne footer
+    await page.evaluate(() => window.scrollBy(0, -260));
+  } catch {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.72));
+  }
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: join(OUT, "07-bezpecnost.png") });
+  console.log("✓ 07-bezpecnost");
+}
+
 await browser.close();
 console.log("\nHotovo → ", OUT);

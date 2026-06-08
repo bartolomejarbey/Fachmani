@@ -77,9 +77,9 @@ Vše „Linked to you" a účel **App Functionality**, žádné „Used for Trac
 | User ID | ✅ | ✅ | ❌ | App Functionality |
 | Photos or Videos | ✅ | ✅ | ❌ | App Functionality |
 | Other User Content | ✅ | ✅ | ❌ | App Functionality |
-| Coarse Location | ✅ | ✅ | ❌ | App Functionality |
 
 > „Data Used to Track You": **žádné**. „Data Linked to You": výše. „Data Not Linked": žádné.
+> **Lokace NEsbíráme** (region/okres jsou ruční výběr z číselníku, žádné GPS) — v dotazníku odpověz na Location „No".
 
 ---
 
@@ -93,36 +93,43 @@ Vše „Linked to you" a účel **App Functionality**, žádné „Used for Trac
 
 ## 8. App Review Information (Notes for Reviewer)
 
-> ⚠️ Vytvoř/ověř testovací účet a doplň přihlašovací údaje níže. Reviewer je bude potřebovat
-> (jinak hrozí zamítnutí podle 2.1 kvůli nemožnosti otestovat funkce za přihlášením).
+> Demo účty jsou založené, e-mail potvrzený, fungují (ověřeno přihlášením).
+> Do App Store Connect → **App Review Information** vlož do pole *Sign-In required*
+> primárně zákaznický účet; poznámky níže do *Notes*.
+
+**Sign-In (App Review Information):**
+- User name: `appstore.review@fachmani.org`
+- Password: `FachmaniReview2026!`
 
 ```
-DEMO ÚČET (zákazník):
-  E-mail: <doplň>
-  Heslo:  <doplň>
-
-DEMO ÚČET (řemeslník) — volitelné pro otestování nabídek:
-  E-mail: <doplň>
-  Heslo:  <doplň>
+DEMO ÚČTY
+  Zákazník:  appstore.review@fachmani.org  /  FachmaniReview2026!
+  Řemeslník: appstore.fachman@fachmani.org /  FachmaniReview2026!
+             (profil „Jan Demo (truhlář)", Praha — pro vyzkoušení strany fachmana)
 
 O APLIKACI
 Fachmani je marketplace propojující zákazníky s ověřenými řemeslníky v ČR.
-Aplikace je tenký nativní obal nad responzivním webem fachmani.org.
+Aplikace je nativní obal nad responzivním webem fachmani.org.
 
 UŽIVATELSKÝ OBSAH — moderace (Guideline 1.2)
 Aplikace obsahuje recenze, zprávy, příspěvky a profily. K dispozici je:
   • Nahlásit (🚩) — u recenzí, zpráv, profilů i příspěvků.
   • Blokovat (🚫) — u uživatelů (profil, chat, feed). Zablokovaný uživatel
     už nemůže psát zprávy a jeho obsah se skryje.
-  • EULA s nulovou tolerancí potvrzuje uživatel při registraci.
-Jak otestovat: otevřete profil libovolného fachmana → dole „Nahlásit profil" /
-„Blokovat"; v recenzích → „Nahlásit"; v chatu (Zprávy) → v hlavičce „Blokovat"/„Nahlásit".
+  • EULA s nulovou tolerancí potvrzuje uživatel při registraci (zaškrtávátko).
+Jak otestovat:
+  1) Přihlas se jako zákazník (výše).
+  2) Fachmani (dolní/horní menu) → otevři profil „Jan Demo (truhlář)".
+  3) Dole na profilu v kartě „Kontaktovat" → „🚩 Nahlásit profil" a „🚫 Blokovat".
+  4) Recenze: tlačítko „🚩 Nahlásit" u každé recenze.
+  5) Zprávy (chat): v hlavičce konverzace „🚫 Blokovat" / „🚩 Nahlásit".
 
 ÚČET A SMAZÁNÍ (Guideline 5.1.1(v))
-Smazání účtu: Dashboard → sekce „Smazat účet" (trvale odstraní data).
+Dashboard (po přihlášení) → sekce „Smazat účet" → trvale odstraní účet i data.
 
 PLATBY
-Aplikace neobsahuje žádné nákupy ani platby — je plně zdarma.
+Aplikace neobsahuje žádné nákupy ani platby — je plně zdarma. Žádné ceny ani
+odkazy na nákup se v aplikaci nezobrazují.
 
 PUSH
 Aplikace žádá o povolení push notifikací pro upozornění na nové zprávy a nabídky.

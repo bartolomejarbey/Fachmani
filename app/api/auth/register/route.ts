@@ -45,6 +45,7 @@ type RegisterBody = {
   password?: string;
   fullName?: string;
   role?: string;
+  agreed?: boolean;
 };
 
 function emailHashShort(email: string): string {
@@ -136,6 +137,13 @@ export async function POST(req: NextRequest) {
   if (fullName.length < 2 || fullName.length > 120) {
     return NextResponse.json({ error: "Jméno musí mít 2–120 znaků." }, { status: 400 });
   }
+  // App Store 1.2 — souhlas s podmínkami (EULA) vynucen i na serveru, nejen v UI.
+  if (body.agreed !== true) {
+    return NextResponse.json(
+      { error: "Pro registraci je nutné souhlasit s obchodními podmínkami a pravidly obsahu." },
+      { status: 400 },
+    );
+  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -193,6 +201,8 @@ export async function POST(req: NextRequest) {
       data: {
         full_name: fullName,
         role,
+        // Důkaz souhlasu s EULA/podmínkami (App Store 1.2) v user_metadata.
+        terms_agreed_at: new Date().toISOString(),
       },
     },
   });

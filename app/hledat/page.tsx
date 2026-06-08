@@ -6,6 +6,7 @@ import Footer from "@/app/components/Footer";
 import SearchBar from "@/app/components/SearchBar";
 import SearchResults from "./SearchResults";
 import { isValidQuery, normalizeQuery, sanitizeForWebsearch } from "@/lib/search/query";
+import { isIosAppRequest } from "@/lib/native-server";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,10 @@ export default async function Hledat({ searchParams }: { searchParams: SP }) {
       error = "Vyhledávání dočasně nedostupné.";
     } else {
       results = (data as Result[] | null) || [];
+      // App Store: v iOS aplikaci nezobrazujeme fiktivní (seed) profily ve výsledcích.
+      if (await isIosAppRequest()) {
+        results = results.filter((r) => r.entity_type !== "seed_provider");
+      }
     }
 
     // Best-effort logování z SSR (nezdrží response, protože už je dotaz hotový).

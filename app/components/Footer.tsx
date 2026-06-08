@@ -240,21 +240,24 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Platební metody — Comgate */}
-        <div className="border-t border-white/5">
-          <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col items-center gap-4">
-            <p className="text-xs uppercase tracking-widest text-gray-500">
-              Bezpečné online platby zajišťuje
-            </p>
-            <Image
-              src="/platby-comgate-tmava.png"
-              alt="Online platby zajišťuje platební brána Comgate — Visa, Mastercard, Google Pay, Apple Pay"
-              width={2200}
-              height={200}
-              className="h-7 md:h-9 w-auto opacity-90"
-            />
+        {/* Platební metody — Comgate. App Store 3.1.1/3.1.3: na iOS skryté
+            (žádné logo VISA/Mastercard/Apple Pay ani zmínka o platbách). */}
+        {!isIos && (
+          <div className="border-t border-white/5">
+            <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col items-center gap-4">
+              <p className="text-xs uppercase tracking-widest text-gray-500">
+                Bezpečné online platby zajišťuje
+              </p>
+              <Image
+                src="/platby-comgate-tmava.png"
+                alt="Online platby zajišťuje platební brána Comgate — Visa, Mastercard, Google Pay, Apple Pay"
+                width={2200}
+                height={200}
+                className="h-7 md:h-9 w-auto opacity-90"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Spodní lišta */}
         <div className="border-t border-white/10">
@@ -263,9 +266,11 @@ export default function Footer() {
               <p className="text-gray-600 text-sm">
                 © 2026 Fachmani. Všechna práva vyhrazena.
               </p>
-              <p className="text-gray-600 text-xs mt-1">
-                Provozovatel platebních služeb: Comgate a.s.
-              </p>
+              {!isIos && (
+                <p className="text-gray-600 text-xs mt-1">
+                  Provozovatel platebních služeb: Comgate a.s.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
               <Link href="/vop" className="text-gray-600 hover:text-cyan-400 transition-colors duration-200">Podmínky</Link>
