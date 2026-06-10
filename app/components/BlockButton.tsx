@@ -62,11 +62,14 @@ export default function BlockButton({
     }
     setBusy(true);
     if (blocked) {
-      await supabase.from("blocked_users").delete().eq("blocker_id", me).eq("blocked_id", targetUserId);
+      const { error } = await supabase.from("blocked_users").delete().eq("blocker_id", me).eq("blocked_id", targetUserId);
+      if (error) { alert("Odblokování se nezdařilo. Zkus to prosím znovu."); setBusy(false); return; }
       setBlocked(false);
       onChange?.(false);
     } else {
-      await supabase.from("blocked_users").insert({ blocker_id: me, blocked_id: targetUserId });
+      const { error } = await supabase.from("blocked_users").insert({ blocker_id: me, blocked_id: targetUserId });
+      // 23505 = už zablokováno → ber jako úspěch (idempotentní)
+      if (error && error.code !== "23505") { alert("Blokování se nezdařilo. Zkus to prosím znovu."); setBusy(false); return; }
       setBlocked(true);
       onChange?.(true);
     }

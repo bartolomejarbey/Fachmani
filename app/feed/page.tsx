@@ -184,7 +184,10 @@ export default function FeedPage() {
 
       const postsWithDetails = visiblePosts.map((post: PostRow) => {
         const likes = post.post_likes || [];
-        const comments = post.post_comments || [];
+        // App Store 1.2: skryj i komentáře zablokovaných autorů uvnitř cizích postů.
+        const comments = (post.post_comments || []).filter(
+          (c) => !blockedIds.length || !blockedIds.includes(c.user_id),
+        );
         const reactions = post.post_reactions || [];
 
         // Merge likes as 👍 reactions for backwards compat
@@ -238,17 +241,27 @@ export default function FeedPage() {
   };
 
   const loadAllComments = async (postId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    let blockedIds: string[] = [];
+    if (user) {
+      const { data: blk } = await supabase.from("blocked_users").select("blocked_id").eq("blocker_id", user.id);
+      blockedIds = (blk ?? []).map((b) => b.blocked_id as string);
+    }
     const { data } = await supabase
       .from("post_comments")
-      .select("id, content, created_at, profiles:user_id (full_name, avatar_url)")
+      .select("id, content, created_at, user_id, profiles:user_id (full_name, avatar_url)")
       .eq("post_id", postId)
       .order("created_at", { ascending: true });
 
     if (data) {
+      // App Store 1.2: skryj komentáře zablokovaných autorů; zachovej user_id pro ReportButton.
+      const visible = (data as unknown as Comment[]).filter(
+        (c) => !c.user_id || !blockedIds.includes(c.user_id),
+      );
       setPosts((prev) =>
         prev.map((p) =>
           p.id === postId
-            ? { ...p, comments: data as unknown as Comment[], allCommentsLoaded: true }
+            ? { ...p, comments: visible, allCommentsLoaded: true }
             : p
         )
       );
@@ -668,7 +681,7 @@ export default function FeedPage() {
                             🚩
                           </button>
                           {/* App Store 1.2 — blokování autora příspěvku */}
-                          <BlockButton targetUserId={post.user_id} targetName={post.profiles?.full_name} />
+                          <BlockButton targetUserId={post.user_id} targetName={post.profiles?.full_name} onChange={() => loadPosts(currentPage)} />
                         </div>
                       ) : null}
                     </div>

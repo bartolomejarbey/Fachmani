@@ -9,6 +9,7 @@ import { formatLocation } from "@/app/types/location";
 import { isIosAppRequest } from "@/lib/native-server";
 import ReportButton from "@/app/components/ReportButton";
 import BlockButton from "@/app/components/BlockButton";
+import { safeJsonLd } from "@/lib/jsonLd";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.fachmani.cz").replace(/\/$/, "");
 
@@ -346,7 +347,7 @@ export default async function FachmanDetailPage({
       <Navbar />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
 
       <section className="relative pt-28 pb-12 bg-white border-b">

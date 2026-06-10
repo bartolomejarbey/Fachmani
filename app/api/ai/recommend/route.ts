@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { createHash } from "node:crypto";
 import { isIosAppFromRequest } from "@/lib/native-server";
+
+export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
@@ -17,6 +21,42 @@ export async function POST(request: Request) {
 
     if (conversationContext.length > 5000) {
       return NextResponse.json({ error: "Context too long" }, { status: 400 });
+    }
+
+    // BEZPEČNOST: rate-limit proti amplifikaci nákladů na OpenAI (každé volání = 2 LLM dotazy).
+    // Per-uživatel (přihlášený) nebo per-IP (anonym), hodinové okno. Service-role kvůli RLS.
+    {
+      const admin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { persistSession: false } },
+      );
+      const cookieStore = await cookies();
+      const authed = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
+      );
+      const { data: { user } } = await authed.auth.getUser();
+      const ip = (request.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
+      const ipKey = `ip:${createHash("sha256").update(ip).digest("hex").slice(0, 32)}`;
+      const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      let q = admin.from("ai_usage").select("id", { count: "exact", head: true })
+        .eq("type", "recommend").gte("created_at", hourAgo);
+      q = user ? q.eq("user_id", user.id) : q.eq("session_id", ipKey);
+      const { count } = await q;
+      const limit = user ? 30 : 8;
+      if ((count || 0) >= limit) {
+        return NextResponse.json(
+          { error: "Příliš mnoho požadavků. Zkuste to prosím za chvíli." },
+          { status: 429 },
+        );
+      }
+      await admin.from("ai_usage").insert({
+        user_id: user?.id ?? null,
+        session_id: user ? null : ipKey,
+        type: "recommend",
+      });
     }
 
     // Step 1: AI analyzes conversation and extracts category + location

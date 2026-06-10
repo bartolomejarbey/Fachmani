@@ -46,6 +46,7 @@ export async function POST() {
     await del("customer_reviews", "customer_id");
     await del("customer_reviews", "provider_id");
     await del("messages", "sender_id");
+    await del("messages", "receiver_id"); // i přijaté zprávy (GDPR — úplné smazání konverzací)
     await del("notifications", "user_id");
     await del("push_subscriptions", "user_id");
     await del("wallet_transactions", "user_id");

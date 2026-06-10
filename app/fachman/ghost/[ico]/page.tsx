@@ -6,6 +6,7 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
 import { isIosAppRequest } from "@/lib/native-server";
+import { safeJsonLd } from "@/lib/jsonLd";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.fachmani.cz").replace(/\/$/, "");
 
@@ -203,7 +204,7 @@ export default async function GhostFachmanPage({
       <Navbar />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
 
       <section className="pt-32 pb-12 bg-gradient-to-br from-gray-50 to-white">

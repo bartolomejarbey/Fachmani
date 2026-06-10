@@ -69,34 +69,28 @@ export default function Predplatne() {
     setUpgrading(true);
     setMessage("");
 
-    // Pro teď simulujeme upgrade - v produkci by zde byla platební brána
-    const expiresAt = new Date();
-    expiresAt.setMonth(expiresAt.getMonth() + 1);
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        subscription_type: plan,
-        subscription_expires_at: expiresAt.toISOString(),
-      })
-      .eq("id", profile.id);
-
-    if (error) {
-      setMessage("Chyba při upgradu. Zkuste to znovu.");
-    } else {
-      // Záznam do historie
-      await supabase.from("subscriptions").insert({
-        user_id: profile.id,
-        plan: plan,
-        price: plan === "premium" ? settings.subscriptions.premium_monthly : settings.subscriptions.business_monthly,
-        expires_at: expiresAt.toISOString(),
-      });
-
-      setMessage(`Úspěšně jste přešli na ${plan === "premium" ? "Premium" : "Business"} plán!`);
-      setProfile({ ...profile, subscription_type: plan, subscription_expires_at: expiresAt.toISOString() });
+    // Business: samoobslužný nákup neexistuje (vyšší tarif) → kontakt obchodu.
+    if (plan === "business") {
+      router.push("/kontakt?subject=business");
+      return;
     }
 
-    setUpgrading(false);
+    // Premium: reálná platba přes Comgate. Server (service-role) vytvoří payment a vrátí
+    // redirect na bránu; po zaplacení webhook přizná Premium. subscription_type NELZE měnit
+    // z klienta (RLS) — žádný „zdarma" upgrade.
+    try {
+      const res = await fetch("/api/payments/premium", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { redirectUrl?: string; error?: string };
+      if (!res.ok || !data.redirectUrl) {
+        setMessage(data.error || "Platbu se nepodařilo zahájit. Zkuste to prosím znovu.");
+        setUpgrading(false);
+        return;
+      }
+      window.location.href = data.redirectUrl;
+    } catch {
+      setMessage("Nepodařilo se spojit s platební bránou. Zkuste to prosím znovu.");
+      setUpgrading(false);
+    }
   };
 
   const handleCancelAtPeriodEnd = async () => {

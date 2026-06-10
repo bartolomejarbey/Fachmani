@@ -1,7 +1,10 @@
 const COMGATE_MERCHANT_ID = process.env.COMGATE_MERCHANT_ID || ''
 const COMGATE_SECRET = process.env.COMGATE_SECRET || ''
 const COMGATE_API_URL = 'https://payments.comgate.cz/v1.0'
-const TEST_MODE = !COMGATE_MERCHANT_ID || !COMGATE_SECRET || process.env.COMGATE_TEST_MODE === 'true'
+// BEZPEČNOST (fail-closed): TEST_MODE se NIKDY nezapíná implicitně při chybějících
+// credentials. V produkci je vždy vypnutý (i kdyby creds chyběly → real API selže s chybou,
+// místo aby simuloval PAID a umožnil dobití/Premium zdarma). Zapnout lze jen explicitně mimo prod.
+const TEST_MODE = process.env.COMGATE_TEST_MODE === 'true' && process.env.NODE_ENV !== 'production'
 
 export interface CreatePaymentParams {
   priceKc: number
