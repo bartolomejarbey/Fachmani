@@ -8,8 +8,8 @@ import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { isIOSNative } from "@/lib/native";
 import ImageCropper from "@/app/components/ImageCropper";
-import { iconAsTextPrefix } from "@/app/components/CategoryIcon";
 import SuccessCelebration from "@/app/components/SuccessCelebration";
+import CategoryPicker from "@/app/components/CategoryPicker";
 
 type Category = {
   id: string;
@@ -520,16 +520,28 @@ function NovaPoptavkaInner() {
       </div>
 
       <div className="mx-auto max-w-2xl px-4 pb-12 pt-4">
-        <div className="np-card-in mb-6 text-center">
-          <div className="mb-2 flex justify-center gap-3 text-4xl">
-            <span className="np-float" style={{ animationDelay: "0s" }}>🛠️</span>
-            <span className="np-float" style={{ animationDelay: ".5s" }}>📋</span>
-            <span className="np-float" style={{ animationDelay: "1s" }}>⚡</span>
+        <div className="np-card-in relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-500 via-blue-500 to-blue-600 p-6 text-white shadow-xl shadow-blue-500/20 sm:p-7">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-20"
+            style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)", backgroundSize: "16px 16px" }}
+          />
+          <div aria-hidden className="pointer-events-none absolute -right-8 -top-12 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
+          <div aria-hidden className="pointer-events-none absolute -bottom-14 left-8 h-36 w-36 rounded-full bg-cyan-300/20 blur-2xl" />
+          <div className="relative flex items-center gap-4">
+            <div className="np-float grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-white/15 text-3xl ring-1 ring-white/25 backdrop-blur-sm">
+              🛠️
+            </div>
+            <div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                ✨ Zdarma · bez závazků
+              </span>
+              <h1 className="mt-1.5 text-2xl font-extrabold leading-tight sm:text-3xl">Najděte svého fachmana</h1>
+              <p className="mt-1 text-sm text-white/85">
+                Popište zakázku a ověření profíci se vám sami ozvou s nabídkami.
+              </p>
+            </div>
           </div>
-          <h1 className="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-3xl font-extrabold text-transparent sm:text-4xl">
-            Nová poptávka
-          </h1>
-          <p className="mt-2 text-gray-600">Popište co potřebujete a získejte nabídky od ověřených fachmanů</p>
         </div>
 
         {ghostIco && ghostName && (
@@ -585,10 +597,25 @@ function NovaPoptavkaInner() {
         )}
 
         <form onSubmit={handleSubmit} className="np-card-in space-y-6 rounded-3xl border border-white/60 bg-white/90 p-6 shadow-xl shadow-cyan-500/5 ring-1 ring-cyan-100/60 backdrop-blur-sm sm:p-8">
+          {/* Sekce 1 — Co a v jakém oboru */}
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-cyan-100 text-sm font-bold text-cyan-700">1</span>
+            <h2 className="text-base font-bold text-gray-900">Co potřebujete?</h2>
+          </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              🏷️ Název poptávky *
-            </label>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Vyberte obor *</label>
+            <CategoryPicker
+              categories={categories}
+              mainId={mainCategoryId}
+              subId={categoryId === mainCategoryId ? "" : categoryId}
+              onMain={(id) => { setMainCategoryId(id); setCategoryId(id); }}
+              onSub={(id) => setCategoryId(id)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Název poptávky *</label>
             <input
               type="text"
               value={title}
@@ -596,60 +623,13 @@ function NovaPoptavkaInner() {
               required
               maxLength={200}
               placeholder="např. Výměna vodovodní baterie"
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 transition-all focus:border-transparent focus:shadow-lg focus:shadow-cyan-500/10 focus:ring-2 focus:ring-cyan-500"
             />
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                🗂️ Hlavní kategorie *
-              </label>
-              <select
-                value={mainCategoryId}
-                onChange={(e) => {
-                  setMainCategoryId(e.target.value);
-                  setCategoryId(e.target.value);
-                }}
-                required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-              >
-                <option value="">Vyberte hlavní kategorii</option>
-                {categories
-                  .filter((c) => c.parent_id === null)
-                  .map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {iconAsTextPrefix(cat.icon)}{cat.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Podkategorie
-              </label>
-              <select
-                value={categoryId === mainCategoryId ? "" : categoryId}
-                onChange={(e) => setCategoryId(e.target.value || mainCategoryId)}
-                disabled={!mainCategoryId || categories.filter((c) => c.parent_id === mainCategoryId).length === 0}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="">(volitelné) Upřesnit</option>
-                {categories
-                  .filter((c) => c.parent_id === mainCategoryId)
-                  .map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {iconAsTextPrefix(cat.icon)}{cat.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-          </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              📝 Popis *
+            <label className="mb-2 block text-sm font-semibold text-gray-700">
+              Popis *
             </label>
             <textarea
               value={description}
@@ -665,7 +645,7 @@ function NovaPoptavkaInner() {
           {/* Photo upload */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              📷 Fotky (max 5, max 5 MB každá)
+              Fotky (max 5, max 5 MB každá)
             </label>
             <div className="flex flex-wrap gap-3 mb-3">
               {imageFiles.map((img, i) => (
@@ -714,7 +694,7 @@ function NovaPoptavkaInner() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                📍 Město / Obec *
+                Město / Obec *
               </label>
               <input
                 type="text"
@@ -749,8 +729,8 @@ function NovaPoptavkaInner() {
                 value={budgetMin}
                 onChange={(e) => setBudgetMin(e.target.value)}
                 placeholder="např. 1000"
-                step="100"
-                min="100"
+                step="1"
+                min="0"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
               />
             </div>
@@ -763,8 +743,8 @@ function NovaPoptavkaInner() {
                 value={budgetMax}
                 onChange={(e) => setBudgetMax(e.target.value)}
                 placeholder="např. 5000"
-                step="100"
-                min="100"
+                step="1"
+                min="0"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
               />
             </div>
@@ -772,7 +752,7 @@ function NovaPoptavkaInner() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              📅 Preferovaný termín
+              Preferovaný termín
             </label>
             <input
               type="date"

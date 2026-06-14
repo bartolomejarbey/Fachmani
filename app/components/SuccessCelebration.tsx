@@ -26,17 +26,17 @@ export default function SuccessCelebration({
     >
       <ConfettiBurst fire />
       <div className="relative z-[2] w-full max-w-sm rounded-3xl border border-gray-100 bg-white px-8 py-12 text-center shadow-2xl sc-pop-in">
-        {/* expanding rings */}
-        <span aria-hidden className="pointer-events-none absolute left-1/2 top-12 h-20 w-20 -translate-x-1/2 rounded-full border-2 border-cyan-400/70 sc-ring" />
-        <span aria-hidden className="pointer-events-none absolute left-1/2 top-12 h-20 w-20 -translate-x-1/2 rounded-full border-2 border-blue-400/60 sc-ring" style={{ animationDelay: "0.4s" }} />
-
-        {/* kreslený checkmark */}
-        <svg viewBox="0 0 52 52" className="relative mx-auto mb-5 h-20 w-20" aria-hidden>
-          <circle cx="26" cy="26" r="24" fill="none" stroke="#06b6d4" strokeWidth="3"
-            strokeDasharray="166" strokeDashoffset="166" className="sc-dash-circle" />
-          <path fill="none" stroke="#06b6d4" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
-            d="M14 27l8 8 16-16" strokeDasharray="48" strokeDashoffset="48" className="sc-dash-check" />
-        </svg>
+        {/* checkmark + soustředné rings (sdílený střed) */}
+        <div className="relative mx-auto mb-5 h-20 w-20">
+          <span aria-hidden className="pointer-events-none absolute inset-0 rounded-full border-2 border-cyan-400/70 sc-ring" />
+          <span aria-hidden className="pointer-events-none absolute inset-0 rounded-full border-2 border-blue-400/60 sc-ring" style={{ animationDelay: "0.4s" }} />
+          <svg viewBox="0 0 52 52" className="relative h-20 w-20" aria-hidden>
+            <circle cx="26" cy="26" r="24" fill="none" stroke="#06b6d4" strokeWidth="3"
+              strokeDasharray="166" strokeDashoffset="166" className="sc-dash-circle" />
+            <path fill="none" stroke="#06b6d4" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
+              d="M14 27l8 8 16-16" strokeDasharray="48" strokeDashoffset="48" className="sc-dash-check" />
+          </svg>
+        </div>
 
         <h2 className="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-2xl font-extrabold text-transparent">
           {title}
