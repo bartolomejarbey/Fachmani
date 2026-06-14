@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useState, useRef, useMemo, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,6 +9,7 @@ import Footer from "@/app/components/Footer";
 import { isIOSNative } from "@/lib/native";
 import ImageCropper from "@/app/components/ImageCropper";
 import { iconAsTextPrefix } from "@/app/components/CategoryIcon";
+import SuccessCelebration from "@/app/components/SuccessCelebration";
 
 type Category = {
   id: string;
@@ -58,6 +59,28 @@ function NovaPoptavkaInner() {
   const [cropSource, setCropSource] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Oslavná animace po úspěšném odeslání + cílová URL detailu poptávky.
+  const [celebrating, setCelebrating] = useState(false);
+  const successUrl = useRef<string>("");
+  const prefersReducedMotion = useRef(false);
+  useEffect(() => {
+    prefersReducedMotion.current =
+      typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  }, []);
+
+  // „Připravenost poptávky" — ZÁMĚRNĚ jen needěná pole (název/kategorie/popis/lokalita
+  // + bonus za fotku/termín). NIKDY rozpočet/priorita → gamifikace nikdy nevytahuje ceny (iOS 3.1.1).
+  const pct = useMemo(() => {
+    const core =
+      [title.trim().length > 0, !!mainCategoryId, description.trim().length >= 15, location.trim().length > 0].filter(
+        Boolean,
+      ).length;
+    const bonus = (imageFiles.length > 0 ? 1 : 0) + (preferredDate ? 1 : 0);
+    return Math.min(100, core * 20 + bonus * 10);
+  }, [title, mainCategoryId, description, location, imageFiles.length, preferredDate]);
+  const progressLabel =
+    pct === 100 ? "Připraveno odeslat ✅" : pct >= 70 ? "Skoro hotovo 🔥" : pct >= 30 ? "Skvělé, pokračujte!" : "Začínáme!";
 
   useEffect(() => {
     async function loadData() {
@@ -425,7 +448,12 @@ function NovaPoptavkaInner() {
       });
     }
 
-    router.push(`/poptavka/${data.id}`);
+    // WOW: oslavná animace + konfety, pak teprve redirect na detail.
+    const dest = `/poptavka/${data.id}`;
+    successUrl.current = dest;
+    router.prefetch(dest);
+    setCelebrating(true);
+    setTimeout(() => router.push(dest), prefersReducedMotion.current ? 600 : 2400);
   };
 
   if (pageLoading) {
@@ -441,13 +469,67 @@ function NovaPoptavkaInner() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen overflow-hidden bg-gray-50">
+      {/* Aurora pozadí (dekorativní, levné — 2 blobs, fixed) */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="np-aurora-a absolute -left-24 -top-32 h-[34rem] w-[34rem] rounded-full bg-gradient-to-br from-cyan-300/30 to-blue-400/20 blur-3xl" />
+        <div className="np-aurora-b absolute -right-28 bottom-0 h-[30rem] w-[30rem] rounded-full bg-gradient-to-tr from-blue-300/25 to-cyan-400/20 blur-3xl" />
+      </div>
+
       <Navbar />
 
-      <div className="max-w-2xl mx-auto px-4 pt-28 pb-12">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Nová poptávka</h1>
-          <p className="text-gray-600">Popište co potřebujete a získejte nabídky od ověřených fachmanů</p>
+      {/* Sticky Mission HUD — „Připravenost poptávky" */}
+      <div className="sticky top-16 z-30 -mx-0 bg-gray-50/80 px-4 pb-2 pt-24 backdrop-blur-md">
+        <div className="np-card-in mx-auto flex max-w-2xl items-center gap-3 rounded-2xl border border-cyan-100 bg-white/90 px-4 py-3 shadow-sm sm:gap-4">
+          <div
+            className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 text-xl text-white shadow-md ${
+              pct === 100 ? "np-badge-pop" : ""
+            }`}
+          >
+            {pct === 100 ? "🚀" : "🛠️"}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Připravenost poptávky
+              </span>
+              <span className="ml-2 text-sm font-bold tabular-nums text-gray-900">{pct}%</span>
+            </div>
+            <div
+              className="h-2.5 overflow-hidden rounded-full bg-gray-100"
+              role="progressbar"
+              aria-valuenow={pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Připravenost poptávky"
+            >
+              <div
+                className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-[width] duration-500 ease-out"
+                style={{ width: `${pct}%` }}
+              >
+                {pct < 100 && (
+                  <span aria-hidden className="np-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+                )}
+              </div>
+            </div>
+            <span aria-hidden className="mt-0.5 block text-[11px] font-medium text-cyan-700">
+              {progressLabel}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-2xl px-4 pb-12 pt-4">
+        <div className="np-card-in mb-6 text-center">
+          <div className="mb-2 flex justify-center gap-3 text-4xl">
+            <span className="np-float" style={{ animationDelay: "0s" }}>🛠️</span>
+            <span className="np-float" style={{ animationDelay: ".5s" }}>📋</span>
+            <span className="np-float" style={{ animationDelay: "1s" }}>⚡</span>
+          </div>
+          <h1 className="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-3xl font-extrabold text-transparent sm:text-4xl">
+            Nová poptávka
+          </h1>
+          <p className="mt-2 text-gray-600">Popište co potřebujete a získejte nabídky od ověřených fachmanů</p>
         </div>
 
         {ghostIco && ghostName && (
@@ -502,10 +584,10 @@ function NovaPoptavkaInner() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="np-card-in space-y-6 rounded-3xl border border-white/60 bg-white/90 p-6 shadow-xl shadow-cyan-500/5 ring-1 ring-cyan-100/60 backdrop-blur-sm sm:p-8">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Název poptávky *
+              🏷️ Název poptávky *
             </label>
             <input
               type="text"
@@ -521,7 +603,7 @@ function NovaPoptavkaInner() {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Hlavní kategorie *
+                🗂️ Hlavní kategorie *
               </label>
               <select
                 value={mainCategoryId}
@@ -567,7 +649,7 @@ function NovaPoptavkaInner() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Popis *
+              📝 Popis *
             </label>
             <textarea
               value={description}
@@ -583,7 +665,7 @@ function NovaPoptavkaInner() {
           {/* Photo upload */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Fotky (max 5, max 5 MB každá)
+              📷 Fotky (max 5, max 5 MB každá)
             </label>
             <div className="flex flex-wrap gap-3 mb-3">
               {imageFiles.map((img, i) => (
@@ -632,7 +714,7 @@ function NovaPoptavkaInner() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Město / Obec *
+                📍 Město / Obec *
               </label>
               <input
                 type="text"
@@ -690,7 +772,7 @@ function NovaPoptavkaInner() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Preferovaný termín
+              📅 Preferovaný termín
             </label>
             <input
               type="date"
@@ -756,14 +838,50 @@ function NovaPoptavkaInner() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 transition-all"
+            className="np-cta relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-500 py-4 text-base font-bold text-white transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-cyan-500/30 disabled:opacity-60 disabled:hover:translate-y-0"
           >
-            {loading ? "Odesílám..." : "Zveřejnit poptávku"}
+            {loading ? (
+              <span className="inline-flex items-center justify-center gap-1.5">
+                Odesílám
+                <span className="np-dot inline-block h-1.5 w-1.5 rounded-full bg-white" style={{ animationDelay: "0s" }} />
+                <span className="np-dot inline-block h-1.5 w-1.5 rounded-full bg-white" style={{ animationDelay: ".15s" }} />
+                <span className="np-dot inline-block h-1.5 w-1.5 rounded-full bg-white" style={{ animationDelay: ".3s" }} />
+              </span>
+            ) : (
+              <span className="inline-flex items-center justify-center gap-2">🚀 Zveřejnit poptávku</span>
+            )}
           </button>
         </form>
       </div>
 
       <Footer />
+
+      {/* WOW: oslava po odeslání */}
+      {celebrating && (
+        <SuccessCelebration onCta={() => router.push(successUrl.current)} />
+      )}
+
+      <style>{`
+        @keyframes npAuroraA { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(40px,30px) scale(1.12)} }
+        @keyframes npAuroraB { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-36px,-28px) scale(1.08)} }
+        .np-aurora-a{animation:npAuroraA 24s ease-in-out infinite}
+        .np-aurora-b{animation:npAuroraB 28s ease-in-out infinite}
+        @keyframes npFloat { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-9px) rotate(-5deg)} }
+        .np-float{display:inline-block;animation:npFloat 3.2s ease-in-out infinite}
+        @keyframes npCardIn { 0%{opacity:0;transform:translateY(20px) scale(.98)} 100%{opacity:1;transform:translateY(0) scale(1)} }
+        .np-card-in{animation:npCardIn .6s cubic-bezier(.22,1,.36,1) both}
+        @keyframes npShimmer { 0%{transform:translateX(-120%)} 100%{transform:translateX(220%)} }
+        .np-shimmer{animation:npShimmer 1.8s ease-in-out infinite}
+        @keyframes npBadgePop { 0%{transform:scale(1)} 50%{transform:scale(1.18) rotate(-6deg)} 100%{transform:scale(1)} }
+        .np-badge-pop{animation:npBadgePop .5s cubic-bezier(.34,1.56,.64,1)}
+        @keyframes npDot { 0%,80%,100%{transform:translateY(0);opacity:.5} 40%{transform:translateY(-5px);opacity:1} }
+        .np-dot{animation:npDot 1s infinite}
+        .np-cta::before{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);transform:translateX(-120%);animation:npShimmer 3.2s ease-in-out infinite}
+        @media (prefers-reduced-motion: reduce){
+          .np-aurora-a,.np-aurora-b,.np-float,.np-card-in,.np-shimmer,.np-badge-pop,.np-dot,.np-cta::before{animation:none}
+          .np-card-in{opacity:1;transform:none}
+        }
+      `}</style>
     </div>
   );
 }
