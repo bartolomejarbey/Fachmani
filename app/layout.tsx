@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import CookieBanner from "./components/CookieBanner";
-import ChatWidget from "./components/ChatWidget";
 import ChatHeads from "./components/messenger/ChatHeads";
 import NativePushRegistrar from "./components/NativePushRegistrar";
 
@@ -40,7 +39,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         {children}
         <ChatHeads />
-        <ChatWidget />
+        {/* Plovoucí AI popup nahrazen chatroomem /fachmanek (gated feature_flags). */}
         <CookieBanner />
         <NativePushRegistrar />
       </body>

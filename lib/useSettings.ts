@@ -29,10 +29,18 @@ export type PricingSettings = {
   extra_request: number;
 };
 
+export type FeatureFlags = {
+  /** Komunitní feed v navbaru. */
+  feed_enabled: boolean;
+  /** AI „Fachmánek" (chatroom + asistent). Zatím vypnuto — málo fachmanů. */
+  fachmanek_enabled: boolean;
+};
+
 export type AllSettings = {
   platform: PlatformSettings;
   subscriptions: SubscriptionPrices;
   pricing: PricingSettings;
+  features: FeatureFlags;
 };
 
 const DEFAULTS: AllSettings = {
@@ -58,6 +66,10 @@ const DEFAULTS: AllSettings = {
     extra_offer: 29,
     urgent_request: 100,
     extra_request: 50,
+  },
+  features: {
+    feed_enabled: true,
+    fachmanek_enabled: false,
   },
 };
 
@@ -92,6 +104,8 @@ export function useSettings() {
             result.subscriptions = { ...DEFAULTS.subscriptions, ...row.value };
           } else if (row.key === "pricing" && row.value) {
             result.pricing = { ...DEFAULTS.pricing, ...row.value };
+          } else if (row.key === "feature_flags" && row.value) {
+            result.features = { ...DEFAULTS.features, ...row.value };
           }
         });
       }

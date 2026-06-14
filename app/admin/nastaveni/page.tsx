@@ -62,6 +62,10 @@ export default function AdminNastaveni() {
     free_requests_per_day: 1,
     urgent_free_per_month: 1,
   });
+  const [features, setFeatures] = useState({
+    feed_enabled: true,
+    fachmanek_enabled: false,
+  });
 
   useEffect(() => {
     loadSettings();
@@ -82,6 +86,8 @@ export default function AdminNastaveni() {
         } else if (setting.key === "platform_settings") {
           // Merge s defaulty — pokud DB row nemá nový klíč (legacy), zachovat default.
           setPlatform((prev) => ({ ...prev, ...setting.value }));
+        } else if (setting.key === "feature_flags") {
+          setFeatures((prev) => ({ ...prev, ...setting.value }));
         }
       });
     }
@@ -112,6 +118,13 @@ export default function AdminNastaveni() {
   const handleSavePricing = () => saveSetting("pricing", pricing);
   const handleSaveSubscriptions = () => saveSetting("subscription_prices", subscriptions);
   const handleSavePlatform = () => saveSetting("platform_settings", platform);
+  const handleSaveFeatures = () => saveSetting("feature_flags", features);
+  // Okamžité přepnutí + uložení (UX: toggle hned ukládá).
+  const toggleFeature = (k: "feed_enabled" | "fachmanek_enabled") => {
+    const next = { ...features, [k]: !features[k] };
+    setFeatures(next);
+    saveSetting("feature_flags", next);
+  };
 
   if (loading) {
     return (
@@ -138,6 +151,7 @@ export default function AdminNastaveni() {
             { key: "pricing", label: "💰 Ceník promo", icon: "💰" },
             { key: "subscriptions", label: "📦 Předplatné", icon: "📦" },
             { key: "platform", label: "🔧 Platforma", icon: "🔧" },
+            { key: "features", label: "🎛️ Funkce", icon: "🎛️" },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -448,6 +462,53 @@ export default function AdminNastaveni() {
             <div className="mt-6 pt-6 border-t border-white/10">
               <button
                 onClick={handleSavePlatform}
+                disabled={saving}
+                className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl disabled:opacity-50"
+              >
+                {saving ? "Ukládám..." : "Uložit změny"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "features" && (
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-1">🎛️ Zapnutí funkcí</h2>
+            <p className="text-slate-400 text-sm mb-6">Zapni/vypni funkce v navigaci. Změna se uloží okamžitě.</p>
+
+            <div className="space-y-4">
+              {[
+                { key: "feed_enabled" as const, title: "📸 Komunitní feed", desc: "Odkaz Feed v navigaci a celá feed sekce." },
+                { key: "fachmanek_enabled" as const, title: "🤖 Fachmánek (AI chatroom)", desc: "AI asistent Fachmánek v navigaci (/fachmanek). Zatím doporučeno VYPNUTO — málo fachmanů." },
+              ].map((f) => (
+                <div key={f.key} className="flex items-center justify-between gap-4 rounded-xl bg-white/5 border border-white/10 p-4">
+                  <div>
+                    <p className="font-semibold text-white">{f.title}</p>
+                    <p className="text-sm text-slate-400 mt-0.5">{f.desc}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={features[f.key]}
+                    disabled={saving}
+                    onClick={() => toggleFeature(f.key)}
+                    className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                      features[f.key] ? "bg-gradient-to-r from-cyan-500 to-blue-500" : "bg-slate-600"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                        features[f.key] ? "left-6" : "left-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-white/10">
+              <button
+                onClick={handleSaveFeatures}
                 disabled={saving}
                 className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl disabled:opacity-50"
               >

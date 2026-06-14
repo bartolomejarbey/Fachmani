@@ -8,10 +8,12 @@ import { useRouter, usePathname } from "next/navigation";
 import NotificationBell from "./NotificationBell";
 import WalletBalance from "./wallet/WalletBalance";
 import { isIOSNative } from "@/lib/native";
+import { useSettings } from "@/lib/useSettings";
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
+  const { settings } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -64,11 +66,13 @@ export default function Navbar() {
     { href: "/poptavky", label: "Poptávky", icon: "📋" },
     { href: "/fachmani", label: "Fachmani", icon: "👷" },
     { href: "/kategorie", label: "Kategorie", icon: "📂" },
-    { href: "/feed", label: "Feed", icon: "📸", isNew: true },
-    { href: "/poradce", label: "Poradce", icon: "🤖" },
+    // Feed jen když je zapnutý v adminu (feature_flags).
+    ...(settings.features.feed_enabled ? [{ href: "/feed", label: "Feed", icon: "📸", isNew: true }] : []),
+    // AI „Fachmánek" jen když je zapnutý v adminu (zatím vypnuto — málo fachmanů).
+    ...(settings.features.fachmanek_enabled ? [{ href: "/fachmanek", label: "Fachmánek", icon: "🤖" }] : []),
     { href: "/cenik", label: "Ceník", icon: "💎" },
-    // Na iOS skryjeme Ceník (navádění k nákupu) a Poradce (AI).
-  ].filter((l) => !isIos || (l.href !== "/cenik" && l.href !== "/poradce"));
+    // Na iOS skryjeme Ceník (navádění k nákupu) a Fachmánka (AI).
+  ].filter((l) => !isIos || (l.href !== "/cenik" && l.href !== "/fachmanek"));
 
   const isActive = (href: string) => pathname === href;
 
