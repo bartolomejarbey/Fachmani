@@ -638,13 +638,13 @@ function NovaPoptavkaInner() {
               rows={4}
               maxLength={2000}
               placeholder="Popište co potřebujete, jaký je stav, případně další detaily..."
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 transition-all focus:border-transparent focus:shadow-lg focus:shadow-cyan-500/10 focus:ring-2 focus:ring-cyan-500"
             />
           </div>
 
           {/* Photo upload */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="mb-2 block text-sm font-semibold text-gray-700">
               Fotky (max 5, max 5 MB každá)
             </label>
             <div className="flex flex-wrap gap-3 mb-3">
@@ -691,9 +691,15 @@ function NovaPoptavkaInner() {
             />
           )}
 
+          {/* Sekce 2 — Kde a kdy */}
+          <div className="flex items-center gap-2.5 pt-2">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-cyan-100 text-sm font-bold text-cyan-700">2</span>
+            <h2 className="text-base font-bold text-gray-900">Kde a kdy?</h2>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
                 Město / Obec *
               </label>
               <input
@@ -702,11 +708,11 @@ function NovaPoptavkaInner() {
                 onChange={(e) => setLocation(e.target.value)}
                 required
                 placeholder="např. Praha"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 transition-all focus:border-transparent focus:shadow-lg focus:shadow-cyan-500/10 focus:ring-2 focus:ring-cyan-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
                 PSČ
               </label>
               <input
@@ -714,14 +720,14 @@ function NovaPoptavkaInner() {
                 value={postalCode}
                 onChange={(e) => setPostalCode(e.target.value)}
                 placeholder="např. 11000"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 transition-all focus:border-transparent focus:shadow-lg focus:shadow-cyan-500/10 focus:ring-2 focus:ring-cyan-500"
               />
             </div>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
                 Rozpočet od (Kč)
               </label>
               <input
@@ -731,11 +737,11 @@ function NovaPoptavkaInner() {
                 placeholder="např. 1000"
                 step="1"
                 min="0"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 transition-all focus:border-transparent focus:shadow-lg focus:shadow-cyan-500/10 focus:ring-2 focus:ring-cyan-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
                 Rozpočet do (Kč)
               </label>
               <input
@@ -745,13 +751,13 @@ function NovaPoptavkaInner() {
                 placeholder="např. 5000"
                 step="1"
                 min="0"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 transition-all focus:border-transparent focus:shadow-lg focus:shadow-cyan-500/10 focus:ring-2 focus:ring-cyan-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="mb-2 block text-sm font-semibold text-gray-700">
               Preferovaný termín
             </label>
             <input
@@ -759,8 +765,14 @@ function NovaPoptavkaInner() {
               value={preferredDate}
               onChange={(e) => setPreferredDate(e.target.value)}
               min={new Date().toISOString().split("T")[0]}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 transition-all focus:border-transparent focus:shadow-lg focus:shadow-cyan-500/10 focus:ring-2 focus:ring-cyan-500"
             />
+          </div>
+
+          {/* Sekce 3 — Priorita */}
+          <div className="flex items-center gap-2.5 pt-2">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-cyan-100 text-sm font-bold text-cyan-700">3</span>
+            <h2 className="text-base font-bold text-gray-900">Priorita</h2>
           </div>
 
           {/* Urgent upsell */}
