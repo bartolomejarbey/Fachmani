@@ -41,6 +41,8 @@ function NovaPoptavkaInner() {
     isPremium: boolean;
   } | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  // Promo kampaň — týdenní limit poptávek zdarma (null = neaktivní).
+  const [promo, setPromo] = useState<{ perWeek: number; weekUsed: number; label: string } | null>(null);
   // App Store: na iOS žádné navádění k nákupu / ceny (3.1.1).
   const [isIos, setIsIos] = useState(false);
   useEffect(() => setIsIos(isIOSNative()), []);
@@ -145,6 +147,29 @@ function NovaPoptavkaInner() {
           const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
           const urgentUsed = urgentResetAt < monthAgo ? 0 : (prof.monthly_urgent_count ?? 0);
           setQuota({ dailyUsed, dailyLimit, dailyExtras, urgentUsed, urgentFreeLimit, isPremium });
+
+          // Promo kampaň — týdenní limit poptávek zdarma (pokud je aktivní a uživatel není premium).
+          if (!isPremium) {
+            const { data: promoRow } = await supabase
+              .from("system_settings").select("value").eq("key", "promo_campaign").maybeSingle();
+            const pc = promoRow?.value as
+              | { enabled?: boolean; label?: string; windows?: { until: string; requests_per_week: number }[] }
+              | null;
+            if (pc?.enabled && Array.isArray(pc.windows)) {
+              const now = new Date();
+              const win = pc.windows.find((w) => now < new Date(new Date(w.until).getTime() + 86400000));
+              if (win) {
+                const monday = new Date(now);
+                const dow = (monday.getUTCDay() + 6) % 7; // 0 = pondělí
+                monday.setUTCDate(monday.getUTCDate() - dow);
+                monday.setUTCHours(0, 0, 0, 0);
+                const { count } = await supabase
+                  .from("requests").select("id", { count: "exact", head: true })
+                  .eq("user_id", user.id).gte("created_at", monday.toISOString());
+                setPromo({ perWeek: win.requests_per_week, weekUsed: count ?? 0, label: pc.label || "Promo akce" });
+              }
+            }
+          }
         }
         setWalletBalance(wallet?.balance_kc ?? 0);
       }
@@ -560,7 +585,26 @@ function NovaPoptavkaInner() {
           </div>
         )}
 
-        {quota && !quota.isPremium && quota.dailyUsed >= quota.dailyLimit && quota.dailyExtras === 0 && (
+        {/* Promo kampaň — týdenní limit zdarma (přebíjí denní bannery) */}
+        {promo && (
+          <div className="relative mb-6 overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-xl text-white shadow">🎉</span>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-amber-900">{promo.label}</p>
+                <p className="text-sm text-amber-800">
+                  {promo.weekUsed >= promo.perWeek ? (
+                    <>Tento týden jste využili všech <strong>{promo.perWeek}</strong> bezplatných poptávek. Limit se obnoví v pondělí.</>
+                  ) : (
+                    <>Zbývá vám <strong>{promo.perWeek - promo.weekUsed} z {promo.perWeek}</strong> bezplatných poptávek tento týden 🚀</>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!promo && quota && !quota.isPremium && quota.dailyUsed >= quota.dailyLimit && quota.dailyExtras === 0 && (
           <div className="bg-orange-50 border border-orange-200 text-orange-900 p-5 rounded-xl mb-6">
             <strong className="block mb-1">⚠️ Dnes jste vyčerpali bezplatnou poptávku</strong>
             {isIos ? (
@@ -582,13 +626,13 @@ function NovaPoptavkaInner() {
           </div>
         )}
 
-        {quota && !quota.isPremium && quota.dailyExtras > 0 && (
+        {!promo && quota && !quota.isPremium && quota.dailyExtras > 0 && (
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-xl mb-6 text-sm">
             ✅ Máte zaplacený <strong>{quota.dailyExtras}× extra slot</strong> na dnes — můžete odeslat poptávku navíc.
           </div>
         )}
 
-        {quota && !quota.isPremium && quota.dailyUsed < quota.dailyLimit && (
+        {!promo && quota && !quota.isPremium && quota.dailyUsed < quota.dailyLimit && (
           <div className="bg-blue-50 border border-blue-200 text-blue-900 p-3 rounded-xl mb-6 text-sm">
             🆓 Zbývá vám <strong>{quota.dailyLimit - quota.dailyUsed} z {quota.dailyLimit}</strong> bezplatných poptávek dnes.
             {/* App Store 3.1.1: cenu extra poptávky na iOS neukazujeme */}

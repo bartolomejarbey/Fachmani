@@ -66,6 +66,8 @@ export default function AdminNastaveni() {
     feed_enabled: true,
     fachmanek_enabled: false,
   });
+  // Promo kampaň (týdenní kvóty zdarma) — celý JSON držíme kvůli zachování `windows` při uložení.
+  const [promoConfig, setPromoConfig] = useState<{ enabled?: boolean; label?: string; windows?: { until: string; requests_per_week: number; offers_per_week: number }[] } | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -88,6 +90,8 @@ export default function AdminNastaveni() {
           setPlatform((prev) => ({ ...prev, ...setting.value }));
         } else if (setting.key === "feature_flags") {
           setFeatures((prev) => ({ ...prev, ...setting.value }));
+        } else if (setting.key === "promo_campaign") {
+          setPromoConfig(setting.value);
         }
       });
     }
@@ -124,6 +128,12 @@ export default function AdminNastaveni() {
     const next = { ...features, [k]: !features[k] };
     setFeatures(next);
     saveSetting("feature_flags", next);
+  };
+  const togglePromo = () => {
+    if (!promoConfig) return;
+    const next = { ...promoConfig, enabled: !promoConfig.enabled };
+    setPromoConfig(next);
+    saveSetting("promo_campaign", next as Record<string, unknown>);
   };
 
   if (loading) {
@@ -504,6 +514,35 @@ export default function AdminNastaveni() {
                   </button>
                 </div>
               ))}
+
+              {/* Promo kampaň toggle */}
+              {promoConfig && (
+                <div className="flex items-center justify-between gap-4 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
+                  <div>
+                    <p className="font-semibold text-white">🎉 Spouštěcí promo kampaň</p>
+                    <p className="text-sm text-slate-400 mt-0.5">
+                      Týdenní kvóty zdarma (poptávky i nabídky), odstupňované do 31.8. Platí pro všechny free účty.
+                    </p>
+                    {Array.isArray(promoConfig.windows) && (
+                      <p className="text-xs text-amber-300/80 mt-1">
+                        {promoConfig.windows.map((w) => `do ${w.until}: ${w.requests_per_week} popt. / ${w.offers_per_week} nab. týdně`).join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!!promoConfig.enabled}
+                    disabled={saving}
+                    onClick={togglePromo}
+                    className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                      promoConfig.enabled ? "bg-gradient-to-r from-amber-500 to-orange-500" : "bg-slate-600"
+                    }`}
+                  >
+                    <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${promoConfig.enabled ? "left-6" : "left-1"}`} />
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="mt-6 pt-6 border-t border-white/10">
