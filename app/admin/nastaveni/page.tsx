@@ -64,7 +64,8 @@ export default function AdminNastaveni() {
   });
   const [features, setFeatures] = useState({
     feed_enabled: true,
-    fachmanek_enabled: false,
+    fachmanek_enabled: true,
+    poradce_enabled: false,
   });
   // Promo kampaň (týdenní kvóty zdarma) — celý JSON držíme kvůli zachování `windows` při uložení.
   const [promoConfig, setPromoConfig] = useState<{ enabled?: boolean; label?: string; windows?: { until: string; requests_per_week: number; offers_per_week: number }[] } | null>(null);
@@ -124,7 +125,7 @@ export default function AdminNastaveni() {
   const handleSavePlatform = () => saveSetting("platform_settings", platform);
   const handleSaveFeatures = () => saveSetting("feature_flags", features);
   // Okamžité přepnutí + uložení (UX: toggle hned ukládá).
-  const toggleFeature = (k: "feed_enabled" | "fachmanek_enabled") => {
+  const toggleFeature = (k: "feed_enabled" | "fachmanek_enabled" | "poradce_enabled") => {
     const next = { ...features, [k]: !features[k] };
     setFeatures(next);
     saveSetting("feature_flags", next);
@@ -489,7 +490,8 @@ export default function AdminNastaveni() {
             <div className="space-y-4">
               {[
                 { key: "feed_enabled" as const, title: "📸 Komunitní feed", desc: "Odkaz Feed v navigaci a celá feed sekce." },
-                { key: "fachmanek_enabled" as const, title: "🤖 Fachmánek (AI chatroom)", desc: "AI asistent Fachmánek v navigaci (/fachmanek). Zatím doporučeno VYPNUTO — málo fachmanů." },
+                { key: "fachmanek_enabled" as const, title: "🤖 Fachmánek (plovoucí popup)", desc: "Plovoucí AI chat bublina v rohu obrazovky (na všech stránkách)." },
+                { key: "poradce_enabled" as const, title: "🧭 Poradce (AI doporučování)", desc: "Stránka /poradce + odkaz v navigaci — AI doporučí fachmany z databáze. Zatím VYPNUTO — málo fachmanů." },
               ].map((f) => (
                 <div key={f.key} className="flex items-center justify-between gap-4 rounded-xl bg-white/5 border border-white/10 p-4">
                   <div>

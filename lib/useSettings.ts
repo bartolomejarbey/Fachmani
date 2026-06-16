@@ -32,8 +32,10 @@ export type PricingSettings = {
 export type FeatureFlags = {
   /** Komunitní feed v navbaru. */
   feed_enabled: boolean;
-  /** AI „Fachmánek" (chatroom + asistent). Zatím vypnuto — málo fachmanů. */
+  /** AI „Fachmánek" — plovoucí popup chat. */
   fachmanek_enabled: boolean;
+  /** AI „Poradce" — stránka /poradce s doporučováním fachmanů. Zatím skryto (málo fachmanů). */
+  poradce_enabled: boolean;
 };
 
 export type AllSettings = {
@@ -69,7 +71,8 @@ const DEFAULTS: AllSettings = {
   },
   features: {
     feed_enabled: true,
-    fachmanek_enabled: false,
+    fachmanek_enabled: true,
+    poradce_enabled: false,
   },
 };
 

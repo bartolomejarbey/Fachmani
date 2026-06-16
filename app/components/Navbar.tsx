@@ -68,11 +68,12 @@ export default function Navbar() {
     { href: "/kategorie", label: "Kategorie", icon: "📂" },
     // Feed jen když je zapnutý v adminu (feature_flags).
     ...(settings.features.feed_enabled ? [{ href: "/feed", label: "Feed", icon: "📸", isNew: true }] : []),
-    // AI „Fachmánek" jen když je zapnutý v adminu (zatím vypnuto — málo fachmanů).
-    ...(settings.features.fachmanek_enabled ? [{ href: "/fachmanek", label: "Fachmánek", icon: "🤖" }] : []),
+    // Poradce (AI doporučování fachmanů) jen když je zapnutý v adminu (zatím vypnuto — málo fachmanů).
+    // Fachmánek je SAMOSTATNÝ plovoucí popup (ChatWidget), ne položka v menu.
+    ...(settings.features.poradce_enabled ? [{ href: "/poradce", label: "Poradce", icon: "🤖" }] : []),
     { href: "/cenik", label: "Ceník", icon: "💎" },
-    // Na iOS skryjeme Ceník (navádění k nákupu) a Fachmánka (AI).
-  ].filter((l) => !isIos || (l.href !== "/cenik" && l.href !== "/fachmanek"));
+    // Na iOS skryjeme Ceník (navádění k nákupu) a Poradce (AI).
+  ].filter((l) => !isIos || (l.href !== "/cenik" && l.href !== "/poradce"));
 
   const isActive = (href: string) => pathname === href;
 

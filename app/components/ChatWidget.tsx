@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { isIOSNative } from "@/lib/native";
+import { useSettings } from "@/lib/useSettings";
 
 type Fachman = {
   name: string;
@@ -40,6 +41,8 @@ export default function ChatWidget() {
   // App Store: nemoderovaná generativní AI se na iOS nezobrazuje (1.2 / 4.7 / 5.1.2)
   const [hideOnIos, setHideOnIos] = useState(false);
   useEffect(() => { if (isIOSNative()) setHideOnIos(true); }, []);
+  // Fachmánek popup lze vypnout v adminu (feature_flags.fachmanek_enabled).
+  const { settings, loaded } = useSettings();
   const sessionId = useRef<string>(
     typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(Date.now())
   );
@@ -109,6 +112,8 @@ export default function ChatWidget() {
   };
 
   if (hideOnIos) return null;
+  // Skryj Fachmánka, pokud je vypnutý v adminu (po načtení nastavení).
+  if (loaded && !settings.features.fachmanek_enabled) return null;
 
   return (
     <>

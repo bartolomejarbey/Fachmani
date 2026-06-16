@@ -57,6 +57,7 @@ const STATIC_PAGES: StaticPage[] = [
   { path: "/poptavky", priority: 0.7, changeFrequency: "daily" },
   { path: "/hledat", priority: 0.5, changeFrequency: "weekly" },
   { path: "/feed", priority: 0.4, changeFrequency: "daily" },
+  { path: "/poradce", priority: 0.5, changeFrequency: "monthly" },
   { path: "/jak-to-funguje", priority: 0.4, changeFrequency: "monthly" },
   { path: "/pro-fachmany", priority: 0.4, changeFrequency: "monthly" },
   { path: "/cenik", priority: 0.4, changeFrequency: "monthly" },
