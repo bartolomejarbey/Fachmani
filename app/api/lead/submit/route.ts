@@ -23,12 +23,27 @@ type Body = {
   location?: string;
   source?: string;
   gdpr?: boolean;
+  hp?: string; // honeypot
 };
 
 function admin() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { persistSession: false },
   });
+}
+
+// Jednoduchý in-memory rate-limit per IP (best-effort, per instance) — brzdí spam
+// vytváření účtů/leadů. Pro plnou ochranu doporučeno doplnit CAPTCHA (Turnstile).
+const RL_WINDOW_MS = 10 * 60 * 1000;
+const RL_MAX = 5;
+const rl = new Map<string, number[]>();
+function rateLimited(key: string): boolean {
+  const now = Date.now();
+  const hits = (rl.get(key) || []).filter((t) => now - t < RL_WINDOW_MS);
+  hits.push(now);
+  rl.set(key, hits);
+  if (rl.size > 5000) for (const [k, v] of rl) if (v.every((t) => now - t >= RL_WINDOW_MS)) rl.delete(k);
+  return hits.length > RL_MAX;
 }
 
 export async function POST(req: Request) {
@@ -57,8 +72,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Popište prosím krátce, co potřebujete." }, { status: 400 });
   }
 
+  // Honeypot — boti vyplní skryté pole; tváříme se úspěšně, ale nic nevytvoříme.
+  if ((body.hp || "").trim().length > 0) {
+    return NextResponse.json({ ok: true, mode: body.mode === "lead" ? "lead" : "register", requestCreated: true });
+  }
+
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
   const ipHash = ip ? createHash("sha256").update(ip).digest("hex").slice(0, 32) : null;
+
+  // Rate-limit per IP (i per e-mail), ať nelze hromadně zakládat účty.
+  if (rateLimited(`ip:${ipHash || "x"}`) || rateLimited(`em:${email}`)) {
+    return NextResponse.json({ error: "Příliš mnoho pokusů. Zkuste to prosím za chvíli." }, { status: 429 });
+  }
+
   const sb = admin();
 
   // -------- LEAD (bez účtu) --------
@@ -100,29 +126,39 @@ export async function POST(req: Request) {
   });
 
   if (createErr || !created?.user) {
+    // Existující e-mail — robustně přes code/status i fallback substring.
+    const code = (createErr as { code?: string; status?: number } | null)?.code;
+    const status = (createErr as { code?: string; status?: number } | null)?.status;
     const msg = (createErr?.message || "").toLowerCase();
-    if (msg.includes("already") || msg.includes("registered") || msg.includes("exist")) {
+    const exists =
+      code === "email_exists" || status === 422 ||
+      msg.includes("already") || msg.includes("registered") || msg.includes("exist");
+    if (exists) {
       return NextResponse.json(
         { error: "Tento e-mail už je registrovaný. Přihlaste se prosím.", code: "exists" },
         { status: 409 },
       );
     }
-    console.error("[lead/submit] createUser:", createErr?.message);
+    console.error("[lead/submit] createUser failed");
     return NextResponse.json({ error: "Účet se nepodařilo vytvořit. Zkuste to prosím znovu." }, { status: 500 });
   }
 
   const uid = created.user.id;
 
-  // 2) Profil (trigger handle_new_user nemusí existovat → upsert ručně).
-  await sb.from("profiles").upsert(
+  // 2) Profil — NEPŘEPISUJ existující řádek (handle_new_user trigger mohl založit profil
+  //    se jménem). ignoreDuplicates → nový řádek dostane plný set, existující zůstane.
+  const { error: profErr } = await sb.from("profiles").upsert(
     { id: uid, email, role: "customer", full_name: email.split("@")[0], phone, push_opt_in: false },
-    { onConflict: "id" },
+    { onConflict: "id", ignoreDuplicates: true },
   );
+  if (profErr) console.error("[lead/submit] profile upsert failed");
 
   // 3) Poptávka (request) — expirace 30 dní. Trigger ohlídá denní/promo limit (free účet OK).
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
-  const title = (categoryName ? `${categoryName}: ` : "") + (description.slice(0, 60) || "Poptávka");
+  // Titulek bez useknutí uprostřed slova.
+  const descTitle = description.length <= 60 ? description : description.slice(0, 60).replace(/\s+\S*$/, "");
+  const title = (categoryName ? `${categoryName}: ` : "") + (descTitle || description.slice(0, 60) || "Poptávka");
   const { data: reqRow, error: reqErr } = await sb
     .from("requests")
     .insert({

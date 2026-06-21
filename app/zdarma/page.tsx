@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description:
     "Zadejte jednu poptávku a ověření fachmani se vám sami ozvou s nabídkami. Reakce do 7 dnů, expresně do 2. Teď 100 % zdarma a bez závazků.",
   alternates: { canonical: "/zdarma" },
+  openGraph: {
+    title: "Najděte ověřeného fachmana zdarma | Fachmani",
+    description: "Zadejte jednu poptávku a ověření fachmani se vám sami ozvou. Reakce do 7 dnů, expres do 2. Teď 100 % zdarma.",
+    url: "/zdarma",
+  },
 };
 
 const config: LandingConfig = {

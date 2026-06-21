@@ -29,6 +29,22 @@ export const metadata: Metadata = {
     icon: '/favicon.png',
     apple: '/apple-icon.png',
   },
+  // Výchozí OG/Twitter karty — kampaňové LP je dědí (a přepisují si title/description).
+  openGraph: {
+    type: "website",
+    locale: "cs_CZ",
+    siteName: "Fachmani",
+    url: SITE_URL,
+    title: "Fachmani - Najdi ověřeného fachmana",
+    description: "Zadejte poptávku zdarma a ověření fachmani se vám sami ozvou. Reakce do 7 dnů.",
+    images: [{ url: "/logo.png", width: 1706, height: 586, alt: "Fachmani" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Fachmani - Najdi ověřeného fachmana",
+    description: "Zadejte poptávku zdarma a ověření fachmani se vám sami ozvou.",
+    images: ["/logo.png"],
+  },
 };
 
 export default function RootLayout({

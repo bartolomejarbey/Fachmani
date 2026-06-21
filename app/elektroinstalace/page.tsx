@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description:
     "U elektroinstalace rozhoduje to, co je schované za zdí. Revize, proudový chránič, dotažené spoje. Zadejte poptávku zdarma a ověření elektrikáři se vám sami ozvou.",
   alternates: { canonical: "/elektroinstalace" },
+  openGraph: {
+    title: "Elektroinstalace od ověřeného fachmana | Fachmani",
+    description: "U elektroinstalace rozhoduje to, co je schované za zdí. Zadejte poptávku zdarma — ověření elektrikáři se vám ozvou.",
+    url: "/elektroinstalace",
+  },
 };
 
 const config: LandingConfig = {

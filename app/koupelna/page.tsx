@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description:
     "Krásná koupelna nestačí — rozhoduje skrytá práce: hydroizolace, spád k odtoku, odvětrání. Zadejte poptávku zdarma a ověření fachmani se vám sami ozvou.",
   alternates: { canonical: "/koupelna" },
+  openGraph: {
+    title: "Rekonstrukce koupelny od ověřeného fachmana | Fachmani",
+    description: "Krásná koupelna nestačí — rozhoduje skrytá práce. Zadejte poptávku zdarma a ověření fachmani se vám ozvou.",
+    url: "/koupelna",
+  },
 };
 
 const config: LandingConfig = {
