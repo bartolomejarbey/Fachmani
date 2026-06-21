@@ -92,9 +92,9 @@ export default function Navbar() {
               <Image
                 src="/logo.png"
                 alt="Fachmani"
-                width={280}
-                height={160}
-                className="h-40 w-auto"
+                width={853}
+                height={293}
+                className="h-9 w-auto sm:h-10"
                 priority
               />
             </Link>

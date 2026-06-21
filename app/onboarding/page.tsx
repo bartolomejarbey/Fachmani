@@ -88,9 +88,9 @@ export default function OnboardingPage() {
           <Image
             src="/logo.png"
             alt="Fachmani"
-            width={180}
-            height={104}
-            className="mx-auto mb-6 h-16 w-auto"
+            width={853}
+            height={293}
+            className="mx-auto mb-6 h-12 w-auto"
             priority
           />
           <h1 className="text-3xl font-bold text-slate-900 sm:text-4xl">

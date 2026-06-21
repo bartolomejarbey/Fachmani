@@ -503,49 +503,9 @@ function NovaPoptavkaInner() {
 
       <Navbar />
 
-      {/* Sticky Mission HUD — „Připravenost poptávky" */}
-      <div className="sticky top-16 z-30 -mx-0 bg-gray-50/80 px-4 pb-2 pt-24 backdrop-blur-md">
-        <div className="np-card-in mx-auto flex max-w-2xl items-center gap-3 rounded-2xl border border-cyan-100 bg-white/90 px-4 py-3 shadow-sm sm:gap-4">
-          <div
-            className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 text-xl text-white shadow-md ${
-              pct === 100 ? "np-badge-pop" : ""
-            }`}
-          >
-            {pct === 100 ? "🚀" : "🛠️"}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="mb-1 flex items-center justify-between">
-              <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                Připravenost poptávky
-              </span>
-              <span className="ml-2 text-sm font-bold tabular-nums text-gray-900">{pct}%</span>
-            </div>
-            <div
-              className="h-2.5 overflow-hidden rounded-full bg-gray-100"
-              role="progressbar"
-              aria-valuenow={pct}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Připravenost poptávky"
-            >
-              <div
-                className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-[width] duration-500 ease-out"
-                style={{ width: `${pct}%` }}
-              >
-                {pct < 100 && (
-                  <span aria-hidden className="np-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent" />
-                )}
-              </div>
-            </div>
-            <span aria-hidden className="mt-0.5 block text-[11px] font-medium text-cyan-700">
-              {progressLabel}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-2xl px-4 pb-12 pt-4">
-        <div className="np-card-in relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-500 via-blue-500 to-blue-600 p-6 text-white shadow-xl shadow-blue-500/20 sm:p-7">
+      <div className="mx-auto max-w-2xl px-4 pb-12 pt-24">
+        {/* Hero banner */}
+        <div className="np-card-in relative mb-4 overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-500 via-blue-500 to-blue-600 p-6 text-white shadow-xl shadow-blue-500/20 sm:p-7">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 opacity-20"
@@ -565,6 +525,47 @@ function NovaPoptavkaInner() {
               <p className="mt-1 text-sm text-white/85">
                 Popište zakázku a ověření profíci se vám sami ozvou s nabídkami.
               </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Sticky progress HUD — „Připravenost poptávky" (solidní pozadí, nepřekrývá hero) */}
+        <div className="sticky top-[72px] z-30 mb-5 rounded-2xl border border-cyan-100 bg-white px-4 py-3 shadow-md shadow-cyan-500/5">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div
+              className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 text-xl text-white shadow-md ${
+                pct === 100 ? "np-badge-pop" : ""
+              }`}
+            >
+              {pct === 100 ? "🚀" : "🛠️"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  Připravenost poptávky
+                </span>
+                <span className="ml-2 text-sm font-bold tabular-nums text-gray-900">{pct}%</span>
+              </div>
+              <div
+                className="h-2.5 overflow-hidden rounded-full bg-gray-100"
+                role="progressbar"
+                aria-valuenow={pct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Připravenost poptávky"
+              >
+                <div
+                  className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-[width] duration-500 ease-out"
+                  style={{ width: `${pct}%` }}
+                >
+                  {pct < 100 && (
+                    <span aria-hidden className="np-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+                  )}
+                </div>
+              </div>
+              <span aria-hidden className="mt-0.5 block text-[11px] font-medium text-cyan-700">
+                {progressLabel}
+              </span>
             </div>
           </div>
         </div>

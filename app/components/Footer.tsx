@@ -86,9 +86,9 @@ export default function Footer() {
                 <Image
                   src="/logo.png"
                   alt="Fachmani"
-                  width={392}
-                  height={224}
-                  className="h-48 md:h-56 w-auto drop-shadow-[0_0_30px_rgba(6,182,212,0.3)]"
+                  width={853}
+                  height={293}
+                  className="h-14 md:h-16 w-auto drop-shadow-[0_0_30px_rgba(6,182,212,0.3)]"
                   style={{ filter: "none" }}
                 />
               </Link>
@@ -159,6 +159,9 @@ export default function Footer() {
                     { href: "/fachmani", label: "Najít fachmana" },
                     { href: "/kategorie", label: "Kategorie služeb" },
                     { href: "/nova-poptavka", label: "Zadat poptávku" },
+                    { href: "/elektroinstalace", label: "Elektroinstalace" },
+                    { href: "/koupelna", label: "Rekonstrukce koupelny" },
+                    { href: "/zdarma", label: "Fachman zdarma" },
                   ].map((link) => (
                     <li key={link.href}>
                       <Link href={link.href} className="text-gray-400 hover:text-cyan-400 hover:translate-x-1 transition-all duration-200 inline-block">
