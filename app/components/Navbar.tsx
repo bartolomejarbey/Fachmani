@@ -94,7 +94,7 @@ export default function Navbar() {
                 alt="Fachmani"
                 width={853}
                 height={293}
-                className="h-9 w-auto sm:h-10"
+                className="h-16 w-auto sm:h-20"
                 priority
               />
             </Link>
