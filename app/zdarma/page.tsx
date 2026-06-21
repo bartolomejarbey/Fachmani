@@ -14,10 +14,8 @@ const config: LandingConfig = {
   titleAccent: "ozvou sami.",
   subtitle:
     "Žádné obvolávání ani hledání. Popíšete, co potřebujete, a ověření profíci se vám ozvou s nabídkami. Teď 100 % zdarma.",
-  ctaLabel: "Zadat poptávku zdarma",
-  ctaHref: "/nova-poptavka",
   heroEmoji: "🛠️",
-  heroEmojiAlt: "📍",
+  source: "zdarma",
   watchHeading: "Proč přes Fachmani",
   watchIntro: "Jedna poptávka, ověření profíci a žádné starosti navíc.",
   watchPoints: [

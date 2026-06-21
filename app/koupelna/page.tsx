@@ -14,10 +14,10 @@ const config: LandingConfig = {
   titleAccent: "to, co nevidíte.",
   subtitle:
     "Obklad je jen finále — kvalitu a životnost určují skryté detaily pod ním. S ověřeným fachmanem je nemusíte hlídat sami.",
-  ctaLabel: "Zadat poptávku zdarma",
-  ctaHref: "/nova-poptavka?kategorie=Rekonstrukce",
   heroEmoji: "🚿",
-  heroEmojiAlt: "🛁",
+  source: "koupelna",
+  preCategoryId: "70d1a9b6-9c9a-4b69-8e84-312e37375a58",
+  preCategoryName: "Rekonstrukce",
   watchHeading: "Na čem u koupelny opravdu záleží",
   watchIntro: "Skryté detaily, které rozhodují o tom, jestli koupelna vydrží — nebo začne brzy trpět.",
   watchPoints: [

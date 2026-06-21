@@ -529,8 +529,8 @@ function NovaPoptavkaInner() {
           </div>
         </div>
 
-        {/* Sticky progress HUD — „Připravenost poptávky" (solidní pozadí, nepřekrývá hero) */}
-        <div className="sticky top-[72px] z-30 mb-5 rounded-2xl border border-cyan-100 bg-white px-4 py-3 shadow-md shadow-cyan-500/5">
+        {/* Progress HUD — „Připravenost poptávky" (statický, scrolluje s formulářem) */}
+        <div className="mb-5 rounded-2xl border border-cyan-100 bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center gap-3 sm:gap-4">
             <div
               className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 text-xl text-white shadow-md ${

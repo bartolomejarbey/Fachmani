@@ -14,10 +14,10 @@ const config: LandingConfig = {
   titleAccent: "co je schované.",
   subtitle:
     "Zásuvka může vypadat hotově — kvalitu a bezpečnost ale určuje práce za zdí. S ověřeným elektrikářem ji nemusíte hlídat sami.",
-  ctaLabel: "Zadat poptávku zdarma",
-  ctaHref: "/nova-poptavka?kategorie=Elektrikar",
   heroEmoji: "⚡",
-  heroEmojiAlt: "🔌",
+  source: "elektroinstalace",
+  preCategoryId: "dd9345d5-14cf-4b6f-a42c-a2428684e77a",
+  preCategoryName: "Elektrikář",
   watchHeading: "Na čem u elektřiny opravdu záleží",
   watchIntro: "Čtyři skryté detaily, které rozhodují o bezpečnosti i budoucích opravách.",
   watchPoints: [
