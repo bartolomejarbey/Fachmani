@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { isIOSNative } from "@/lib/native";
+import { fbTrack } from "@/lib/track";
 import ImageCropper from "@/app/components/ImageCropper";
 import SuccessCelebration from "@/app/components/SuccessCelebration";
 import CategoryPicker from "@/app/components/CategoryPicker";
@@ -472,6 +473,9 @@ function NovaPoptavkaInner() {
         status: "new",
       });
     }
+
+    // Konverzní event do Meta Pixelu — odeslaná poptávka.
+    fbTrack("Lead", { content_name: "nova-poptavka", content_category: categoryId || undefined });
 
     // WOW: oslavná animace + konfety, pak teprve redirect na detail.
     const dest = `/poptavka/${data.id}`;

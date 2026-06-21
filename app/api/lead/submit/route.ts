@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   if (body.gdpr !== true) {
     return NextResponse.json({ error: "Je nutný souhlas se zpracováním údajů." }, { status: 400 });
   }
-  if (description.length < 5) {
+  if (description.length < 3) {
     return NextResponse.json({ error: "Popište prosím krátce, co potřebujete." }, { status: 400 });
   }
 

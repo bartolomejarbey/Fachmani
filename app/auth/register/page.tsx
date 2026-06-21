@@ -5,6 +5,7 @@ import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { Icons } from "@/app/components/Icons";
+import { fbTrack } from "@/lib/track";
 
 export default function Register() {
   const [mounted, setMounted] = useState(false);
@@ -46,6 +47,7 @@ export default function Register() {
         return;
       }
 
+      if (!data.exists) fbTrack("CompleteRegistration", { content_name: "register" });
       setOutcome(data.exists ? "exists" : "created");
     } catch {
       setError("Něco se pokazilo. Zkuste to prosím znovu.");
