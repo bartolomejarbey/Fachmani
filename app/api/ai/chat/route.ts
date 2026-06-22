@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { isIosAppFromRequest } from "@/lib/native-server";
+import { ipRateLimited } from "@/lib/ipRateLimit";
 
 const SYSTEM_PROMPT = `Jsi AI asistent platformy Fachmani.org. Tvým úkolem je POMÁHAT UŽIVATELŮM NAJÍT KONKRÉTNÍHO FACHMANA z naší databáze. NEJSI obecný poradce.
 
@@ -111,8 +112,13 @@ export async function POST(request: Request) {
         );
       }
     } else {
-      // For anonymous users, use a simple in-memory check via sessionId
-      // Plus limit message history to prevent token abuse
+      // Anon: per-IP rate-limit (jinak neomezený OpenAI token burn) + limit historie.
+      if (ipRateLimited(request, "ai-chat", 15)) {
+        return NextResponse.json(
+          { error: "Příliš mnoho dotazů. Zkuste to prosím za chvíli nebo se přihlaste.", rateLimited: true },
+          { status: 429 },
+        );
+      }
       if (messages.length > 6) {
         return NextResponse.json(
           {

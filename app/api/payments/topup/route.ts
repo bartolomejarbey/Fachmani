@@ -35,6 +35,22 @@ export async function POST(request: Request) {
 
     const admin = adminClient()
 
+    // Rate-limit: cap nedokončených topup plateb (anti-abuse — jinak lze tvořit neomezeně
+    // pending plateb + ComGate transakcí).
+    const { count: pendingCount } = await admin
+      .from('payments')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('type', 'topup')
+      .eq('status', 'pending')
+      .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+    if ((pendingCount ?? 0) >= 5) {
+      return NextResponse.json(
+        { error: 'Příliš mnoho nedokončených plateb. Dokončete je nebo zkuste za chvíli.' },
+        { status: 429 },
+      )
+    }
+
     const { data: payment, error: payError } = await admin
       .from('payments')
       .insert({

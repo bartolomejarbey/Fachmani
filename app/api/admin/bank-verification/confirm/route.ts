@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     .select("admin_role")
     .eq("id", user.id)
     .single();
-  if (!me?.admin_role) {
+  if (!me?.admin_role || !["master_admin", "admin"].includes(me.admin_role)) {
     return NextResponse.json({ error: "Pouze admin" }, { status: 403 });
   }
 
@@ -38,15 +38,22 @@ export async function POST(req: NextRequest) {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
-  const { error } = await admin
+  // State guard: potvrdit lze jen probíhající ověření (status 'pending') — brání mintování
+  // odznaku na účtech, které ověření vůbec nespustily / už jsou v jiném stavu.
+  const { data: updated, error } = await admin
     .from("profiles")
     .update({
       bank_verification_status: status,
       bank_verification_verified_at: status === "verified" ? new Date().toISOString() : null,
     })
-    .eq("id", target);
+    .eq("id", target)
+    .eq("bank_verification_status", "pending")
+    .select("id");
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: "Aktualizace selhala" }, { status: 500 });
+  if (!updated || updated.length === 0) {
+    return NextResponse.json({ error: "Ověření není ve stavu 'pending' (nelze potvrdit)." }, { status: 409 });
+  }
 
   await admin.from("admin_activity_log").insert({
     admin_id: user.id,

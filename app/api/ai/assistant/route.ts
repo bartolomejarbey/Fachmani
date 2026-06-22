@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { isIosAppFromRequest } from "@/lib/native-server";
+import { ipRateLimited } from "@/lib/ipRateLimit";
 
 /**
  * /api/ai/assistant
@@ -279,11 +280,20 @@ export async function POST(request: Request) {
           { status: 429 }
         );
       }
-    } else if (messages.length > 12) {
-      return NextResponse.json(
-        { error: "Pro delší konverzaci se prosím přihlas.", rateLimited: true },
-        { status: 429 }
-      );
+    } else {
+      // Anon: per-IP rate-limit (jinak neomezený OpenAI token burn) + limit historie.
+      if (ipRateLimited(request, "ai-assistant", 15)) {
+        return NextResponse.json(
+          { error: "Příliš mnoho dotazů. Zkuste to prosím za chvíli nebo se přihlaste.", rateLimited: true },
+          { status: 429 }
+        );
+      }
+      if (messages.length > 12) {
+        return NextResponse.json(
+          { error: "Pro delší konverzaci se prosím přihlas.", rateLimited: true },
+          { status: 429 }
+        );
+      }
     }
 
     const convo: Array<Record<string, unknown>> = [
