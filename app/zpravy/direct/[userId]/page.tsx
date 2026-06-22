@@ -178,14 +178,7 @@ export default function DirectChatPage() {
       return;
     }
 
-    await supabase.from("notifications").insert({
-      user_id: otherUserId,
-      type: "new_message",
-      title: "Nová zpráva",
-      message: text.slice(0, 120),
-      link: `/zpravy/direct/${currentUser}`,
-    });
-
+    // Notifikace příjemci vytvoří DB trigger trg_notify_new_message (server-side).
     setNewMessage("");
     await loadMessages(currentUser);
     setSending(false);

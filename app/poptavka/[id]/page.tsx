@@ -436,14 +436,7 @@ function PoptavkaDetail() {
         .eq("id", currentUser);
     }
 
-    await supabase.from("notifications").insert({
-      user_id: request?.user_id,
-      type: "new_offer",
-      title: "Nová nabídka",
-      message: `Na vaši poptávku "${request?.title}" přišla nová nabídka za ${parsedPrice.toLocaleString()} Kč.`,
-      link: `/poptavka/${params.id}`,
-    });
-
+    // Notifikaci vlastníkovi poptávky vytvoří DB trigger trg_notify_new_offer (server-side).
     const { data: offersData } = await supabase
       .from("offers")
       .select("*, profiles(full_name, is_verified)")
@@ -473,14 +466,7 @@ function PoptavkaDetail() {
       .update({ status: "closed_selected" })
       .eq("id", params.id);
 
-    await supabase.from("notifications").insert({
-      user_id: providerId,
-      type: "offer_accepted",
-      title: "Nabídka přijata! 🎉",
-      message: `Vaše nabídka na "${request?.title}" byla přijata.`,
-      link: `/poptavka/${params.id}`,
-    });
-
+    // Notifikaci fachmanovi vytvoří DB trigger trg_notify_offer_accepted (server-side).
     router.refresh();
     window.location.reload();
   };

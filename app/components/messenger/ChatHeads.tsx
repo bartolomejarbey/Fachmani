@@ -206,19 +206,7 @@ export default function ChatHeads() {
             : c
         )
       );
-      // Insert notifikace (zachovat parita s /zpravy stránkami).
-      const link =
-        payload.request_id != null
-          ? `/zpravy/${payload.request_id}/${meRef.current}`
-          : `/zpravy/direct/${meRef.current}`;
-      void supabase.from("notifications").insert({
-        user_id: userId,
-        type: "new_message",
-        title: "Nová zpráva",
-        message: content.slice(0, 120),
-        link,
-        is_read: false,
-      });
+      // Notifikace vytváří DB trigger trg_notify_new_message na messages (server-side).
     },
     []
   );

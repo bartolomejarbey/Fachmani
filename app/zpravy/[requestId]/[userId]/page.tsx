@@ -187,15 +187,7 @@ export default function ChatPage() {
       return;
     }
 
-    // Notifikace pro příjemce
-    await supabase.from("notifications").insert({
-      user_id: otherUserId,
-      type: "new_message",
-      title: "Nová zpráva",
-      message: content.slice(0, 120),
-      link: `/zpravy/${requestId}/${currentUser}`,
-    });
-
+    // Notifikace příjemci vytvoří DB trigger trg_notify_new_message (server-side).
     setNewMessage("");
     setSending(false);
   };
