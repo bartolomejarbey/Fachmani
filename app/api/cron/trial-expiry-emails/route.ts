@@ -35,7 +35,7 @@ function authorize(req: NextRequest): boolean {
   if (!secret) return false;
   const auth = req.headers.get("authorization") || "";
   const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  const provided = bearer || req.headers.get("x-cron-secret") || req.nextUrl.searchParams.get("secret");
+  const provided = bearer || req.headers.get("x-cron-secret");
   return provided === secret;
 }
 

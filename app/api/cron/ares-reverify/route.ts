@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   // Fallback: x-cron-secret nebo ?secret= pro lokální / manuální triggery.
   const auth = req.headers.get("authorization") || "";
   const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  const provided = bearer || req.headers.get("x-cron-secret") || req.nextUrl.searchParams.get("secret");
+  const provided = bearer || req.headers.get("x-cron-secret");
   if (provided !== secret) {
     return NextResponse.json({ error: "Neoprávněno" }, { status: 401 });
   }
