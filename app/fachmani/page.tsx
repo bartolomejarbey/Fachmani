@@ -139,7 +139,12 @@ export default async function FachmaniPage({ searchParams }: { searchParams: SP 
     .from("profiles")
     .select("id, full_name, avatar_url, is_verified, bank_verification_status, subscription_type, region_id, district_id, created_at, trial_until")
     .eq("role", "provider")
-    .order("subscription_type", { ascending: false });
+    // Stabilní sekundární klíč (created_at, id) — bez něj mají shodné subscription_type
+    // nedeterministické pořadí → při stránkování duplicitní/přeskočené karty.
+    .order("subscription_type", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(2000);
 
   if (profilesData && profilesData.length > 0) {
     const providerIds = profilesData.map((p) => p.id);

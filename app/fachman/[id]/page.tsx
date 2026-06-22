@@ -140,9 +140,20 @@ async function fetchFachman(id: string): Promise<FachmanDetail | null> {
 
   if (!profileData) return null;
 
-  const [providerProfileRes, providerCategoriesRes, reviewsRes, promoRes, phoneRes] = await Promise.all([
-    supabase.from("provider_profiles").select("bio, hourly_rate, locations").eq("user_id", realId).maybeSingle(),
-    supabase.from("provider_categories").select("categories(id, name, icon)").eq("provider_id", realId),
+  // provider_categories.provider_id odkazuje na provider_profiles.id (NE na user/profile id),
+  // proto nejdřív zjistíme provider_profile.id a teprve jím filtrujeme kategorie — jinak se
+  // kategorie reálných fachmanů nikdy nenačtou.
+  const providerProfileRes = await supabase
+    .from("provider_profiles")
+    .select("id, bio, hourly_rate, locations")
+    .eq("user_id", realId)
+    .maybeSingle();
+  const providerProfileId = providerProfileRes.data?.id ?? null;
+
+  const [providerCategoriesRes, reviewsRes, promoRes, phoneRes] = await Promise.all([
+    providerProfileId
+      ? supabase.from("provider_categories").select("categories(id, name, icon)").eq("provider_id", providerProfileId)
+      : Promise.resolve({ data: [] as Array<{ categories: unknown }> }),
     supabase
       .from("reviews")
       .select("id, rating, rating_quality, rating_communication, rating_price, comment, created_at, customer_id, profiles:customer_id(full_name)")
