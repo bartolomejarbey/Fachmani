@@ -355,6 +355,7 @@ function PoptavkaDetail() {
     }
 
     // Charge credits from wallet
+    let charged = false; // true jen když reálně došlo ke stržení (kvůli refundu při selhání insertu)
     try {
       const spendResponse = await fetch("/api/wallet/spend", {
         method: "POST",
@@ -364,6 +365,8 @@ function PoptavkaDetail() {
           relatedEntityId: params.id,
         }),
       });
+
+      if (spendResponse.ok && spendResponse.status === 200) charged = true;
 
       if (spendResponse.status === 402) {
         const spendData = await spendResponse.json();
@@ -422,8 +425,15 @@ function PoptavkaDetail() {
     });
 
     if (insertError) {
-      // Trigger check_offers_per_request_limit může vystřelit při race
-      // (jiný fachman vloží nabídku mezi naším load → submit). Zpráva je česky z DB.
+      // Trigger (offer limit / validace) může vystřelit (race, neaktivní poptávka apod.).
+      // Pokud jsme předtím strhli kredit, vrátíme ho — jinak charge-before-insert = ztráta peněz.
+      if (charged) {
+        void fetch("/api/wallet/refund", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "offer_publish", relatedEntityId: params.id }),
+        });
+      }
       setError(insertError.message);
       setSubmitting(false);
       return;
