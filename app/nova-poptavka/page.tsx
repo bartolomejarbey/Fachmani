@@ -341,9 +341,13 @@ function NovaPoptavkaInner() {
     // Pokud free zákazník vyčerpal denní kvótu a nemá zaplacený extra slot,
     // pre-charge 50 Kč z peněženky — wallet API zavolá grant_extra_request RPC,
     // takže následný insert už trigger pustí.
+    // Během BĚŽÍCÍ promo kampaně NEÚČTUJEME extra slot — DB trigger jede týdenní promo
+    // větví (denní limit i daily_request_extras ignoruje), takže placený extra by byl
+    // strhnutý zbytečně (poptávka je v kampani zdarma, příp. při vyčerpání týdne stejně blokovaná).
     const needsPaidExtra =
       !!quota &&
       !quota.isPremium &&
+      !promo &&
       quota.dailyUsed >= quota.dailyLimit &&
       quota.dailyExtras === 0;
 
