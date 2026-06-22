@@ -45,8 +45,11 @@ export async function POST(request: Request) {
       return new NextResponse('Invalid request', { status: 400 })
     }
 
-    if (verified.status === 'PAID' && payment.status !== 'paid') {
-      await supabase
+    if (verified.status === 'PAID') {
+      // ATOMICKÝ CLAIM: jen JEDEN souběžný/retry webhook flipne pending→paid.
+      // Side-effecty navazujeme na výsledek claimu (ne na stale payment.status z ř.31),
+      // takže se připíšou právě jednou — ComGate webhook běžně retryuje.
+      const { data: claimed } = await supabase
         .from('payments')
         .update({
           status: 'paid',
@@ -54,47 +57,37 @@ export async function POST(request: Request) {
           comgate_trans_id: transId,
         })
         .eq('id', payment.id)
-        .eq('status', 'pending') // Only update if still pending (idempotency)
+        .eq('status', 'pending') // claim
+        .select('id')
+
+      if (!claimed || claimed.length === 0) {
+        // už zpracováno (retry/souběh) → potvrdit 200, žádné side-effecty (stop retry)
+        return new NextResponse('OK', { status: 200 })
+      }
 
       if (payment.type === 'topup') {
-        const { data: wallet } = await supabase
-          .from('wallets')
-          .select('*')
-          .eq('user_id', payment.user_id)
-          .single()
-
-        if (wallet) {
-          const newBalance = wallet.balance_kc + payment.amount_kc
-          await supabase
-            .from('wallets')
-            .update({
-              balance_kc: newBalance,
-              total_topped_up_kc: wallet.total_topped_up_kc + payment.amount_kc,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', wallet.id)
-
-          await supabase.from('wallet_transactions').insert({
-            wallet_id: wallet.id,
-            user_id: payment.user_id,
-            type: 'topup',
-            amount_kc: payment.amount_kc,
-            balance_after_kc: newBalance,
-            description: `Dobití peněženky - ${payment.amount_kc} Kč`,
-            payment_id: payment.id,
-          })
-        }
+        // Atomický credit (increment v DB) + get-or-create wallet + UNIQUE(payment_id) backstop.
+        await supabase.rpc('credit_wallet', {
+          p_user_id: payment.user_id,
+          p_amount: payment.amount_kc,
+          p_payment_id: payment.id,
+          p_description: `Dobití peněženky - ${payment.amount_kc} Kč`,
+        })
       } else if (payment.type === 'premium_initial') {
         const nextBilling = new Date()
         nextBilling.setMonth(nextBilling.getMonth() + 1)
 
-        await supabase.from('premium_subscriptions').insert({
-          user_id: payment.user_id,
-          status: 'active',
-          initial_payment_id: payment.id,
-          comgate_init_trans_id: transId,
-          next_billing_at: nextBilling.toISOString(),
-        })
+        // UNIQUE(initial_payment_id) backstop → duplicitní webhook nevytvoří druhé premium.
+        await supabase.from('premium_subscriptions').upsert(
+          {
+            user_id: payment.user_id,
+            status: 'active',
+            initial_payment_id: payment.id,
+            comgate_init_trans_id: transId,
+            next_billing_at: nextBilling.toISOString(),
+          },
+          { onConflict: 'initial_payment_id', ignoreDuplicates: true },
+        )
 
         await supabase
           .from('profiles')
