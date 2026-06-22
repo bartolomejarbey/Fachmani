@@ -218,17 +218,22 @@ export default function ChatHeads() {
       className="pointer-events-none fixed right-4 bottom-24 z-[55] flex flex-col items-end gap-3 sm:bottom-28 sm:right-6"
       aria-label="Aktivní konverzace"
     >
-      {/* Expanded panel — nad bubble */}
-      {expandedUserId && (
-        <div className="pointer-events-auto">
-          <ChatPanel
-            conversation={conversations.find((c) => c.userId === expandedUserId)!}
-            me={me}
-            onClose={() => setExpandedUserId(null)}
-            onSend={(text) => sendMessage(expandedUserId, text)}
-          />
-        </div>
-      )}
+      {/* Expanded panel — nad bubble. Guard: konverzace mohla být evikována (MAX_HEADS),
+          pak find vrací undefined → bez guardu TypeError v ChatPanel = pád celého app-shellu. */}
+      {(() => {
+        const conv = expandedUserId ? conversations.find((c) => c.userId === expandedUserId) : undefined;
+        if (!conv) return null;
+        return (
+          <div className="pointer-events-auto">
+            <ChatPanel
+              conversation={conv}
+              me={me}
+              onClose={() => setExpandedUserId(null)}
+              onSend={(text) => sendMessage(conv.userId, text)}
+            />
+          </div>
+        );
+      })()}
 
       {/* Stack bublin */}
       <div className="pointer-events-auto flex flex-col gap-2">

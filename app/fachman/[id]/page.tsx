@@ -133,7 +133,7 @@ async function fetchFachman(id: string): Promise<FachmanDetail | null> {
   const { data: profileData } = await supabase
     .from("profiles")
     .select(
-      "id, email, full_name, role, description, location, ico, avatar_url, is_verified, bank_verification_status, subscription_type, created_at, region:region_id(name_cs), district:district_id(name_cs)",
+      "id, full_name, role, description, location, ico, avatar_url, is_verified, bank_verification_status, subscription_type, created_at, region:region_id(name_cs), district:district_id(name_cs)",
     )
     .eq("id", realId)
     .maybeSingle();
@@ -205,7 +205,7 @@ async function fetchFachman(id: string): Promise<FachmanDetail | null> {
   return {
     id: profileData.id,
     full_name: profileData.full_name,
-    email: profileData.email,
+    email: null, // e-mail fachmana se veřejně nezobrazuje (PII); kontakt přes platformu
     phone: (phoneRes.data as string | null) ?? null,
     is_verified: profileData.is_verified,
     bank_verified: (profileData as { bank_verification_status?: string | null }).bank_verification_status === "verified",
