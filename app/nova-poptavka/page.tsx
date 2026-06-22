@@ -418,44 +418,29 @@ function NovaPoptavkaInner() {
       setQuota({ ...quota, dailyUsed: quota.dailyUsed + 1 });
     }
 
-    // Prioritní poptávka.
-    // Pravidlo: urgent_free_per_month/měsíc je zdarma. Dál urgentPrice (100 Kč) z peněženky.
+    // Prioritní poptávka — VEŠKERÁ logika (ověření vlastnictví, free měsíční kvóta,
+    // premium) je server-side v RPC mark_request_urgent. Klient is_urgent nenastavuje
+    // (trigger lock_request_privileged_columns). Při needsPayment (free user nad kvótou)
+    // se mimo iOS dobije přes peněženku — /api/wallet/spend nastaví is_urgent service-role.
     if (isUrgent) {
-      const urgentIsFree = !!quota && !quota.isPremium && quota.urgentUsed < quota.urgentFreeLimit;
-      if (urgentIsFree || (quota && quota.isPremium)) {
-        // Free urgent (free user v rámci měsíční kvóty NEBO premium/business)
-        await supabase
-          .from("requests")
-          .update({ is_urgent: true, urgent_paid_at: new Date().toISOString() })
-          .eq("id", data.id);
-        // Záznam pro free zákazníka, aby další urgent stál peníze
-        if (urgentIsFree) {
-          void supabase.rpc("record_urgent_request", { p_user_id: user.id });
-        }
-      } else if (isIOSNative()) {
-        // App Store 3.1.1: na iOS neúčtujeme prioritu z peněženky — poptávka zůstane
-        // standardní (bez priority), bez jakékoli zmínky o ceně.
-      } else {
-        try {
+      try {
+        const { data: u } = await supabase.rpc("mark_request_urgent", { p_request_id: data.id });
+        const needsPayment = !!u && (u as { needsPayment?: boolean }).needsPayment === true;
+        // App Store 3.1.1: na iOS žádné dobíjení z peněženky → placenou prioritu přeskočíme.
+        if (needsPayment && !isIOSNative()) {
           const spendRes = await fetch("/api/wallet/spend", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ type: "urgent_request", relatedEntityId: data.id }),
           });
-          if (spendRes.ok) {
-            await supabase
-              .from("requests")
-              .update({ is_urgent: true, urgent_paid_at: new Date().toISOString() })
-              .eq("id", data.id);
-            void supabase.rpc("record_urgent_request", { p_user_id: user.id });
-          } else if (spendRes.status === 402) {
+          if (spendRes.status === 402) {
             alert(
               `Poptávka byla uložena, ale neměli jste dost kreditu na prioritu (${urgentPrice} Kč). Dobijte si peněženku a poté kontaktujte podporu pro aktivaci priority.`,
             );
           }
-        } catch {
-          // Wallet API nedostupné — degraduje na standardní poptávku.
         }
+      } catch {
+        // RPC/wallet nedostupné — degraduje na standardní poptávku.
       }
     }
 

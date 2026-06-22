@@ -108,6 +108,22 @@ export async function POST(request: Request) {
       await admin.rpc('grant_extra_request', { p_user_id: user.id })
     }
 
+    // Prioritu nastavujeme SERVER-SIDE (service-role) — klient is_urgent nesmí (trigger
+    // lock_request_privileged_columns). Ověříme vlastnictví poptávky.
+    if (type === 'urgent_request' && relatedEntityId) {
+      const { data: req } = await admin
+        .from('requests')
+        .select('id, user_id')
+        .eq('id', relatedEntityId)
+        .single()
+      if (req && req.user_id === user.id) {
+        await admin
+          .from('requests')
+          .update({ is_urgent: true, urgent_paid_at: new Date().toISOString() })
+          .eq('id', relatedEntityId)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       newBalance: updated.balance_kc,
